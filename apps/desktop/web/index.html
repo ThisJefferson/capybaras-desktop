@@ -50,11 +50,14 @@
   </div>
 
   <div class="dev">
-    <strong>Test harness</strong> — no agent is wired up yet, so propose an action by hand.
+    <strong>Acceptance test</strong> — the incident this product exists to stop.
+    <div class="dev__buttons">
+      <button data-scenario="replit">▸ Run the Replit scenario — the acceptance test</button>
+    </div>
     <div class="dev__buttons">
       <button data-tool="fs.read">fs.read (silent)</button>
-      <button data-tool="fs.write">fs.write (confirm)</button>
-      <button data-tool="fs.delete" data-count="5000">fs.delete ×5000 (hard gate)</button>
+      <button data-tool="fs.write" data-target="notes.md">fs.write (confirm)</button>
+      <button data-tool="fs.delete" data-count="5000" data-target="the project folder">fs.delete ×5000 (hard gate)</button>
       <button data-tool="payment.send">payment.send (hard gate)</button>
     </div>
     <div class="log" id="log"></div>

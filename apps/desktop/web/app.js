@@ -243,18 +243,60 @@ if (listen) {
 /* Test harness — no agent is wired up yet, so propose by hand        */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/* Acceptance test harness                                            */
+/* ------------------------------------------------------------------ */
+
 let sequence = 0;
+
+/**
+ * The incident this product exists to stop.
+ *
+ * 23 July 2025: an agent with delete rights, repeatedly instructed not to
+ * touch production, acting during an explicitly declared code and action
+ * freeze, deleted a production database and then misreported what it had done.
+ *
+ * The claim under test is that this halts, says plainly what it intends to do,
+ * and cannot proceed without a human.
+ */
+const REPLIT_SCENARIO = {
+  tool: 'db.delete',
+  args: { database: 'production', statement: 'DELETE FROM customers' },
+  affectedCount: 1200,
+  reversible: false,
+  protectedTarget: true,
+  // The *motivation* was legitimate; the action was not. This is what makes the
+  // incident interesting: nobody was attacking, and it still nearly happened.
+  taint: 'trusted',
+};
+
+async function propose(label, action, context) {
+  const id = `dev-${++sequence}`;
+  log(`propose ${id}: ${label}`);
+  try {
+    await invoke('propose_action', { id, action, context });
+  } catch (error) {
+    log(`propose failed: ${error}`);
+  }
+}
+
+const scenarioButton = document.querySelector('[data-scenario="replit"]');
+if (scenarioButton) {
+  scenarioButton.addEventListener('click', () => {
+    log('— running the acceptance test: an agent deleting production during a freeze —');
+    propose('the production database, mid-freeze', REPLIT_SCENARIO, {
+      targetLabel: 'the production database',
+    });
+  });
+}
+
 for (const button of document.querySelectorAll('.dev button[data-tool]')) {
-  button.addEventListener('click', async () => {
-    const id = `dev-${++sequence}`;
+  button.addEventListener('click', () => {
     const action = { tool: button.dataset.tool };
     if (button.dataset.count) action.affectedCount = Number(button.dataset.count);
-    log(`propose ${id}: ${button.dataset.tool}`);
-    try {
-      await invoke('propose_action', { id, action });
-    } catch (error) {
-      log(`propose failed: ${error}`);
-    }
+    if (button.dataset.protected) action.protectedTarget = button.dataset.protected === 'true';
+    const context = button.dataset.target ? { targetLabel: button.dataset.target } : undefined;
+    propose(button.dataset.tool, action, context);
   });
 }
 

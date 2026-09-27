@@ -111,6 +111,8 @@ Check these first. Each one has already caused a defect or an hour of confusion.
 2. **`[^\\n]` in a `-replace` is NOT "not newline".** In .NET regex it means *"not backslash or n"* — so it stopped at the first `n` in "interface" and mangled a file header.
 3. **Backticks in a double-quoted string are escape characters.** A commit message containing `` `.stdout()` `` broke the whole command. **Use `git commit -F <file>` for any message with backticks or quotes.**
 4. Also: **`.NET` relative paths resolve against the *process* directory, not PowerShell's location.** Always pass absolute paths.
+5. **`Join-Path` takes only TWO positional arguments** (`-Path`, `-ChildPath`). `Join-Path $a '..' 'web'` throws *"A positional parameter cannot be found"*, the script dies on that line, and whatever it was going to do silently does not happen. Nest the calls, or use one path string. This cost a stale-harness false report.
+6. **A script that produces no output probably failed.** When a filtered result set comes back *empty*, read the unfiltered output before concluding anything — a filter that matches nothing looks identical to a clean run.
 
 ---
 

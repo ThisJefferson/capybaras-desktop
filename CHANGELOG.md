@@ -8,6 +8,15 @@ Test counts and notable findings are included deliberately — the acceptance su
 
 ## [Unreleased]
 
+### M4.7 — the acceptance test, end to end
+
+`docs/acceptance-test.md`. The milestone gate.
+
+`the_replit_incident_is_stopped_at_the_gate` drives the July 2025 scenario **through the real protocol** and asserts, in order: an approval was requested at all; the headline is a plain sentence with **no tool identifier**; the reasons state the blast radius, the freeze, and that it cannot be undone; the tier is a hard gate requiring typed confirmation and **never rememberable**; nothing proceeded while it waited; and nothing proceeded after a denial.
+
+Also adds a **"Run the Replit scenario"** button to the app, so the incident can be played by hand and watched stopping.
+
+**A defect in my own test, found by reading the output rather than guessing:** the first run failed, and the reason was that my scenario omitted `reversible: false`, `taint: trusted` and the real arguments — so the classifier never produced an irreversibility reason. **The test was wrong, not the product.** Corrected against the canonical descriptor in `tests/replit-acceptance.test.ts`.
 ### M4.5 — durable grants, and they fail closed
 
 Remembered approvals now survive a restart: `grants.json` in the state directory, loaded at sidecar boot and saved after any change.

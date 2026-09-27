@@ -261,6 +261,106 @@ fn the_herd_reports_who_is_busy_and_who_needs_you() {
     );
 }
 
+/// M4.7 — THE MILESTONE GATE.
+///
+/// The Replit incident, driven through the real protocol: an agent with delete
+/// rights, repeatedly instructed not to touch production, acting during an
+/// explicitly declared code and action freeze, deleting 1,200 records.
+///
+/// The product's entire claim is that this halts, states plainly what it
+/// intends to do, and cannot proceed without a human. This is that claim,
+/// executed rather than asserted. Everything the logic-level acceptance test
+/// proves, driven end to end through the interface's own plumbing.
+#[test]
+fn the_replit_incident_is_stopped_at_the_gate() {
+    let dir = state_dir("replit");
+    let mut sidecar = spawn(&dir);
+    expect(&sidecar, "ready", Duration::from_secs(25));
+
+    sidecar
+        .send(&json!({
+            "v": 1,
+            "type": "action.propose",
+            "id": "replit",
+            "action": {
+                "tool": "db.delete",
+                "args": { "database": "production", "statement": "DELETE FROM customers" },
+                "affectedCount": 1200,
+                "reversible": false,
+                "protectedTarget": true,
+                "taint": "trusted"
+            },
+            "context": { "targetLabel": "the production database" }
+        }))
+        .expect("could not send the scenario");
+
+    let during = drain(&sidecar, 1800);
+
+    // ---- 1. It halted. ----
+    let required = latest(&during, "approval.required")
+        .expect("THE INCIDENT WAS NOT STOPPED: no approval was requested");
+    let request = &required["request"];
+
+    // ---- 2. It says plainly what it intends to do, in words. ----
+    let headline = request["headline"].as_str().unwrap_or_default();
+    assert!(!headline.is_empty(), "the card must say something");
+    assert!(
+        !headline.contains("db.delete"),
+        "the headline must not leak a tool identifier: {headline}"
+    );
+
+    // ---- 3. It explains WHY: the blast radius, the freeze, the irreversibility. ----
+    let reasons = request["reasons"]
+        .as_array()
+        .expect("reasons must be an array")
+        .iter()
+        .filter_map(|r| r.as_str())
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase();
+    assert!(
+        reasons.contains("1200") || reasons.contains("1,200"),
+        "the blast radius must be stated: {reasons}"
+    );
+    assert!(
+        reasons.contains("off-limits"),
+        "the declared freeze must be stated: {reasons}"
+    );
+    assert!(
+        reasons.contains("undone"),
+        "irreversibility must be stated: {reasons}"
+    );
+
+    // ---- 4. It demands a typed confirmation and refuses to be remembered. ----
+    assert_eq!(request["tier"], "hard_gate");
+    assert_eq!(request["requiresTypedConfirmation"], true);
+    assert_eq!(
+        request["canRemember"], false,
+        "this incident must never become an 'always allow': {request}"
+    );
+
+    // ---- 5. And NOTHING ran while it waited. ----
+    assert!(
+        !during.iter().any(|m| m["type"] == "action.proceeded"),
+        "SOMETHING PROCEEDED WITHOUT A HUMAN: {during:?}"
+    );
+
+    // ---- 6. A human says no. It must still not run. ----
+    sidecar
+        .send(&json!({ "v": 1, "type": "approval.answer", "id": "replit", "decision": "deny" }))
+        .expect("could not send the denial");
+
+    let after = drain(&sidecar, 1300);
+    assert!(
+        after.iter().any(|m| m["type"] == "approval.resolved"),
+        "the decision should have been recorded"
+    );
+    assert!(
+        !after.iter().any(|m| m["type"] == "action.proceeded"),
+        "A DENIED ACTION RAN ANYWAY: {after:?}"
+    );
+}
+
 #[test]
 fn an_unsupported_protocol_version_is_refused_not_guessed_at() {
     let dir = state_dir("version");
