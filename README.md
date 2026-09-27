@@ -10,6 +10,38 @@
 
 ---
 
+## Why this exists
+
+This project starts from a specific, evidence-backed fear, and it is worth stating plainly rather than dressing it up.
+
+Research compiled for this project puts the probability of **serious harm to society from agentic AI within ten years at roughly 70%.** The companion estimate — that AI-orchestrated offensive operations become routine in the same window — is **~90%.**
+
+The evidence is in this repo, not asserted from nowhere: [`docs/research/agentic-harm.md`](./docs/research/agentic-harm.md) and [`docs/research/safe-agent-blueprint.md`](./docs/research/safe-agent-blueprint.md).
+
+**Neither figure is a prophecy, and neither depends on a rogue superintelligence.** The harms are ordinary, and most of them are already documented:
+
+- **Destructive autonomous action needs no attacker at all.** A coding agent deleted a production database during a declared code freeze, then misreported it. A CLI agent deleted a user's files. Another deleted production data. Each was a wrong assumption plus over-broad permissions plus no gate between deciding and doing.
+- **Prompt injection may be a permanent property of the architecture, not a defect that gets fixed** — the conclusion of a June 2026 analysis, not a pessimistic guess. Zero-click injection has already been demonstrated against production systems (EchoLeak, CVE-2025-32711), and malicious *tool descriptions* have been shown to function as obeyed instructions.
+- **AI-enabled offensive cyber is the genuinely new capability.** In November 2025 Anthropic published the first reported AI-orchestrated espionage campaign, in which Claude Code instances executed **80–90% of tactical operations autonomously**, at request rates no human team could sustain, across roughly 30 organisations.
+
+The window is measured in years, and the failures are mundane. That is the point.
+
+**Capybaras is an attempt to make that failure small, visible and reversible.**
+
+---
+
+## Who this is for, and the deal it makes
+
+Two commitments that are easy to state separately and hard to hold together:
+
+**It has to work for people who are not technical.** No API keys pasted into config files. No terminal. No vocabulary to learn before you can start. If using this safely requires understanding it, then safety stays a privilege for people who already had it.
+
+**Safety cannot mean useless.** A tool that interrupts constantly gets switched off, and a switched-off guard rail protects nobody. So the bar is not *"how often does it stop you?"* — it is **"does it stop you only when it matters, and is it genuinely worth using the rest of the time?"** An agent that is safe and useless has failed as surely as one that is useful and dangerous.
+
+**And the honest limit:** this cannot make an agent safe, because no agent that can act on your behalf is safe. What it can do is make failure small, visible, and reversible — and put a human in the loop at exactly the moments that matter.
+
+---
+
 ## The problem
 
 AI agents that can actually *do* things — edit your files, send your messages, run commands — are genuinely useful and genuinely dangerous. The failure mode is not science fiction. It is boring and it already happened:
@@ -54,6 +86,17 @@ You don't talk to a faceless process. A small herd of capybaras works for you, a
 
 Four states, always visible: **Dozing · Listening · Working · Needs you.**
 
+## Still worth using
+
+The failure mode of a safety product is that it becomes an obstacle people route around. So the guard rails are aimed narrowly on purpose:
+
+- **Reading is never interrupted.** Silent tier, always. Only actions that change something or leave the machine can pause.
+- **Nothing is blocked that you didn't ask for.** The gate pauses the agent, not you.
+- **Saying no is cheap.** "Hold on" is the default action, and stopping costs you nothing and is instantly reversible.
+- **The interruption is where the value is.** When it asks, it tells you what it is about to do, why it thinks that, and whether it can be undone — in plain words, with no tool identifiers.
+
+The goal is an agent you can leave running, not one you have to babysit.
+
 ## What this is NOT
 
 Being honest about limits is more useful than a feature list:
@@ -96,6 +139,9 @@ Capybaras also reuses OpenClaw's control interface and gateway. Those components
 | [`BUILD-PLAN.md`](./BUILD-PLAN.md) | Packaging, distribution, licensing, UI spec |
 | [`BRAND.md`](./BRAND.md) | The herd, the states, the visual language |
 | [`EXECUTION-PLAN.md`](./EXECUTION-PLAN.md) | Build order, workstreams, handoffs |
+| [`docs/research/agentic-harm.md`](./docs/research/agentic-harm.md) | The harm classes, and the ten-year estimates cited above |
+| [`docs/research/safe-agent-blueprint.md`](./docs/research/safe-agent-blueprint.md) | Can a safe agent exist at all, and where the parts already exist |
+| [`docs/plans/M4-visual-design.md`](./docs/plans/M4-visual-design.md) | How the interface becomes beautiful rather than merely functional |
 
 ## Sponsors
 
