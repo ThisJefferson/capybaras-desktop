@@ -14,15 +14,26 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # Pinned to a COMMIT SHA, not a tag. A tag is mutable: whoever controls the
+      # action's repository can repoint v4 at different code, and it would then run
+      # here with our credentials. The comment keeps it readable; the SHA keeps it
+      # fixed.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           cache: npm
 
       - name: Install dependencies
         run: npm ci
+
+      # Fails the build on a HIGH or CRITICAL advisory. Deliberately allowed to
+      # fail the run: an audit that cannot fail is decoration. If it starts
+      # blocking work on a transitive finding we cannot fix, that is a
+      # conversation to have explicitly rather than a reason to add `|| true`.
+      - name: Audit dependencies (npm)
+        run: npm audit --audit-level=high
 
       # Builds the generated assets FIRST, because everything downstream needs
       # them: the token stylesheet, and the sidecar bundle that the Rust tests
@@ -51,7 +62,7 @@ jobs:
       # the tokens resolved; only a person can say it looks right.
       - name: Keep the screenshot for review
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: interface-screenshot
           path: apps/desktop/web/card-verify.png

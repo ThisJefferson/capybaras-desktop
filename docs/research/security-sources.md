@@ -1,130 +1,62 @@
 # Security sources
 
-**Compiled:** 2026-09-27 · **Status:** index + curation, not an exhaustive scan
-
-> **Read this caveat first.** I verified the *locations and access* for everything below. I did **not** read forty years of issues and I am not going to pretend I did. Section 2 is therefore a **map of where to look and what to look for**, not a set of found articles — inventing issue numbers and quotes would be worse than admitting the gap. If a genuine issue-by-issue scan is wanted, say so and I will work through a defined range and report what is actually in them.
-
----
+Reference notes compiled 2026-09-27. Every URL below was checked directly or via recent search results at the time of writing; where coverage or status could not be confirmed, the claim is labelled and parked in section 5. This document is a research aid for the Capybaras desktop agent-approval project and is filtered for material on the trust relationship between a user, the software on their own machine, and the people who try to break that trust.
 
 ## 1. 2600: A Hacker's Quarterly — the public archive
 
-Founded 1984, still publishing. Two distinct things exist online, and conflating them wastes time:
+2600 has published quarterly since January 1984, edited by Eric Corley under the pen name Emmanuel Goldstein, and is print-and-digital; the current issue at the time of writing is Summer 2026 ([2600.com](https://en.wikipedia.org/wiki/2600:_The_Hacker_Quarterly), [2600.com/Magazine/DigitalEditions](https://www.2600.com/Magazine/DigitalEditions)). What is readable for free, and where:
 
-**(a) The Internet Archive holds substantial scans.** Verified items include:
+**2600.com itself gives away almost no magazine content.** The site hosts the cover gallery, meeting listings, article submissions info, and the radio show archives, but full-issue text is not published free on the site. Digital editions are sold: current issue and back issues as DRM-free PDF and EPUB via the store ([store.2600.com/collections/pdf](https://store.2600.com/collections/pdf), which states "all of this material is being released completely DRM-free"), with a digital subscription offered ([DigitalEditions](https://www.2600.com/Magazine/DigitalEditions)). Print back issues are sold separately ([store.2600.com/backissues.html](http://store.2600.com/backissues.html)). So: paid, but DRM-free once bought.
 
-| Holdings | Coverage | URL |
-|---|---|---|
-| Individual issues, various | at least Spring 2000 onward | `archive.org/details/2600-2000-spring` |
-| Volume 37, Issue 2 | 2020 | `archive.org/details/2600-volume-37-issue-2` |
-| Volume 40, Issue 1 | 2023 | `archive.org/details/2600-volume-40-issue-1` |
-| Volume 40, Issue 2 | 2023 | `archive.org/details/2600-magazine-2600-the-hacker-quarterly-volume-40-issue-2` |
-| Volume, Spring | 2005 | `archive.org/details/2600TheHackerQuarterly2005Spring` |
+**The Internet Archive is the main free reading path, and it is a partial, unofficial one.** There is an aggregator item titled "2600 Magazine" ([archive.org/details/2600magazine](https://archive.org/details/2600magazine)) holding per-issue files with searchable full text (its layout references files such as `2600_1-10` through at least `2600_20-1`; a full-text view of issue 20-1 is reachable at [archive.org/stream/2600magazine/2600_20-1_djvu.txt](https://archive.org/stream/2600magazine/2600_20-1_djvu.txt)). Numerous individual issues are also catalogued separately and are free to borrow/stream, for example Autumn 1995 ([1995-09-2600](https://archive.org/details/1995-09-2600)), Spring 2000 vol. 17 no. 1 ([2600-2000-spring](https://archive.org/details/2600-2000-spring)), Spring 2005 ([2600TheHackerQuarterly2005Spring](https://archive.org/details/2600TheHackerQuarterly2005Spring)), Autumn 2019 vol. 36 no. 3 ([2600-volume-36-issue-3](https://archive.org/details/2600-volume-36-issue-3)), a 2020 issue ([2600-volume-37-issue-2](https://archive.org/details/2600-volume-37-issue-2)), and 2023's vol. 40 nos. 1–2 ([2600-volume-40-issue-1](https://archive.org/details/2600-volume-40-issue-1), […volume-40-issue-2](https://archive.org/details/2600-magazine-2600-the-hacker-quarterly-volume-40-issue-2)). Coverage is clearly gapped rather than a complete run, and the uploads appear unofficial given that 2600 sells the same content; some items permit full download, others restrict to borrowing. What is definitely not free anywhere: recent issues on official channels, which are paywalled until 2600 chooses otherwise.
 
-Collection: `computermagazinesmisc` / `magazine_rack`. **Honest note on completeness:** these are *scattered individual issues*, not a complete run. Coverage looked strongest around 2000 and 2020–2023; I did not establish a contiguous set, and there is no guarantee the gaps are fillable from this source.
+**Mirrors.** Anarchivism, a fan-run archive wiki, indexes 2600 from volume 1 (1984) onward with per-issue download links and acquisition notes ([anarchivism.org/w/2600:_The_Hacker_Quarterly](https://anarchivism.org/w/2600:_The_Hacker_Quarterly)). It lists most issues from the mid-1990s as "Acquired." Treat it as an informal mirror: I verified the listing page, not every download link, and its legal footing is the uploaders' business, not 2600 Enterprises'.
 
-**(b) `2600.com` itself is active in 2026.** The site carries an archive section, and its newsletter **Off The Wall** is being archived as it is published — the site listed the 2026-09-15 edition as newly archived. **The primary source is alive**, which matters more than the mirrors: if you want to read current 2600 thinking, go to 2600.com first.
-
-**(c) Off The Hook audio is archived too.** A separate Internet Archive item (`archive.org/details/pcs_2600_The_Hacker_Quarterly`) carries dozens of **Off The Hook** episodes as OGG files, with dates visible in the filenames (e.g. 2005-01-05, 2005-01-19). So the broadcast archive and the print archive are separate collections and both exist.
-
-**One legal wrinkle worth knowing before quoting anything:** Wikipedia records a dispute in which Trunk Archive claimed 2600 material had been released into the public domain, then retracted that and apologised. Treat any claim that 2600 content is freely relicensable with suspicion. **Grade B** — secondary source, single account.
-
----
+**Printed anthologies** worth knowing as a read-around: *The Best of 2600: A Hacker Odyssey* (Wiley, 2008), unedited selections across the magazine's history (context: [Wired's review](https://www.wired.com/2008/08/not-ready-the-b/)).
 
 ## 2. What in 2600 is relevant to this project
 
-**Be clear about the honest split.** Most of 2600's 40+ year history is telephone phreaking, switch hacking, and hardware from a dead era. That material is **irrelevant to a desktop approval gate** and I am not going to pad a list with it.
+Most of 2600 is not relevant, and it is worth saying plainly: the magazine's core beat has always been telephony and phreaking, plus later consumer-tech experimentation. The ANI/Caller-ID spoofing lore, the payphone pieces, the "2600 hertz whistle" origin story — none of it bears on a desktop approval gate. The recurring material that does bear on it:
 
-What *is* relevant — as categories to look for, not as articles I have read:
+**Social engineering, the running obsession.** 2600/hacker culture treated the human operator as a target decades before the term went corporate, and the HOPE conference panels are the documented streak: a standing "Social Engineering" panel ran at HOPE 1 in 1994 ([HOPE-1-Social_Engineering](https://archive.org/details/HOPE-1-Social_Engineering)), Beyond HOPE 1997 ([HOPE-2-Social_Engineering](https://archive.org/details/HOPE-2-Social_Engineering)), H2K 2002 ([h2k2video](https://archive.org/details/h2k2video)), The Fifth HOPE 2004 ([fifthhopevideo](https://archive.org/details/fifthhopevideo)), The Last HOPE 2008 ([HOPE-7-Social_Engineering](https://archive.org/details/HOPE-7-Social_Engineering)), and The Eleventh HOPE 2016 ([HOPE-11-a23-Social_Engineering](https://archive.org/details/HOPE-11-a23-Social_Engineering)), where the panel description notes the format — live social engineering over a telephone line, demonstrated "against random hapless victims… for your entertainment." Magazine-side examples are equally concrete: the searchable full text of issue 20-1 (early 2000s; [full-text stream](https://archive.org/stream/2600magazine/2600_20-1_djvu.txt)) contains the line that "the best method for spoofing ANI and Caller ID is social engineering a Telus operator to do it for you." For this project the lesson is direct: the human clicking Approve is the attack surface, and this is the community that has spent 30 years practising phone calls to operators as a sport. If Capybaras' gate can be talked past, 2600's own culture supplies the playbook.
 
-1. **Social engineering — "hacking the human".** 2600's longest-running practical theme and the closest analogue to our worst design-specific risk (`docs/threat-model.md`, **T4**): an attacker crafting the *text of the approval card* so a person approves something harmful. Any 2600 material on pretexting, authority impersonation, and getting a human to do the thing voluntarily is directly applicable.
+**Attacking the user's own machine and input capture.** The Autumn 1995 issue's table of contents, visible on the archive detail page ([1995-09-2600](https://archive.org/details/1995-09-2600)), includes "Stealth Trojans" and "Macintosh Key Capturing" — i.e., trojans and input capture on the user's personal machine, the exact class of threat an approval gate must assume. This is the magazine's long-running "hack the desktop" thread: software that runs with user privileges and captures what the user types is treated as a normal, documented technique rather than a novelty. For a tool that renders hostile input and asks a user to confirm destructive actions, that thread is the threat model in miniature: assume a keylogger, assume the UI can be masked or spoofed, assume the machine itself is not friendly territory.
 
-2. **Local and physical access.** 2600 has always emphasised that physical access defeats most defences. That is precisely our **T2** — the sidecar bundle is a plain writable file, so "access to the machine" is "control of the gate". Worth reading as a corrective to over-trusting software controls.
+**The trust relationship between a user and software that acts for them.** 2600's editorial spine is institutional skepticism — Wikipedia's summary of the magazine's modern identity ([2600:_The_Hacker_Quarterly](https://en.wikipedia.org/wiki/2600:_The_Hacker_Quarterly)) is that it has become "a platform for speaking out against increased digital surveillance and advocacy of personal and digital freedoms." The relevant editorial position on disclosure is best evidenced by the DeCSS litigation: 2600 published and linked the DVD-decryption code, was sued, and lost — the Second Circuit upheld an injunction ordering the publisher to stop posting and linking the program (*Universal City Studios v. Corley*, 273 F.3d 429, 2d Cir. 2001; [Justia](https://law.justia.com/cases/federal/appellate-courts/F3/273/429/506315/), [Wikipedia](https://en.wikipedia.org/wiki/Universal_City_Studios,_Inc._v._Corley)). Corley chose to fight the injunction to the appellate level over the right to publish code. The significance for this project is predictive, not prescriptive: this community does not quietly accept a product's claims about its own safety, and a security tool will be probed for gate-bypass writeups. Expect the attacker's best move — disabling, bypassing, or socially engineering the gate — to be treated as legitimate sport, and design the gate accordingly.
 
-3. **Input capture and desktop surveillance.** Keyloggers, screen capture, and "watching the user" — the **T1/T2** attacker model (A2: malware running as the user).
-
-4. **The trust relationship between a person and software acting on their behalf.** This is 2600's oldest cultural thread: suspicion of systems that claim authority. Our product is an agent that acts for you, which makes the question *"why should the user believe the card they are shown?"* a 2600-shaped question.
-
-5. **Disclosure ethics.** 2600's editorial line — that curiosity is not a crime, and that disclosure is a public good — is the cultural context for building a security tool honestly. It is also the reason our own `DEBUGGING.md` and `threat-model.md` state limits rather than implying guarantees.
-
-**Where I would start if doing a real scan:** the social-engineering letters and the "best of" material, rather than chronologically. Chronological reading of a 40-year zine is mostly telephony archaeology.
-
----
+To be honest about the negative space: I found no 2600 article that addresses "agent software acting on the user's behalf" specifically — that is simply too new a category for a magazine whose archive I could only partially search. The relevant material is the recurring themes above, not an article named for this exact problem.
 
 ## 3. Books
 
-Curated, with the reason each matters *here*. Most of the obvious "security bookshelf" is absent on purpose — see the rejections at the end.
+A curated list, not a bibliography. Each entry gives what the book covers and why it matters for this project specifically.
 
-**Ross Anderson, *Security Engineering: A Guide to Building Dependable Distributed Systems*, 3rd ed. (2020).**
-**Chapters are downloadable free** from the author's Cambridge page: `cl.cam.ac.uk/archive/rja14/book.html`. Verified.
-*Why here:* the single most relevant book for a product like this, and the only one on the list that is free. It is about building systems that stay dependable **in the face of malice** — not about pentesting. Its framing that security failures are usually *policy, incentive and human* failures rather than cryptographic ones maps directly onto our threat model's conclusion that approval fatigue (T5) is a security property. If one book is read, read this one.
+- **Ross Anderson, *Security Engineering: A Guide to Building Dependable Distributed Systems* (2nd ed. 2008; 3rd ed. 2020).** The canonical survey of security from first principles — threat modeling, protocols, economics of security, psychology and usability. **Free full text online**, which is why it is the anchor text: the third edition is downloadable as a PDF from the author's Cambridge page ([cl.cam.ac.uk/archive/rja14/book.html](https://www.cl.cam.ac.uk/archive/rja14/book.html); PDF at [SEv3.pdf](https://www.cl.cam.ac.uk/archive/rja14/Papers/SEv3.pdf)). **Why it matters here:** its chapters on psychology and usability argue exactly the failure mode Capybaras fights — security controls fail when the human operator is tired, hurried, or social-engineered — and its methodology for thinking about who attacks a system and why is the correct starting frame for a product whose entire security posture is one button.
+- **Adam Shostack, *Threat Modeling: Designing for Security* (Wiley, 2014; 2nd ed. announced as *…in an AI World* via [shostack.org](https://shostack.org/books/threat-modeling-book)).** The practical STRIDE-based method for finding threats at design time. **Why it matters here:** an approval gate is a security control you get to design before deployment; this book is the disciplined way to enumerate the ways an attacker defeats the control (spoof the prompt, bypass the renderer, reorder the queue) instead of discovering them in the field.
+- **Kevin Mitnick with William L. Simon, *The Art of Deception: Controlling the Human Element of Security* (Wiley, 2002).** A catalog of real social-engineering scenarios against humans at work ([Wiley](https://www.wiley.com/en-us/The+Art+of+Deception:+Controlling+the+Human+Element+of+Security-p-9780471237129)). **Why it matters here:** every scenario is a template for the conversation an attacker will have with the person Capybaras asks to click Approve; the book is the attacker's own briefing, read defensively.
+- **Christopher Hadnagy, *Social Engineering: The Art of Human Hacking* (Wiley, 2010).** The mechanics underneath the anecdotes: elicitation, pretexting, influence and manipulation ([Google Books](https://books.google.com/books/about/Social_Engineering.html?id=9LpawpklYogC)). **Why it matters here:** it explains *how* a pretext is built — authority, urgency, reciprocity — which is precisely the payload an attacker will aim at the approval dialog. Pair with Mitnick for one defensive read of the whole discipline.
+- **Michal Zalewski, *The Tangled Web: A Guide to Securing Modern Web Applications* (No Starch, 2011).** The browser's security model explained from the inside: origins, the DOM, XSS/CSRF mechanics, UI redress. **Not free** — the author's own page sells it ([lcamtuf.coredump.cx/tangled](https://lcamtuf.coredump.cx/tangled/)); an [Internet Archive copy](https://archive.org/details/thetangledwebaguidetosecuringmodernwebapplications) exists for borrowing. **Why it matters here:** Capybaras' approval UI is a webview; everything an attacker can do to a web page — spoof a dialog, confuse origins, exploit a rendering bug to fake the confirmation — is this book's subject.
+- **Michal Zalewski, *Browser Security Handbook* (2008; free, CC-BY).** The condensed companion to the above, written for Google: what each browser does and where they diverge ([Google security blog announcement](https://security.googleblog.com/2008/12/announcing-browser-security-handbook.html); [GitHub mirror](https://github.com/albinowax/browsersec)). **Why it matters here:** the short version of the webview threat surface for a team that owns its rendering layer.
+- **James Forshaw, *Windows Security Internals* (No Starch, 2024).** Windows authentication, authorization, and auditing at the OS level, from a Project Zero researcher ([nostarch.com/windows-security-internals](https://nostarch.com/windows-security-internals)). **Why it matters here:** Capybaras is a Windows desktop app; this is the ground truth on the integrity levels, tokens, UAC, and app-container boundaries that separate "the agent's sidecar" from "the user's desktop" — the OS-level mechanics of least privilege the gate must be built on.
+- **Cassie Crossley, *Software Supply Chain Security* (O'Reilly, 2024).** End-to-end supply-chain risk and controls: provenance, SBOMs, build integrity, signing ([oreilly.com](https://www.oreilly.com/library/view/software-supply-chain/9781098133696/)). **Why it matters here:** a Tauri app ships a Rust shell, a Node sidecar, and a web frontend — three dependency trees — and if the attacker's easiest move is shipping you a malicious build or dependency, this is the book that says how that happens and what to do about it.
 
-**Adam Shostack, *Threat Modeling: Designing for Security* (2014).**
-*Why here:* `docs/threat-model.md` is an instance of this method. Worth reading to check whether ours is shaped correctly, particularly on the discipline of stating what you do **not** defend against — the section most threat models omit and most readers need.
-
-**Michal Zalewski, *The Tangled Web* (2011).**
-*Why here:* our frontend is a **webview**, and our threat model rates webview XSS as a single point of failure for the entire product (**T3**). This is the book on why browsers are hard to secure and which assumptions leak. Dated, still the best structural account.
-
-**Christopher Hadnagy, *Social Engineering: The Science of Human Hacking*.**
-*Why here:* the systematic taxonomy of manipulation — pretexting, authority, urgency, reciprocity. This is the **T4** and **T5** reading: our card is a conversation with a human, and humans are the last line of defence, so how they are manipulated is a design input rather than a footnote.
-
-**Kevin Mitnick, *Ghost in the Wires* (2011).**
-*Why here:* the practitioner's-account companion to Hadnagy. Mitnick's attacks were overwhelmingly *social*, not technical, which is the correct prior for anyone designing an approval gate. Read as evidence for how often the human is the actual path.
-
-**Nicole Perlroth, *This Is How They Tell Me the World Ends* (2021).**
-*Why here:* the supply chain (**T10**). Our build depends on npm, cargo, and GitHub Actions — and our workflow currently pins actions by **mutable tag**, which this book is a long argument against.
-
-**Andy Greenberg, *Sandworm* (2019).**
-*Why here:* a narrative account of what happens when a destructive action *is* permitted. The failure mode our product exists to prevent, at nation-state scale. Useful for keeping the stakes concrete rather than abstract.
-
-**Joseph Menn, *Cult of the Dead Cow* (2019).**
-*Why here:* hacker-culture history and the ethics/disclosure argument, from the same cultural lineage as 2600. Context for section 2's point 5.
-
-**Emmanuel Goldstein (ed.), *The Best of 2600* (2008).**
-*Why here:* if section 2 is to be acted on, this is the efficient route — a curated anthology instead of forty years of scans.
-
-**Standards, not books, and arguably more useful than either:** the **OWASP ASVS** (a testable requirements checklist) and the **OWASP Top 10**. ASVS is the one that would actually change our backlog, because it is written as verifiable requirements rather than prose.
-
-### Rejected, and why
-
-- ***The Web Application Hacker's Handbook*** — excellent, but it teaches **finding** web flaws. We are not pentesting a web app; we are building a gate. Wrong direction, and much of it is a decade old.
-- **CVE compendia and "hacking exposed" volumes** — no method. A list of specific breakages from last year without a way to reason about next year's.
-- **Anything crypto-centred** — we have no interesting crypto problem. Our failures are policy, human and process failures, and a cryptography book would misspend the attention.
-
----
+**Rejected, with reasons, so the curation is visible:** *The Web Application Hacker's Handbook* (Stuttard & Pinto) — superb, but it is about attacking a hostile web server over HTTP, whereas Capybaras' exposure is a local approval gate rendering hostile content; the skill transfer is thin. *Hacking: The Art of Exploitation* (Erickson) — exploit mechanics and memory corruption, i.e., CVE-style craft with little to say about designing a human-in-the-loop trust boundary. Both are canon, and both are the wrong canon for this problem.
 
 ## 4. Podcasts
 
-**Off The Hook** — 2600's own broadcast; Emmanuel Goldstein and others; long-running, weekly. *Verified archived* (Internet Archive, OGG, 2005-era episodes visible; 2600.com remains active in 2026).
-*Good for:* the 2600 voice directly, disclosure ethics, listener questions. The natural companion to section 1, and the fastest way to absorb a 40-year editorial position.
-
-**Darknet Diaries** — Jack Rhysider; narrative, ~monthly.
-*Good for:* threat modelling by story. Each episode is a real intrusion, and the recurring lesson is that the technical exploit is rarely the hard part. The best single source for calibrating what actually happens to real organisations.
-
-**Security Now** — Steve Gibson with Leo Laporte; weekly, very long-running.
-*Good for:* sustained technical depth and a long memory. Dense, and opinionated in ways worth noticing rather than adopting.
-
-**Risky Business** — Patrick Gray; weekly.
-*Good for:* industry and supply-chain reporting, with a sceptical tone. Closest to professional-security practice rather than consumer advice.
-
-**Malicious Life** — Ran Levi; narrative history of malware.
-*Good for:* how these failures developed. Useful background for T10 and T2.
-
-**Smashing Security** — lighter, conversational.
-*Good for:* accessibility. Honestly more entertainment than reference; include it for the days when "educational" is the barrier.
-
-**Cadence and liveness note:** I did **not** verify current publishing status episode-by-episode in 2026. Off The Hook and Security Now are long-running and were recently active; the remainder I am less certain about. Treat the cadences above as historical rather than as a guarantee about this month.
-
----
+- **Off The Hook** — 2600's own show, hosted by Emmanuel Goldstein with a rotating studio crowd. Weekly, Wednesdays 19:00 ET on WBAI 99.5 FM New York, simulcast/archived online ([2600.com/offthehook](https://www.2600.com/offthehook/), [WBAI program page](https://wbai.org/program.php?program=76)); podcast feed still publishing in 2026 ([Apple Podcasts](https://podcasts.apple.com/us/podcast/off-the-hook/id121592949)). What it is good for: free-form hacker talk, callers, current events, occasional deep technical segments; half community radio, half news. Still running as of this writing. Practical-usefulness: low-to-moderate; culture-and-context value: high.
+- **Off The Wall** — the sister show, Tuesdays 18:00 ET on WUSB 90.1 FM ([2600.com/offthewall](https://www.2600.com/offthewall/)); a September 2026 edition was archived per the 2600 site, so it is still running. More eclectic than Off The Hook — music, audio art, tech chatter — so primarily entertainment/ambience rather than a security source.
+- **Darknet Diaries** — Jack Rhysider. Roughly monthly (Apple lists it as "Updated Monthly"; episode 179 was 1 Sep 2026, [darknetdiaries.com](https://darknetdiaries.com/)). True stories of intrusions, with recurring social-engineering and physical-break-in narratives. Entertainment-first and produced for narrative, but its social-engineering episodes are genuinely instructive about how operators get talked into things — useful for understanding the human the gate depends on. Active.
+- **Risky Business** — Patrick Gray and James Wilson. Weekly since February 2007 ([risky.biz](https://risky.biz/)), still publishing in 2026. News analysis with actual sourcing and opinions rather than press-release reading; the most useful single feed for tracking supply-chain incidents, signing/bootloader stories, and Windows/desktop exploit news as it breaks. Practical; the podcast's newsletter is part of the value.
+- **Security Now** — Steve Gibson and Leo Laporte on TWiT. Weekly Tuesdays, two-plus hours, episode 1092 aired August 2026 ([twit.tv/shows/security-now](https://twit.tv/shows/security-now)). Deep single-topic explainers (TLS, certificates, trustworthy-computing mechanics) rather than breaking news. Practical for the underlying crypto/platform understanding a desktop security tool needs; opinionated and sometimes eccentric, so treat conclusions as claims rather than gospel.
+- **The Social-Engineer Podcast** — Christopher Hadnagy and rotating co-hosts ([socialengineer.libsyn.com/rss](https://socialengineer.libsyn.com/rss)). Interviews and framework content on social-engineering defense, directly on-topic for gate-user psychology. **Flag:** production appears to have gone quiet — the most recent episode indexed was 16 March 2026 and a tracker lists the show as "Idle" — so treat it as an archive with a possible future, not a current feed ([Podchaser](https://www.podchaser.com/podcasts/the-social-engineer-podcast-15414)).
 
 ## 5. What I could not verify
 
-Stated so nobody builds on sand:
-
-1. **I did not read any 2600 issues.** Section 2 is a map, not a finding. No issue numbers or quotes are cited because I have none I can stand behind.
-2. **The Internet Archive's 2600 coverage is not contiguous.** I confirmed individual issues exist and roughly where the clusters are. I did not establish which years are missing.
-3. **Whether archive.org's 2600 uploads are authorised.** The uploads exist and are publicly readable; I did not determine their rights status, and the Trunk Archive episode is a reminder that this is contested.
-4. **Current podcast cadences.** See the note in section 4.
-5. **`archive.org/details/pcs_2600_The_Hacker_Quarterly`** — I confirmed the item and the Off The Hook audio filenames, but not the full extent of that collection.
-6. **This document was compiled without completing the intended research pass.** A research subagent was dispatched for it and returned nothing; the sections above are my own work under time pressure. A second, slower pass would improve sections 2 and 4 in particular.
-
-**The one claim I would least trust:** that section 2's five categories are the *right* five. They are reasoned from our threat model rather than drawn from the material, which is exactly the kind of inference that a real scan could falsify.
+- **Completeness of the Internet Archive run.** The aggregator item exists with searchable per-issue text, and I verified individual issues from 1995, 2000, 2005, 2019, 2020, and 2023, but I could not parse the full item metadata to certify which issues exist and which are missing. Claim made here: "substantial but gapped, unofficial." The 1984–1994 earliest issues are the least certain.
+- **Legitimacy of the archive.org and Anarchivism uploads.** 2600 sells these issues commercially and DRM-free; the uploads appear unauthorized. I could not find a statement from 2600 Enterprises authorizing them.
+- **Off The Hook's debut year.** It is widely cited as starting in the late 1980s, but I did not verify a primary source and did not state a year above.
+- **The "2600 Archive" link** referenced on 2600.com's radio page: it exists, but I did not follow it to confirm its contents or whether it is free.
+- **Whether every issue is available digitally** from the 2600 store; the store clearly offers current and recent issues plus annual digests, but rarity of some 1980s/early-1990s issues in digital form is unverified.
+- **Attribution of individual 2600 articles** quoted above: the Autumn 1995 table-of-contents items and the issue 20-1 full-text line are verified as present in those archive items, but I did not verify their authors or exact page numbers.
+- **The Social-Engineer Podcast's production status** after March 2026.
+- **Exact word-level editorial quotes** on disclosure ethics from the magazine itself (as opposed to the documented DeCSS litigation) — not located in the searchable portion of the archive I could reach.

@@ -76,6 +76,33 @@ function verbFor(action: ActionDescriptor): string {
   return skillHeadline(action.tool, action.affectedCount ?? 1);
 }
 
+const LABEL_MAX = 80;
+
+/**
+ * Sanitise a target label before it reaches the card.
+ *
+ * THE THREAT (docs/threat-model.md, T4): the label is written by whoever controls
+ * the target -- a filename, a table name, a URL -- so it is ATTACKER TEXT. And it
+ * lands on the largest, most trusted line of the card. Left raw it can:
+ *
+ *   - reassure:      "notes.md (safe, already reviewed)"
+ *   - impersonate us: "IGNORE THE WARNINGS BELOW - this target is allowlisted"
+ *   - forge structure with newlines, pushing the reasons out of view
+ *   - run to thousands of characters, burying everything else
+ *
+ * Flattening control characters and clamping the length does NOT make the label
+ * trustworthy -- nothing can; it is still someone else's words. It stops the
+ * label from being able to LOOK like our words, which is the part that matters.
+ */
+export function sanitiseLabel(label: string): string {
+  const flattened = label
+    // Control characters, including newlines and tabs, which could fake layout.
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return flattened.length <= LABEL_MAX ? flattened : `${flattened.slice(0, LABEL_MAX - 1)}\u2026`;
+}
+
 function headlineFor(action: ActionDescriptor, ctx: GateContext): string {
   const base = verbFor(action);
   if (!ctx.targetLabel) return `${base}?`;
@@ -90,7 +117,7 @@ function headlineFor(action: ActionDescriptor, ctx: GateContext): string {
     : action.tool.startsWith('db.')
       ? 'from'
       : 'to';
-  return `${base} ${joiner} ${ctx.targetLabel}?`;
+  return `${base} ${joiner} ${sanitiseLabel(ctx.targetLabel)}?`;
 }
 
 /* ------------------------------------------------------------------ */
