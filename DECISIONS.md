@@ -314,6 +314,28 @@ Grants now survive a restart. `grants.json` lives beside the other state in `<st
 **Verified end to end, not just in unit tests:** a Rust integration test runs the sidecar **twice against the same state directory**. Session one approves a file write and asks for it to be remembered; session two is a fresh process and proceeds **without asking**, citing the earlier approval. The same test then confirms a hard gate still asks — with a grants file sitting on disk.
 
 **Still open from D15:** whether the state directory survives MSIX virtualisation. That question is unchanged, and this file now sits wherever the rest of the state does.
+---
+
+## D20 — Skills are declared, and a skill that forgets to declare itself will not build
+**2026-09-27**
+
+A skill suite is a **tool surface**, and the tool surface is the security boundary. Adding skills is therefore a safety-relevant act, not a feature toggle. `docs/skills.md` works this out in full; the decisions are these.
+
+1. **One declarative manifest is the source of truth.** Today the tool knowledge is scattered across a `VERBS` table (headlines), a `TOOL_OWNER` table (the herd) and the classifier (tiers). Three lists that can disagree is three chances to be quietly wrong. They become one registry that classification reads.
+
+2. **A missing field fails the build.** Not "assume safe". This project has already been bitten once by a lookup that returned nothing and was silently skipped — it produced a card with no styling that looked *almost* right. The same failure in a skill table would produce a tool that is almost safe. The failure mode is identical, so the mitigation is identical: refuse to build.
+
+3. **The declared tier is a FLOOR, never a ceiling.** Escalation on reversibility, blast radius, taint and protected targets still applies. A manifest cannot make something quieter than the classifier would.
+
+4. **Unknown tool still fails to `confirm`.** The permissive fallback is the one thing that must never exist, or a manifest that fails to load becomes an open door.
+
+5. **We will NOT implement manipulation libraries in the safety core.** The gate classifies and interrupts; it does not parse PDFs. Every line of parsing code in the trusted path is attack surface inside the thing that is supposed to be trustworthy, and PDF parsers are a historically reliable source of memory-safety bugs.
+
+6. **Some skills need post-conditions, not just tiers.** Redaction is the example: applying a black rectangle leaves the text intact underneath and extractable, and the document *looks* redacted. So a redaction skill must verify the content is gone by re-extraction and say so in the receipt. "Redacted 4 passages" is not enough; "removed the underlying text, verified" is.
+
+7. **The combination matters more than any single skill.** Read untrusted content + hold file access + send externally is an exfiltration path; any two are survivable. `readsUntrusted` is declared per skill and must taint the process. **How far to take taint tracking across a session is NOT YET DECIDED** — flagged rather than guessed, because a weak mechanism in a load-bearing place is worse than an acknowledged gap.
+
+**First suite: the PDF family** (`docs/skills.md` §3), classified read-silent, create-notify, mutate-confirm, and attach/decrypt at hard gate.
 ## Standing constraints
 
 - **Never restart the Gateway** — owner-only.

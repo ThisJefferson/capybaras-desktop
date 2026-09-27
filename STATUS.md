@@ -7,7 +7,7 @@
 **Current phase:** **M4 — the approval interface.** M4.1–M4.7 built; manual walkthrough pending → **next: M5, onboarding**
 **Next milestone:** M4 complete — the Replit gate run through a real UI by a real person
 **Spec:** `docs/protocol.md` · **Plan:** `docs/plans/next-steps.md` · **Design:** `docs/plans/M4-visual-design.md`
-**Recently decided:** D14 (no Bayesian maths in the safety path) · D15 (state directory) · D16 (supervision verified)
+**Recently decided:** D15 (state directory) · D18 (one character, six names) · D19 (grants fail closed) · D20 (skills must declare themselves)
 **Repo:** https://github.com/ThisJefferson/capybaras-desktop (public) · releases cut per milestone
 
 ---
