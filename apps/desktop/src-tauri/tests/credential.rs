@@ -25,6 +25,7 @@
 //! by the compiler. See TOOLS.md.
 
 use capybaras_shell::credential;
+use serial_test::serial;
 
 /// Everything this suite stores lives under this prefix, so a sweep can identify it
 /// with confidence and can never match the real credential's own name.
@@ -103,6 +104,7 @@ fn store_or_skip() -> bool {
 }
 
 #[test]
+#[serial]
 fn a_credential_round_trips_through_the_os_store() {
     if !store_or_skip() {
         return;
@@ -125,6 +127,7 @@ fn a_credential_round_trips_through_the_os_store() {
 }
 
 #[test]
+#[serial]
 fn saving_again_replaces_rather_than_duplicating() {
     if !store_or_skip() {
         return;
@@ -142,6 +145,7 @@ fn saving_again_replaces_rather_than_duplicating() {
 }
 
 #[test]
+#[serial]
 fn a_missing_credential_is_not_an_error() {
     if !store_or_skip() {
         return;
@@ -154,6 +158,7 @@ fn a_missing_credential_is_not_an_error() {
 }
 
 #[test]
+#[serial]
 fn deleting_something_absent_is_not_an_error() {
     if !store_or_skip() {
         return;
@@ -165,6 +170,7 @@ fn deleting_something_absent_is_not_an_error() {
 }
 
 #[test]
+#[serial]
 fn an_empty_secret_is_refused() {
     if !store_or_skip() {
         return;
@@ -186,6 +192,7 @@ fn an_empty_secret_is_refused() {
 }
 
 #[test]
+#[serial]
 fn different_names_hold_different_secrets() {
     if !store_or_skip() {
         return;
@@ -202,6 +209,7 @@ fn different_names_hold_different_secrets() {
 }
 
 #[test]
+#[serial]
 fn a_temp_credential_is_removed_when_it_goes_out_of_scope() {
     if !store_or_skip() {
         return;
@@ -225,6 +233,7 @@ fn a_temp_credential_is_removed_when_it_goes_out_of_scope() {
 }
 
 #[test]
+#[serial]
 fn test_credential_names_are_namespaced_and_unique() {
     // Namespaced, so a sweep can identify what belongs to the tests with confidence.
     // Unique, so a fixed name can never be a shared slot.
@@ -241,6 +250,7 @@ fn test_credential_names_are_namespaced_and_unique() {
 }
 
 #[test]
+#[serial]
 fn the_store_reports_whether_it_is_usable() {
     // Whatever it returns, it must not panic or hang -- the app calls this before
     // offering a Connect button, and a crash there would be a startup failure.

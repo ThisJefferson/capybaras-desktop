@@ -16,6 +16,12 @@ sha2 = "0.10"
 hex = "0.4"
 tauri-build = { version = "2.7.0" }
 
+[dev-dependencies]
+# Serialises tests that touch one machine-wide resource. MEASURED, not assumed: the
+# credential tests leaked entries on every parallel run and none when run
+# single-threaded. See the note in tests/credential.rs.
+serial_test = "3"
+
 [dependencies]
 sha2 = "0.10"
 hex = "0.4"
