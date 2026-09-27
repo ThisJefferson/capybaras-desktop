@@ -50,55 +50,21 @@ export const HERD: readonly AgentDescriptor[] = Object.freeze([
   { id: 'duda', label: 'Duda', job: 'tidies and organises', accent: 'sand' },
 ]);
 
+import { ownerFor } from '../../../../src/skills/registry';
+
 /**
- * Which specialist owns which tool.
+ * Who owns this tool.
  *
- * This is a judgement call, not a derivation, and it is written down here so it
- * can be argued with rather than discovered. Destructive and money-touching
- * tools go to Zeca, the sceptic — which keeps the one who raises the sign
- * aligned with the things most worth stopping.
+ * The mapping used to live here as a TOOL_OWNER record. It is now the skill
+ * registry (src/skills/registry.ts), so ownership, the plain-language headline
+ * and the tier floor all come from one list rather than three that could
+ * silently disagree (D20).
+ *
+ * Unknown tools fall to Duda, who tidies up -- the same fail-safe direction as
+ * the gate's "unknown means ask".
  */
-const TOOL_OWNER: Readonly<Record<string, string>> = Object.freeze({
-  // Tuca speaks for the herd, so anything leaving the machine is Tuca's.
-  'message.send': 'tuca',
-  'mail.send': 'tuca',
-  'net.post': 'tuca',
-  'net.put': 'tuca',
-  'net.delete': 'tuca',
-
-  // Bia looks things up.
-  'web.fetch': 'bia',
-  'web.search': 'bia',
-  'fs.read': 'bia',
-  'fs.list': 'bia',
-
-  // Zeca checks the work, and owns the irreversible.
-  'fs.delete': 'zeca',
-  'db.delete': 'zeca',
-  'db.update': 'zeca',
-  spend: 'zeca',
-  'payment.send': 'zeca',
-  'credentials.read': 'zeca',
-  'credentials.write': 'zeca',
-
-  // Nina writes and edits.
-  'fs.write': 'nina',
-  'fs.edit': 'nina',
-  'fs.create': 'nina',
-  'fs.mkdir': 'nina',
-  'fs.move': 'nina',
-  'fs.rename': 'nina',
-  'fs.truncate': 'nina',
-
-  // Joca handles the machine.
-  exec: 'joca',
-  'config.security': 'joca',
-  'agent.selfModify': 'joca',
-});
-
-/** Who owns this tool. Unknown tools fall to Duda, who tidies up. */
 export function agentForTool(tool: string): string {
-  return TOOL_OWNER[tool] ?? 'duda';
+  return ownerFor(tool) ?? 'duda';
 }
 
 /** How many agents may look busy at once. BRAND.md rule 2. */

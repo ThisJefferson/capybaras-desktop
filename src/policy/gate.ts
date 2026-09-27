@@ -20,6 +20,7 @@
 
 import type { ActionDescriptor, Classification } from '../risk-classifier';
 import { classify } from '../risk-classifier';
+import { headlineFor as skillHeadline } from '../skills/registry';
 import type { GrantStore } from './grants';
 
 export interface GateContext {
@@ -58,41 +59,12 @@ export type GateDecision =
 /* Plain language                                                     */
 /* ------------------------------------------------------------------ */
 
-type Verb = (count: number) => string;
-
-const VERBS: Readonly<Record<string, Verb>> = Object.freeze({
-  'fs.read': (n) => (n > 1 ? `Read ${n} files` : 'Read a file'),
-  'fs.list': () => 'Look at your files',
-  'fs.create': (n) => (n > 1 ? `Create ${n} files` : 'Create a file'),
-  'fs.mkdir': () => 'Create a folder',
-  'fs.write': (n) => (n > 1 ? `Change ${n} files` : 'Change a file'),
-  'fs.edit': (n) => (n > 1 ? `Change ${n} files` : 'Change a file'),
-  'fs.move': () => 'Move a file',
-  'fs.rename': () => 'Rename a file',
-  'fs.delete': (n) => (n > 1 ? `Delete ${n} files` : 'Delete a file'),
-  'fs.truncate': () => 'Empty a file',
-  'db.delete': (n) => (n > 1 ? `Delete ${n} records` : 'Delete a record'),
-  'db.update': (n) => (n > 1 ? `Change ${n} records` : 'Change a record'),
-  exec: () => 'Run a command',
-  'message.send': () => 'Send a message',
-  'mail.send': () => 'Send an email',
-  'net.post': () => 'Send something out',
-  'net.put': () => 'Upload something',
-  'net.delete': () => 'Delete something remotely',
-  'web.fetch': () => 'Fetch a page',
-  'web.search': () => 'Search the web',
-  'credentials.read': () => 'Read your saved passwords',
-  'credentials.write': () => 'Change your saved passwords',
-  spend: () => 'Spend money',
-  'payment.send': () => 'Send a payment',
-  'config.security': () => 'Change your security settings',
-  'agent.selfModify': () => 'Change how it works',
-});
-
 function verbFor(action: ActionDescriptor): string {
-  const count = action.affectedCount ?? 1;
-  const verb = VERBS[action.tool];
-  return verb ? verb(count) : `Do something with "${action.tool}"`;
+  // The headline table used to live here as a VERBS record. It is now the skill
+  // registry (src/skills/registry.ts), which is ALSO the source of tool
+  // ownership and of the tier floors -- one list instead of three that could
+  // silently disagree (D20).
+  return skillHeadline(action.tool, action.affectedCount ?? 1);
 }
 
 function headlineFor(action: ActionDescriptor, ctx: GateContext): string {
