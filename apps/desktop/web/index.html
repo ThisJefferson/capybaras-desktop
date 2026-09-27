@@ -3,69 +3,58 @@
 <head>
   <meta charset="utf-8" />
   <title>Capybaras</title>
-  <style>
-    :root { color-scheme: light dark; }
-    body {
-      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-      margin: 0; padding: 32px; line-height: 1.5;
-    }
-    h1 { font-size: 20px; margin: 0 0 4px; }
-    p.sub { margin: 0 0 24px; opacity: 0.65; font-size: 13px; }
-    dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; font-size: 13px; }
-    dt { opacity: 0.6; }
-    dd { margin: 0; font-family: ui-monospace, Consolas, monospace; font-size: 12px; word-break: break-all; }
-    .ok { color: #1a7f37; }
-    .bad { color: #c0392b; }
-    .note { margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(128,128,128,0.3); font-size: 12px; opacity: 0.7; }
-  </style>
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="app.css" />
 </head>
 <body>
   <h1>Capybaras</h1>
-  <p class="sub">M3 shell — supervises the Node sidecar. Not the interface yet.</p>
+  <p class="sub">M4 — the approval interface.</p>
+
   <dl id="status"><dt>loading</dt><dd>…</dd></dl>
-  <div class="note">
-    Paths are resolved from the executable, never the working directory
-    (spike 002, rule 1). This window was launched with cwd = C:\Windows\system32
-    as a test.
+
+  <div class="card" id="card" hidden>
+    <div class="card__flag"><span class="card__dot"></span> needs you</div>
+    <h2 class="card__headline" id="card-headline"></h2>
+    <ul class="card__reasons" id="card-reasons"></ul>
+    <div class="card__warn" id="card-warn" hidden></div>
+
+    <div class="card__phrase" id="card-phrase" hidden>
+      <label>Type <code id="card-phrase-text"></code> to continue</label>
+      <input id="card-phrase-input" type="text" autocomplete="off" spellcheck="false" />
+    </div>
+
+    <div class="card__actions">
+      <button class="btn btn--primary" id="btn-hold">Hold on</button>
+      <button class="btn btn--secondary" id="btn-go" disabled>Go ahead</button>
+    </div>
+
+    <details class="card__remember" id="card-remember" hidden>
+      <summary>Always allow something like this</summary>
+      <p>
+        Checking this box does not approve the current action. It only asks
+        Capybaras to remember your answer <em>if</em> you also choose “Go ahead”.
+        This action still has to be approved on its own.
+      </p>
+      <label>
+        <input type="checkbox" id="card-remember-box" />
+        Remember this exact action, on this exact target
+      </label>
+    </details>
+
+    <p class="hint">Press <strong>Enter</strong> to hold on. Nothing runs until you choose.</p>
   </div>
 
-  <script type="module">
-    // Read the shell's own status through the Tauri command surface.
-    const { invoke } = window.__TAURI__ ?? {};
-    const dl = document.getElementById('status');
+  <div class="dev">
+    <strong>Test harness</strong> — no agent is wired up yet, so propose an action by hand.
+    <div class="dev__buttons">
+      <button data-tool="fs.read">fs.read (silent)</button>
+      <button data-tool="fs.write">fs.write (confirm)</button>
+      <button data-tool="fs.delete" data-count="5000">fs.delete ×5000 (hard gate)</button>
+      <button data-tool="payment.send">payment.send (hard gate)</button>
+    </div>
+    <div class="log" id="log"></div>
+  </div>
 
-    function row(k, v, cls) {
-      const dt = document.createElement('dt');
-      dt.textContent = k;
-      const dd = document.createElement('dd');
-      dd.textContent = v;
-      if (cls) dd.className = cls;
-      dl.append(dt, dd);
-    }
-
-    async function refresh() {
-      dl.textContent = '';
-      if (!invoke) {
-        row('status', 'not running inside Tauri (opened as a plain file)', 'bad');
-        return;
-      }
-      try {
-        const s = await invoke('shell_status');
-        row('shell pid', String(s.shell_pid));
-        row('exe dir', s.exe_dir);
-        row('state dir', s.state_dir);
-        row('node runtime', s.node_path, s.node_exists ? 'ok' : 'bad');
-        row('sidecar running', String(s.sidecar_running), s.sidecar_running ? 'ok' : 'bad');
-        row('sidecar health', s.sidecar_healthy ? 'healthy' : 'NOT healthy', s.sidecar_healthy ? 'ok' : 'bad');
-        row('sidecar pid', s.sidecar_pid == null ? '—' : String(s.sidecar_pid));
-        row('job object', s.job_assigned ? 'assigned (KILL_ON_JOB_CLOSE)' : 'NOT assigned', s.job_assigned ? 'ok' : 'bad');
-        if (s.job_error) row('job error', s.job_error, 'bad');
-      } catch (e) {
-        row('error', String(e), 'bad');
-      }
-    }
-    refresh();
-    setInterval(refresh, 2000);
-  </script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -104,7 +104,12 @@ pub struct Sidecar {
     assigned: bool,
     exited: bool,
     /// Protocol lines from the sidecar, delivered by a reader thread.
-    rx: Receiver<String>,
+    ///
+    /// Optional because the application takes it once, at startup, and moves it
+    /// into the thread that forwards messages to the interface. Tests read it
+    /// through `recv_json` and never take it, which is the intended
+    /// single-consumer contract.
+    rx: Option<Receiver<String>>,
 }
 
 impl Sidecar {
@@ -168,7 +173,7 @@ impl Sidecar {
             job_error,
             assigned,
             exited: false,
-            rx,
+            rx: Some(rx),
         })
     }
 
@@ -190,9 +195,19 @@ impl Sidecar {
     /// Wait for the next protocol message, or `None` on timeout.
     pub fn recv_json(&self, timeout: Duration) -> Option<serde_json::Value> {
         self.rx
+            .as_ref()?
             .recv_timeout(timeout)
             .ok()
             .and_then(|line| serde_json::from_str(&line).ok())
+    }
+
+    /// Hand the protocol stream to the caller, once.
+    ///
+    /// The application takes this at startup and moves it into a thread that
+    /// turns messages into interface events. After this, `recv_json` returns
+    /// `None` -- one consumer, deliberately.
+    pub fn take_receiver(&mut self) -> Option<Receiver<String>> {
+        self.rx.take()
     }
 
     pub fn pid(&self) -> Option<u32> {

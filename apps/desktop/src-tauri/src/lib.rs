@@ -10,7 +10,7 @@ use serde::Serialize;
 use sidecar::Sidecar;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{Manager, RunEvent};
+use tauri::{Emitter, Manager, RunEvent};
 
 pub struct AppState {
     sidecar: Mutex<Option<Sidecar>>,
@@ -60,6 +60,97 @@ fn shell_status(state: tauri::State<'_, AppState>) -> ShellStatus {
         job_assigned: assigned,
         job_error: err,
     }
+}
+
+/// Ask the sidecar to consider an action.
+///
+/// Returns immediately. The outcome arrives as an **event**, not as a return
+/// value -- because for a `confirm` action the outcome may not exist for minutes,
+/// or ever.
+#[tauri::command]
+fn propose_action(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    action: serde_json::Value,
+    context: Option<serde_json::Value>,
+) -> Result<(), String> {
+    let mut guard = state
+        .sidecar
+        .lock()
+        .map_err(|_| "sidecar lock poisoned".to_string())?;
+    let sidecar = guard
+        .as_mut()
+        .ok_or_else(|| "no sidecar is running".to_string())?;
+
+    let mut message = serde_json::json!({
+        "v": 1,
+        "type": "action.propose",
+        "id": id,
+        "action": action,
+    });
+    if let Some(ctx) = context {
+        message["context"] = ctx;
+    }
+
+    sidecar.send(&message).map_err(|e| e.to_string())
+}
+
+/// Carry a human's decision back to the sidecar.
+///
+/// **This is the only path by which a blocked action may proceed.** There is
+/// deliberately no other — no default, no fallback, no trusted-target shortcut.
+#[tauri::command]
+fn answer_approval(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    decision: String,
+) -> Result<(), String> {
+    let mut guard = state
+        .sidecar
+        .lock()
+        .map_err(|_| "sidecar lock poisoned".to_string())?;
+    let sidecar = guard
+        .as_mut()
+        .ok_or_else(|| "no sidecar is running".to_string())?;
+
+    sidecar
+        .send(&serde_json::json!({
+            "v": 1,
+            "type": "approval.answer",
+            "id": id,
+            "decision": decision,
+        }))
+        .map_err(|e| e.to_string())
+}
+
+/// Turn protocol messages into interface events.
+///
+/// Before this existed the shell had no way to tell the interface anything — its
+/// only route was a command the frontend polled every two seconds. This is the
+/// push path, and without it the protocol built in M4.1 goes nowhere.
+fn spawn_protocol_forwarder(app: &tauri::AppHandle, mut rx: std::sync::mpsc::Receiver<String>) {
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        while let Ok(line) = rx.recv() {
+            let Ok(message) = serde_json::from_str::<serde_json::Value>(&line) else {
+                continue; // a malformed line costs one message, never the stream
+            };
+
+            let event = match message["type"].as_str().unwrap_or_default() {
+                "approval.required" => "capybaras://approval-required",
+                "approval.resolved" => "capybaras://approval-resolved",
+                "action.proceeded" => "capybaras://action-proceeded",
+                "action.dry_run" => "capybaras://action-dry-run",
+                "grants.listed" => "capybaras://grants",
+                "error" => "capybaras://protocol-error",
+                "ready" => "capybaras://ready",
+                // Heartbeats and anything unrecognised: nothing worth showing.
+                _ => continue,
+            };
+
+            let _ = handle.emit(event, message);
+        }
+    });
 }
 
 /// Ask the sidecar to stop, then let the job handle close as the backstop.
@@ -139,7 +230,11 @@ pub fn run() {
             sidecar: Mutex::new(None),
             healthy: AtomicBool::new(false),
         })
-        .invoke_handler(tauri::generate_handler![shell_status])
+        .invoke_handler(tauri::generate_handler![
+            shell_status,
+            propose_action,
+            answer_approval
+        ])
         .setup(|app| {
             app.handle().plugin(
                 tauri_plugin_log::Builder::default()
@@ -180,6 +275,19 @@ pub fn run() {
             *state.sidecar.lock().unwrap() = sidecar;
             state.healthy.store(healthy, Ordering::Relaxed);
             drop(state);
+
+            // Hand the protocol stream to the forwarder: after this, the
+            // sidecar's messages become interface events.
+            let receiver = app
+                .state::<AppState>()
+                .sidecar
+                .lock()
+                .unwrap()
+                .as_mut()
+                .and_then(|s| s.take_receiver());
+            if let Some(rx) = receiver {
+                spawn_protocol_forwarder(&app.handle().clone(), rx);
+            }
 
             build_tray(app)?;
             spawn_health_thread(&app.handle().clone());

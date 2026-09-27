@@ -41,3 +41,6 @@ spikes/**/*.exe
 
 # sidecar bundle output (build with: npm run build:sidecar)
 apps/desktop/sidecar/dist/
+
+# generated CSS custom properties (build with: npm run build:tokens)
+apps/desktop/web/tokens.css

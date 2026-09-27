@@ -1,0 +1,213 @@
+/* Capybaras interface styles.
+ *
+ * External, not inline: the app's Content-Security-Policy is `script-src 'self'`,
+ * which silently blocks inline styles and scripts. Keeping these in files is
+ * both correct and cheaper than debugging a blank window later.
+ *
+ * Every value comes from tokens.css (generated from design/tokens.json).
+ */
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: var(--space-6);
+  font-family: var(--typography-family-ui);
+  font-size: var(--typography-size-md);
+  line-height: var(--typography-lineHeight-normal);
+  color: var(--color-semantic-text-primary);
+  background: var(--color-semantic-surface-base);
+}
+
+h1 { font-size: var(--typography-size-xl); margin: 0 0 var(--space-1); }
+.sub { margin: 0 0 var(--space-6); color: var(--color-semantic-text-secondary); font-size: var(--typography-size-sm); }
+
+/* ---------------- status panel ---------------- */
+
+dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  font-size: var(--typography-size-sm);
+}
+dt { color: var(--color-semantic-text-secondary); }
+dd {
+  margin: 0;
+  font-family: var(--typography-family-mono);
+  font-size: var(--typography-size-xs);
+  word-break: break-all;
+}
+.ok { color: var(--color-semantic-state-success); }
+.bad { color: var(--color-semantic-state-needsYou); }
+
+/* ---------------- the approval card ---------------- */
+
+.card {
+  margin: var(--space-6) 0;
+  background: var(--color-semantic-surface-raised);
+  border: 1px solid var(--color-semantic-border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-2);
+  padding: var(--space-6);
+  max-width: 560px;
+}
+.card[hidden] { display: none; }
+
+/* Coral is reserved for "needs you" — BRAND.md, and D18. */
+.card__flag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--typography-size-xs);
+  font-weight: var(--typography-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-semantic-state-needsYou);
+  margin-bottom: var(--space-4);
+}
+.card__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-semantic-state-needsYou);
+}
+
+.card__headline {
+  font-family: var(--typography-family-display);
+  font-size: var(--typography-size-2xl);
+  line-height: var(--typography-lineHeight-tight);
+  margin: 0 0 var(--space-4);
+}
+
+.card__reasons { margin: 0 0 var(--space-4); padding: 0; list-style: none; }
+.card__reasons li {
+  position: relative;
+  padding-left: var(--space-5);
+  margin-bottom: var(--space-2);
+  color: var(--color-semantic-text-secondary);
+  font-size: var(--typography-size-sm);
+}
+.card__reasons li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-semantic-border-strong);
+}
+
+.card__warn {
+  background: var(--color-semantic-surface-sunken);
+  border-left: 3px solid var(--color-semantic-state-needsYou);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: var(--typography-size-sm);
+  margin: 0 0 var(--space-4);
+}
+.card__warn[hidden] { display: none; }
+
+.card__phrase { margin: 0 0 var(--space-4); }
+.card__phrase[hidden] { display: none; }
+.card__phrase label {
+  display: block;
+  font-size: var(--typography-size-sm);
+  margin-bottom: var(--space-2);
+  color: var(--color-semantic-text-secondary);
+}
+.card__phrase code {
+  font-family: var(--typography-family-mono);
+  background: var(--color-semantic-surface-sunken);
+  padding: 1px var(--space-1);
+  border-radius: var(--radius-sm);
+  color: var(--color-semantic-text-primary);
+}
+.card__phrase input {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--typography-family-mono);
+  font-size: var(--typography-size-sm);
+  border: 1px solid var(--color-semantic-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-semantic-surface-base);
+  color: var(--color-semantic-text-primary);
+}
+.card__phrase input:focus {
+  outline: 2px solid var(--color-semantic-border-focus);
+  outline-offset: 1px;
+}
+
+.card__actions { display: flex; gap: var(--space-3); align-items: center; }
+
+.btn {
+  font: inherit;
+  font-weight: var(--typography-weight-semibold);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+/* The safe choice is the easy one: primary, filled, and what Enter does. */
+.btn--primary {
+  background: var(--color-semantic-state-primary);
+  color: var(--color-semantic-text-onAccent);
+}
+.btn--primary:hover { filter: brightness(1.12); }
+
+/* The destructive choice is deliberately the quieter one. */
+.btn--secondary {
+  background: transparent;
+  color: var(--color-semantic-text-primary);
+  border-color: var(--color-semantic-border-strong);
+}
+.btn--secondary:hover:not(:disabled) { background: var(--color-semantic-surface-sunken); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Below the fold, and it does not approve anything on its own. */
+.card__remember {
+  margin-top: var(--space-4);
+  font-size: var(--typography-size-sm);
+  color: var(--color-semantic-text-secondary);
+}
+.card__remember[hidden] { display: none; }
+.card__remember summary { cursor: pointer; }
+.card__remember p { margin: var(--space-2) 0 0; }
+.card__remember label { display: flex; gap: var(--space-2); align-items: flex-start; margin-top: var(--space-3); }
+
+.hint {
+  margin-top: var(--space-4);
+  font-size: var(--typography-size-xs);
+  color: var(--color-semantic-text-muted);
+}
+
+/* ---------------- test harness (not product UI) ---------------- */
+
+.dev {
+  margin-top: var(--space-8);
+  padding-top: var(--space-4);
+  border-top: 1px dashed var(--color-semantic-border-subtle);
+  font-size: var(--typography-size-xs);
+  color: var(--color-semantic-text-secondary);
+}
+.dev__buttons { margin-top: var(--space-2); }
+.dev button {
+  font-size: var(--typography-size-xs);
+  padding: var(--space-1) var(--space-2);
+  margin-right: var(--space-2);
+  cursor: pointer;
+}
+.log {
+  margin-top: var(--space-3);
+  font-family: var(--typography-family-mono);
+  font-size: 11px;
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--color-semantic-text-secondary);
+}
