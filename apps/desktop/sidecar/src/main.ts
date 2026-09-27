@@ -17,7 +17,8 @@
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { gate, GrantStore, describeGrant, loadGrants, saveGrants } from '../../../../src/policy/index';
+import { gate, GrantStore, describeGrant, loadGrants, saveGrants, loadProtectionPolicy } from '../../../../src/policy/index';
+import { readFileSync } from 'node:fs';
 import type { ApprovalRequest, GateContext, LoadResult } from '../../../../src/policy/index';
 import { Herd } from './agents';
 import type { ActionDescriptor, Classification } from '../../../../src/risk-classifier/index';
@@ -87,6 +88,29 @@ say(
 );
 if (restored.problem) {
   emit({ type: 'error', message: restored.problem });
+}
+
+/**
+ * The protection policy: freezes and off-limits targets (D21).
+ *
+ * Read ONCE at boot, from a file this process never writes. That is the whole
+ * point: protection comes from configuration, not from the action descriptor --
+ * because a protection the protected agent supplies is not a protection. So
+ * there is deliberately no code path here that creates or edits one.
+ */
+const policyPath = stateDir ? join(stateDir, 'policy.json') : null;
+const protection = policyPath
+  ? loadProtectionPolicy((p) => readFileSync(p, 'utf8'), policyPath)
+  : { policy: {} };
+
+say(
+  protection.policy.freeze?.active
+    ? `protection: a freeze is IN FORCE${protection.policy.freeze.reason ? ` (${protection.policy.freeze.reason})` : ''}`
+    : 'protection: no freeze in force',
+);
+if (protection.problem) {
+  say(protection.problem);
+  emit({ type: 'error', message: protection.problem });
 }
 
 /** Persist after any change. Reports failure rather than throwing. */
@@ -159,6 +183,7 @@ function fail(id: string | undefined, message: string): void {
 function propose(id: string, action: ActionDescriptor, context?: Partial<GateContext>): void {
   const decision = gate(action, {
     grants,
+    policy: protection.policy,
     now: Date.now(),
     targetLabel: context?.targetLabel,
     dryRun: context?.dryRun,

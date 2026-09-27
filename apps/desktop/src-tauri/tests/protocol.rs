@@ -361,6 +361,60 @@ fn the_replit_incident_is_stopped_at_the_gate() {
     );
 }
 
+/// D21 -- the freeze comes from CONFIGURATION, not from the caller.
+///
+/// The July 2025 deletion happened during a "declared code and action freeze"
+/// that nothing actually enforced. Before this change the freeze was supplied by
+/// the action descriptor -- so it was a request the agent could simply not make.
+///
+/// This test writes a freeze into the POLICY FILE and then proposes an ordinary
+/// action that claims nothing special. `fs.create` is deliberately chosen: it is
+/// a notify normally, so without the policy it would sail through. If the gate
+/// only listened to the action, the create would proceed.
+#[test]
+fn a_declared_freeze_in_the_policy_halts_an_action_that_claims_nothing() {
+    let dir = state_dir("freeze-policy");
+    std::fs::write(
+        dir.join("policy.json"),
+        r#"{"freeze":{"active":true,"reason":"declared change freeze","declaredBy":"test"}}"#,
+    )
+    .expect("could not write the policy file");
+
+    let mut sidecar = spawn(&dir);
+    expect(&sidecar, "ready", Duration::from_secs(25));
+
+    sidecar
+        .send(&json!({
+            "v": 1,
+            "type": "action.propose",
+            "id": "fz",
+            "action": { "tool": "fs.create", "args": { "path": "notes.md" } },
+            "context": { "targetLabel": "notes.md" }
+        }))
+        .expect("could not send the proposal");
+
+    let required = expect(&sidecar, "approval.required", Duration::from_secs(15));
+    assert_eq!(
+        required["request"]["tier"], "confirm",
+        "a freeze must raise a notify to a confirm: {required}"
+    );
+
+    let reasons = required["request"]["reasons"]
+        .as_array()
+        .expect("reasons")
+        .iter()
+        .filter_map(|r| r.as_str())
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase();
+    assert!(
+        reasons.contains("freeze"),
+        "a freeze nobody is told about is indistinguishable from a malfunction: {reasons}"
+    );
+
+    let _ = sidecar.stop(Duration::from_secs(10));
+}
+
 #[test]
 fn an_unsupported_protocol_version_is_refused_not_guessed_at() {
     let dir = state_dir("version");
