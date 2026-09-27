@@ -3,9 +3,10 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-27 10:36 EDT
-**Current phase:** Phase 0 — Unblock and scaffold
-**Next milestone:** M0 (unblocked + scaffolded)
+**Last updated:** 2026-09-27 10:52 EDT
+**Current phase:** Phase 0 — ✅ **COMPLETE (M0)** → starting Phase 1
+**Next milestone:** M1 (risk classifier passes the case suite + the Replit test)
+**Repo:** https://github.com/ThisJefferson/capybaras-desktop (public)
 
 ---
 
@@ -39,21 +40,21 @@
 - `BRAND.md` — name, the herd, the four states, Rio visual language, copy deck
 - `mockup-main.svg` / `mockup-main.png` — interface mockup
 - `EXECUTION-PLAN.md` — build order, workstreams, handoffs, acceptance criteria
-- **Rust toolchain installed**
-- **GitHub device-code login initiated** (code issued, awaiting user authorisation)
+- **Rust toolchain installed** — cargo/rustc 1.98.1
+- **GitHub auth complete** as `ThisJefferson` (device flow, phone)
+- **Git identity set** — `264281275+ThisJefferson@users.noreply.github.com` (noreply, real address never in history)
+- **Repo created and pushed — M0 COMPLETE.** https://github.com/ThisJefferson/capybaras-desktop · public · 13 files · commit `62f2a78`
+- **`DECISIONS.md` written** — D1–D9 recorded so settled questions don't get relitigated
 
 ## In flight
 
-- GitHub auth — waiting on Jeff to enter the device code from his phone
-- Git identity — will be set from the authenticated GitHub username (noreply email)
+- Nothing blocked. Starting Phase 1.
 
 ## Blocked
 
 | Item | Blocked on |
 |---|---|
-| Repo creation | GitHub auth |
-| First commit | Git identity (needs auth) |
-| Everything downstream of M0 | the above two — both minutes away |
+| CI workflow (`.github/workflows/ci.yml`) | `gh` token lacks the **`workflow`** scope. File is on disk, excluded via `.git/info/exclude`. Fix: `gh auth refresh -s workflow` (device code — phone-friendly, 30 seconds) |
 
 ## Not started
 
@@ -65,9 +66,9 @@
 
 ## Next three actions
 
-1. Wait for GitHub auth → set git identity → `git init` → scaffold → first commit → **M0**
-2. **Start Phase 1: the risk classifier, headless, with tests.** Includes the Replit acceptance test.
-3. Open streams C, D, E as subagents.
+1. **Phase 1: the risk classifier** — headless, typed, with the case suite and the Replit acceptance test. No UI.
+2. `npm install` → get `npm test` green (vitest + typescript).
+3. Open streams C (brand assets), D (docs), E (packaging research) as subagents.
 
 ---
 
