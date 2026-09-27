@@ -3,10 +3,10 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-27 12:40 EDT
-**Current phase:** **M3 — the shell runs. COMPLETE.** All 7 steps done and verified → **next: M4, the approval interface**
-**Next milestone:** M4 — where the Replit gate meets a real UI. The phase where the product becomes itself
-**Plan:** `docs/plans/M3-shell.md` · **Evidence:** `DECISIONS.md` D15–D17
+**Last updated:** 2026-09-27 12:48 EDT
+**Current phase:** **M3 — the shell runs. COMPLETE.** → **next: M4, the approval interface**
+**Next milestone:** **M4 — the approval interface.** Plan: `docs/plans/next-steps.md`. Where the Replit gate meets a real UI
+**Evidence so far:** `DECISIONS.md` D15–D18 · **Design:** `docs/plans/M4-visual-design.md`
 **Recently decided:** D14 (no Bayesian maths in the safety path) · D15 (state directory) · D16 (supervision verified)
 **Repo:** https://github.com/ThisJefferson/capybaras-desktop (public) · releases cut per milestone
 
@@ -78,8 +78,8 @@
 
 ## Next three actions
 
-1. **M3 — build the Tauri shell.** Full plan in `docs/plans/M3-shell.md`: toolchain → repo layout → path discipline → state directory → sidecar supervision → non-orphaning measured from outside → single instance, health, tray. Carry in the two spike-002 rules and the Job-Object supervision from spike 001.
-2. **Re-take one measurement when packaging starts.** `app dir writable` was taken from a loose layout (writable by definition), not a real `WindowsApps` install. One elevated command is needed to install a self-signed package properly; the Store path needs no certificate at all.
+1. **M4 — build the approval interface.** Full plan in `docs/plans/next-steps.md`. The gap it closes: the shell currently **discards the sidecar's stdout** (`.stdout(Stdio::null())`) and speaks a one-command language, and **nothing yet runs the policy layer inside the sidecar**. So: versioned bidirectional IPC → run the gate in the sidecar → the approval round trip (the wait must be real and unbrypassable) → the card → durable grants → the herd → **the Replit acceptance test through the real UI**.
+2. **The design system runs in parallel** — `docs/plans/M4-visual-design.md`. Tokens first (including the neutral ramp the card review flagged), typography, Lucide instead of hand-drawn icons, component kit, motion spec. Then the mascot model sheet: **one character, four poses, one sign** (D18).
 3. Keep cutting a release per milestone with test results (Jeff's standing request).
 
 ---
