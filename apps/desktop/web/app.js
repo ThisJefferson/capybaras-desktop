@@ -7,12 +7,45 @@
 // cannot accidentally approve something destructive.** Enter is wired to the
 // safe action everywhere in the card, including inside the confirmation field.
 
+/* ------------------------------------------------------------------ */
+/* The Tauri bridge                                                    */
+/* ------------------------------------------------------------------ */
+
+// WHERE THE BRIDGE ACTUALLY LIVES, and why this is written defensively.
+//
+// Tauri v1 exposed `invoke` at the top level. **Tauri v2 moved it under `core`**
+// -- `window.__TAURI__.core.invoke` -- while `event.listen` stayed top level.
+// (Verified against tauri 2.12.0's own injected bundle, which ends
+// `...e.window=he,e}({});window.__TAURI__=__TAURI_IIFE__;`.)
+//
+// The first version of this file used the v1 shape. The app then launched looking
+// perfectly healthy while EVERY button failed with "invoke is not a function" in
+// a log nobody was reading.
+//
+// The harness did not catch it because the harness MOCKED the bridge -- and the
+// mock was written with the same wrong assumption. That is the lesson worth more
+// than the fix: **a mock that invents the shape of an external API validates the
+// author's belief about that API, not the API.** The mock now mirrors the real v2
+// shape, so a regression here fails the smoke test instead of shipping.
 const tauri = window.__TAURI__ ?? {};
-const invoke = tauri.invoke;
-const listen = tauri.event?.listen;
+const invoke = tauri.core?.invoke ?? tauri.invoke;
+const listen = tauri.event?.listen ?? tauri.core?.event?.listen;
+
+// Fail LOUDLY. Until now a missing bridge produced one TypeError per click in a
+// log, which reads as "the buttons are broken" rather than "nothing in this
+// window is connected to anything". A silent failure that looks like a broken
+// button is the worst possible presentation of a total failure.
+if (typeof invoke !== 'function') {
+  const banner = document.createElement('div');
+  banner.className = 'banner banner--error';
+  banner.textContent =
+    'Capybaras is not connected to its engine, so nothing in this window will work. ' +
+    'Close this window and start the app again with run.cmd.';
+  document.body.prepend(banner);
+  log('FATAL: no Tauri bridge — window.__TAURI__ has no callable invoke. Nothing will work.');
+}
 
 const $ = (id) => document.getElementById(id);
-
 /** The approval currently awaiting an answer, if any. */
 let current = null;
 

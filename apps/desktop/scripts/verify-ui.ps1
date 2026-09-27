@@ -66,12 +66,18 @@ $mock = @'
 // VERIFICATION HARNESS -- not shipped. Mocks the Tauri bridge so the REAL
 // app.js and app.css render for review.
 window.__TAURI__ = {
-  invoke: async function (cmd) {
-    if (cmd === 'shell_status') {
-      return { shell_pid: 4242, state_dir: 'C:\\Users\\Skept\\AppData\\Local\\Capybaras',
-               sidecar_running: true, sidecar_pid: 5150, job_assigned: true };
+  // THE REAL v2 SHAPE, deliberately. Tauri v2 exposes invoke under `core`.
+  // An earlier mock put it at the top level (the v1 shape) -- which is why the
+  // smoke test passed while the real app failed on every button. A mock must
+  // mirror the API, not the assumption.
+  core: {
+    invoke: async function (cmd) {
+      if (cmd === 'shell_status') {
+        return { shell_pid: 4242, state_dir: 'C:\\Users\\Skept\\AppData\\Local\\Capybaras',
+                 sidecar_running: true, sidecar_pid: 5150, job_assigned: true };
+      }
+      return null;
     }
-    return null;
   },
   event: {
     listen: function (name, cb) {

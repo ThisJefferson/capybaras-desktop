@@ -43,6 +43,26 @@ dd {
 .ok { color: var(--color-semantic-state-success); }
 .bad { color: var(--color-semantic-state-needsYou); }
 
+/* ---------------- failure banner ---------------- */
+
+/* Shown when the app cannot reach its engine at all. This has to be impossible
+   to miss: a missing bridge makes every control inert, and the previous
+   behaviour -- a TypeError in a log on each click -- looked like a broken button
+   rather than a broken connection. */
+.banner {
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-5);
+  font-size: var(--typography-size-sm);
+  font-weight: var(--typography-weight-semibold);
+}
+.banner--error {
+  background: #FDECE8;
+  border: 1px solid var(--color-semantic-state-needsYou);
+  border-left-width: 4px;
+  color: var(--color-neutral-800);
+}
+
 /* ---------------- the herd ----------------
  *
  * Six instances of ONE character design, duplicated (D18). They are told apart
