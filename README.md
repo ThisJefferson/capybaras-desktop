@@ -2,6 +2,8 @@
 
 **A calm herd of helpers that ask before they act.**
 
+[![ci](https://github.com/ThisJefferson/capybaras-desktop/actions/workflows/ci.yml/badge.svg)](https://github.com/ThisJefferson/capybaras-desktop/actions/workflows/ci.yml) ![pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange) ![licence](https://img.shields.io/badge/licence-Apache--2.0-blue)
+
 > Desktop agent that stops and checks with you before doing anything that matters.
 
 **Status: early development.** Nothing is installable yet. This repo is being built in the open.
