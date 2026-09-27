@@ -257,3 +257,26 @@ On narrow screens (below 780 px), the card becomes full-width with 16 px horizon
 - Should the "always allow" affordance have a visual confirmation animation when checked? (Proposal: a brief coral pulse on the left accent bar, reusing the needs-you colour.)
 - For hard gates, the typed confirmation field shows the target phrase but does not mask it. Should it mask the first character to prevent shoulder-surfing? (Trade-off: masking adds friction in a flow that is already designed for friction.)
 - What happens when a grant expires mid-operation? (Proposal: the gate re-checks before every action, not once at the start. An expired grant produces a fresh approval card.)
+---
+
+## Reviewer's note (2026-09-27)
+
+Added by the parent session because the drafting run **timed out before it could
+verify its own output**, so the artifact was reviewed rather than trusted.
+
+**Verdict: it holds up.**
+
+- Coral (`#F2705A`, 8 uses) is confined to the needs-you surface and is **not**
+  used for the approve control. The primary button is Atlantic (`#0F5C63`), which
+  is the right call: the safe choice carries the visual weight, and Enter maps to
+  "Hold on" rather than "Go ahead". The reflex action is the harmless one.
+- The hard-gate variant removes the always-allow affordance entirely, which
+  correctly encodes the invariant that a hard gate is never satisfied by memory.
+- The remember affordance sits below the fold and has no direct effect, so
+  "approve forever" cannot be reached by reflex.
+
+**One deviation to settle before M4.** The SVG uses five neutrals that BRAND.md
+does not declare — `#B0B0B0`, `#4A4A4A`, `#6B6B6B`, `#8B8B8B`, `#FFFFFF` — plus
+two browns derived from `#8B6239` (`#7A5530`, `#5C4023`). Deducible and defensible
+for UI text and borders, but undeclared. Either add a neutral ramp to BRAND.md or
+tighten the card. Not blocking.
