@@ -124,26 +124,65 @@ credential storage, the cap UI, and the executor.
 
 ## 7. What is needed from Jeff
 
-**An OpenRouter OAuth app registration.** Concretely:
+**Nothing. And an earlier version of this document was wrong to ask.**
 
-1. A **client ID** (public — this one is safe to share, PKCE has no secret).
-2. The **redirect URI** registered as a loopback address. Which port is a design
-   question: a **fixed port** is simpler to register and more likely to conflict;
-   an **ephemeral port** avoids conflicts but must be registered as a range, and
-   not every provider supports that.
+Verified against OpenRouter's own OAuth guide (2026-09-27): **there is no app
+registration and no client ID.** The PKCE challenge is the only proof of
+identity, which is the whole reason the flow was chosen. The authorization
+request is simply:
 
-I will walk through the clicks when we get there, and I will not ask for a client
-secret, because the flow does not have one.
+```
+https://openrouter.ai/auth
+  ?callback_url=<loopback address>
+  &code_challenge=<S256 challenge>
+  &code_challenge_method=S256
+  &key_label=Capybaras
+```
 
----
+and the exchange is a single unauthenticated POST:
+
+```
+POST https://openrouter.ai/api/v1/auth/keys
+{ "code": ..., "code_verifier": ..., "code_challenge_method": "S256" }
+  -> { key, user_id }
+```
+
+Three consequences that simplify M5 considerably:
+
+1. **No blocking step.** Nothing waits on a human to configure anything, so the
+   whole flow can be built and exercised end to end.
+2. **`key_label` is set to `Capybaras`**, so the key is identifiable in the user's
+   own OpenRouter dashboard rather than appearing as an anonymous entry.
+3. **The key is user-controlled and revocable.** It shows up in the user's
+   account, which is exactly the property we want: revocation is theirs, not
+   ours, and it does not depend on this app being well behaved.
+
+**What the user actually does:** click Connect, sign in to OpenRouter in the
+system browser, click Authorize. That is the entire interaction.
+
+**Corrections a client ID would have required** — none. The only thing genuinely
+worth the user's attention is the **spending limit on the key**, which is set in
+their OpenRouter account and is the one control the agent cannot route around.
 
 ## 8. Open questions
 
-1. **Loopback port** — fixed or ephemeral (see §7).
+1. **Loopback port — RESOLVED.** OpenRouter supports localhost callbacks **on any
+   port**, and assigns the app a title matching host and port
+   (e.g. `localhost:3000`). So an **ephemeral port** is available and removes the
+   conflict problem entirely. The trade-off is only cosmetic: a fixed port would
+   give a stable title, an ephemeral one may not. **Decision: ephemeral**, because
+   a port conflict on a user's machine is a support burden and a stable title is
+   not.
 2. **Where the executor lives.** T6 assumes something runs the approved action.
    Putting it in the shell means the sidecar never executes anything, which is a
    cleaner trust boundary and a larger refactor. **This is the decision that
    determines how much of M5 is a refactor rather than an addition.**
-3. **Refresh.** Token lifetime and what happens at expiry mid-approval. The safe
-   default — ask again rather than silently continuing — costs a click and is
-   almost certainly right.
+3. **Refresh.** Authorization codes expire **10 minutes** after issue, and the
+   exchange returns a long-lived API key rather than an expiring token — so there
+   is no refresh flow, but there is a *revocation* case to handle: the user can
+   delete the key at any time, and the app has to notice rather than fail
+   confusingly.
+4. **Documented error codes to surface helpfully** rather than as raw failures:
+   `400 invalid code_challenge_method` (the two steps disagree),
+   `403 invalid code or code_verifier`, `403 code expired` (restart the flow),
+   `405` (must be POST over HTTPS).
