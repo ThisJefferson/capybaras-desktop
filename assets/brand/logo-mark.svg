@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Capybaras">
   <title>Capybaras</title>
-  <desc>The Copacabana calcadao wave, as an app mark. Black basalt and white limestone Portuguese pavement, laid along Avenida Atlantica in 1905-06. A public design for a place, not a company's mark.</desc>
+  <desc>The Copacabana calcadao wave as an app mark: black basalt and white limestone Portuguese pavement, laid along Avenida Atlantica in 1905-06. A public design for a place, not a company's mark.</desc>
 
   <defs>
     <clipPath id="squircle">
@@ -11,12 +11,17 @@
   <g clip-path="url(#squircle)">
     <rect width="512" height="512" fill="#0F5C63" />
 
-    <g fill="#FBF7F0">
-      <!-- Three bands, two wavelengths across, alternating crest and trough.
-           Few elements on purpose: this has to survive 16 pixels. -->
-      <path d="M 0,138 C 46,114 82,114 128,138 C 174,162 210,162 256,138 C 302,114 338,114 384,138 C 430,162 466,162 512,138 L 512,166 C 466,190 430,190 384,166 C 338,142 302,142 256,166 C 210,190 174,190 128,166 C 82,142 46,142 0,166 Z" />
-      <path d="M 0,242 C 46,218 82,218 128,242 C 174,266 210,266 256,242 C 302,218 338,218 384,242 C 430,266 466,266 512,242 L 512,270 C 466,294 430,294 384,270 C 338,246 302,246 256,270 C 210,294 174,294 128,270 C 82,246 46,246 0,270 Z" />
-      <path d="M 0,346 C 46,322 82,322 128,346 C 174,370 210,370 256,346 C 302,322 338,322 384,346 C 430,370 466,370 512,346 L 512,374 C 466,398 430,398 384,374 C 338,350 302,350 256,374 C 210,398 174,398 128,374 C 82,350 46,350 0,374 Z" />
+    <!-- Stroked, not filled: rounded caps and joins read as laid pavement
+         rather than as clipped bars, and the bands can be inset from the
+         edge instead of crashing into the rounded corners.
+
+         The middle band is MIRRORED relative to its neighbours. Three
+         identical bands read as a mechanical diagram; alternating them reads
+         as a weave, which is what the real pavement does. -->
+    <g fill="none" stroke="#FBF7F0" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M 60,152 C 95,130 123,130 158,152 C 193,174 221,174 256,152 C 291,130 319,130 354,152 C 389,174 417,174 452,152" />
+      <path d="M 60,256 C 95,278 123,278 158,256 C 193,234 221,234 256,256 C 291,278 319,278 354,256 C 389,234 417,234 452,256" />
+      <path d="M 60,360 C 95,338 123,338 158,360 C 193,382 221,382 256,360 C 291,338 319,338 354,360 C 389,382 417,382 452,360" />
     </g>
   </g>
 </svg>

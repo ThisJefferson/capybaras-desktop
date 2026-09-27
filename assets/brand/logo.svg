@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1020 340" width="1020" height="340" role="img" aria-label="Capybaras">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 328" width="960" height="328" role="img" aria-label="Capybaras">
   <title>Capybaras</title>
   <desc>The Capybaras lockup: the calcadao mark, and the wordmark.</desc>
 
@@ -8,14 +8,17 @@
     </clipPath>
   </defs>
 
-  <!-- Mark -->
-  <g transform="translate(50,50) scale(0.46875)">
+  <!-- Mark. The squircle spans 44..284 vertically, so its optical centre is
+       y=164; the wordmark baseline below is set to centre its x-height there
+       rather than to centre its bounding box, which is what made the previous
+       attempt sit low (the descenders in "p" and "y" were pulling it down). -->
+  <g transform="translate(48,44) scale(0.46875)">
     <g clip-path="url(#mark-clip)">
       <rect width="512" height="512" fill="#0F5C63" />
-      <g fill="#FBF7F0">
-        <path d="M 0,138 C 46,114 82,114 128,138 C 174,162 210,162 256,138 C 302,114 338,114 384,138 C 430,162 466,162 512,138 L 512,166 C 466,190 430,190 384,166 C 338,142 302,142 256,166 C 210,190 174,190 128,166 C 82,142 46,142 0,166 Z" />
-        <path d="M 0,242 C 46,218 82,218 128,242 C 174,266 210,266 256,242 C 302,218 338,218 384,242 C 430,266 466,266 512,242 L 512,270 C 466,294 430,294 384,270 C 338,246 302,246 256,270 C 210,294 174,294 128,270 C 82,246 46,246 0,270 Z" />
-        <path d="M 0,346 C 46,322 82,322 128,346 C 174,370 210,370 256,346 C 302,322 338,322 384,346 C 430,370 466,370 512,346 L 512,374 C 466,398 430,398 384,374 C 338,350 302,350 256,374 C 210,398 174,398 128,374 C 82,350 46,350 0,374 Z" />
+      <g fill="none" stroke="#FBF7F0" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M 60,152 C 95,130 123,130 158,152 C 193,174 221,174 256,152 C 291,130 319,130 354,152 C 389,174 417,174 452,152" />
+        <path d="M 60,256 C 95,278 123,278 158,256 C 193,234 221,234 256,256 C 291,278 319,278 354,256 C 389,234 417,234 452,256" />
+        <path d="M 60,360 C 95,338 123,338 158,360 C 193,382 221,382 256,360 C 291,338 319,338 354,360 C 389,382 417,382 452,360" />
       </g>
     </g>
   </g>
@@ -23,13 +26,13 @@
   <!-- Wordmark.
        Set in the system display face for now. A bundled OFL rounded geometric
        sans is the follow-up (see docs/plans/M4-visual-design.md, step 2), so the
-       wordmark improves without the mark changing. -->
+       wordmark can improve without the mark changing. -->
   <text
-    x="318"
-    y="218"
+    x="328"
+    y="193"
     font-family="'Segoe UI Variable Display','Segoe UI',system-ui,sans-serif"
-    font-size="132"
+    font-size="112"
     font-weight="600"
-    letter-spacing="-3"
+    letter-spacing="-2.5"
     fill="#0F5C63">Capybaras</text>
 </svg>
