@@ -145,6 +145,29 @@ The highest-risk unknown of the whole packaging plan is therefore still unknown 
 
 ---
 
+## D13 — MSIX full-trust + bundled Node sidecar: VALIDATED, and two rules it imposes
+**2026-09-27**
+
+Spike: `spikes/002-msix-sidecar/`. This closes the highest-risk unknown inherited from D11 — whether a bundled Node sidecar works inside an MSIX *full-trust* package. No single source documented MSIX + a desktop shell + a Node sidecar together, so it had to be tested rather than cited.
+
+**Verdict: VALIDATED.** Built a real package (stdlib-only Rust launcher → bundled `node.exe` → bundled `sidecar.mjs`, 34 MB MSIX). A full-trust MSIX app with package identity launched, resolved its own app-local `node.exe`, spawned it, and Node ran — `node spawn: OK (exit 0)`, `sidecar ran under full-trust MSIX: v24.16.0`. Evidence is the app's own output, not inference.
+
+**Rule 1 — never resolve paths from `cwd`.** The packaged app launched with `cwd = C:\Windows\system32`. Any code that builds paths relative to the working directory breaks under MSIX. Paths must come from `process.execPath`, the module URL, or an explicit configured root.
+
+**Rule 2 — decide the state directory deliberately.** MSIX **silently virtualizes AppData writes.** The launcher wrote to `%LOCALAPPDATA%\CapybarasSpike\`; the bytes landed in `%LOCALAPPDATA%\Packages\<PFN>\LocalCache\Local\CapybarasSpike\`. The process believes it is writing to normal AppData — `process.env.LOCALAPPDATA` reports the plain path, and `USERPROFILE` too. Good for isolation; bad for anything the user or a support process must find. **Decide whether state lives in the virtualized store (and expose an "open data folder" action) or is redirected explicitly.**
+
+**One measurement could NOT be taken honestly, and is recorded as such:** `app dir writable` read `yes`, but the test ran from a **loose layout registered out of the workspace folder**, which is writable by definition. A real install lives in the read-only `WindowsApps`. **Re-take that reading against a genuine install when packaging begins.** Not dropped, not overstated.
+
+**Install mechanics, and where elevation is actually required:**
+- Unsigned MSIX is rejected (`0x800B0100`) — **Developer Mode permits sideloading, not unsigned packages.** Corrected a wrong assumption.
+- Self-signed works for signing, but deployment requires **machine**-scope trust; `LocalMachine\TrustedPeople` returns `E_ACCESSDENIED` (`0x80070005`) without elevation. User-scope trust is insufficient (`0x800B0109`).
+- **Loose-layout registration (`Add-AppxPackage -Register AppxManifest.xml`) works unsigned and unelevated** — this is the dev loop, and it produced the evidence.
+- **Distribution is unaffected:** Store packages are re-signed by Microsoft, so no end user touches a certificate. The elevation cost is a **developer-machine** cost only.
+
+**Recommendation:** ship MSIX, and encode Rules 1 and 2 in the Gateway before the shell is built.
+
+---
+
 ## Standing constraints
 
 - **Never restart the Gateway** — owner-only.

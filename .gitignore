@@ -32,3 +32,9 @@ spikes/**/.*.log
 spikes/**/.*.pid
 spikes/**/.*.out*.txt
 spikes/**/.*.err*.txt
+
+# spike build artefacts (regenerate with the spike's build.ps1)
+spikes/**/target/
+spikes/**/*.msix
+spikes/**/*.cer
+spikes/**/*.exe

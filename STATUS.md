@@ -3,8 +3,8 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-27 11:26 EDT
-**Current phase:** Phase 2 spike ✅ **COMPLETE — verdict PARTIAL** (sidecar supervision; MSIX half blocked) → **next: M2, the Tauri shell**
+**Last updated:** 2026-09-27 11:58 EDT
+**Current phase:** Phase 2 ✅ **COMPLETE** — spike 001 PARTIAL (supervision), spike 002 **VALIDATED** (MSIX + bundled Node) → **next: M2, the Tauri shell**
 **Next milestone:** M2 — the Tauri shell supervising a Node sidecar, anchored by a Windows Job Object with `KILL_ON_JOB_CLOSE`
 **Repo:** https://github.com/ThisJefferson/capybaras-desktop (public) · releases cut per milestone
 
@@ -76,8 +76,8 @@
 
 ## Next three actions
 
-1. **M2 — build the Tauri shell.** Supervise the Node sidecar with a Windows Job Object carrying `KILL_ON_JOB_CLOSE`, plus a graceful-stop handshake over IPC before any forcible kill. This is what the spike recommends; the spike itself stays throwaway.
-2. **Unblock the MSIX test.** It needs Developer Mode enabled (`AllowDevelopmentWithoutDevLicense`) or one elevated shell to trust a test certificate. That is a user action; it gates packaging, not the shell.
+1. **M2 — build the Tauri shell.** Supervise the Node sidecar with a Windows Job Object carrying `KILL_ON_JOB_CLOSE`, plus a graceful-stop handshake over IPC before any forcible kill. The spike itself stays throwaway. **Carry in the two rules from spike 002:** never resolve paths from `cwd`, and pick the state directory deliberately because MSIX hides AppData writes.
+2. **Re-take one measurement when packaging starts.** `app dir writable` was taken from a loose layout (writable by definition), not a real `WindowsApps` install. One elevated command is needed to install a self-signed package properly; the Store path needs no certificate at all.
 3. Keep cutting a release per milestone with test results (Jeff's standing request).
 
 ---
@@ -92,7 +92,23 @@
 - The mechanism that would have answered the spike **is the mechanism to build with** — a Job Object with `KILL_ON_JOB_CLOSE`. It is already a proven pattern in this exact stack.
 - **`child.kill()` is not graceful on Windows** — it calls `TerminateProcess`, so no `SIGTERM` handler runs. A Gateway that owns sessions and sockets needs a handshake before the force.
 - First harness was **confounded** (piped stdout) and produced contradictory output; rebuilt with `stdio: 'ignore'` + file logging. Bad instrumentation is not a finding.
-- **MSIX full-trust remains untested** — Developer Mode is off and trusting a certificate needs elevation. The highest-risk unknown is still unknown, for an environmental reason.
+- **MSIX full-trust — now tested, and it works.** See spike 002 below. (Jeff enabled Developer Mode, which unblocked it.)
+
+---
+
+## Phase 2 spike 002 — MSIX full-trust + bundled Node sidecar (2026-09-27)
+
+`spikes/002-msix-sidecar/` — Rust launcher + bundled `node.exe` + bundled sidecar, packed to a 34 MB MSIX.
+
+**Verdict: VALIDATED.** A full-trust MSIX app with package identity launched, resolved its app-local `node.exe`, spawned it, and Node ran: `node spawn: OK (exit 0)`, `sidecar ran under full-trust MSIX: v24.16.0`. This closes the highest-risk unknown from the packaging research.
+
+**Two rules it imposes on the Gateway:**
+- **Never resolve paths from `cwd`** — the packaged app launched with `cwd = C:\Windows\system32`.
+- **Decide the state directory deliberately** — MSIX **silently virtualizes AppData writes**; the app's files landed in `%LOCALAPPDATA%\Packages\<PFN>\LocalCache\...` while `process.env.LOCALAPPDATA` still reported the plain path.
+
+**Honest gap:** `app dir writable` read `yes`, but the test used a loose layout (writable by definition), not a real `WindowsApps` install. Re-take that reading when packaging begins.
+
+**Install mechanics:** unsigned MSIX is rejected even in Developer Mode; machine-scope cert trust needs elevation; **loose-layout registration works unsigned and unelevated** and is the dev loop. Store re-signing means end users never touch a certificate.
 
 ---
 

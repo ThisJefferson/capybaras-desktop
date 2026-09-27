@@ -19,8 +19,19 @@ Throwaway harness in `spikes/001-sidecar-supervision/`. Question: when a supervi
 - **MSIX full-trust remains untested** — Developer Mode is off and trusting a test certificate needs elevation. A user action; gates packaging only, not the shell.
 - No production code changed. No test-count change (still 141). Decision recorded as `DECISIONS.md` D12.
 
+### Spike 002 — MSIX full-trust + bundled Node sidecar (verdict: VALIDATED)
+
+Throwaway harness in `spikes/002-msix-sidecar/`: a zero-dependency Rust launcher, a bundled `node.exe`, and a bundled Node sidecar, packed to a 34 MB MSIX. This closes the highest-risk unknown from the packaging research — no source documented MSIX + a desktop shell + a Node sidecar together.
+
+- **VALIDATED.** A full-trust MSIX app with package identity launched, resolved its app-local `node.exe`, spawned it, and Node ran: `node spawn: OK (exit 0)`, `sidecar ran under full-trust MSIX: v24.16.0`.
+- **Rule 1 — never resolve paths from `cwd`.** The packaged app launched with `cwd = C:\Windows\system32`.
+- **Rule 2 — decide the state directory deliberately.** MSIX **silently virtualizes AppData writes**: files written to `%LOCALAPPDATA%\CapybarasSpike\` landed in `%LOCALAPPDATA%\Packages\<PFN>\LocalCache\Local\...`, while `process.env.LOCALAPPDATA` still reported the plain path.
+- **Install mechanics:** unsigned MSIX is rejected even in Developer Mode (`0x800B0100`) — Dev Mode permits *sideloading*, not *unsigned*. Self-signed needs **machine**-scope trust, which needs elevation (`E_ACCESSDENIED`). **Loose-layout registration works unsigned and unelevated** and is the dev loop. Store packages are re-signed by Microsoft, so end users never touch a certificate.
+- **Honest gap:** `app dir writable` read `yes`, but the test used a loose layout (writable by definition), not a real `WindowsApps` install. That reading will be re-taken when packaging begins.
+- No production code changed. No test-count change (still 141). Decision recorded as `DECISIONS.md` D13.
+
 ### In progress
-- **M2 — the Tauri shell**: supervise the Node sidecar with a Job Object (`KILL_ON_JOB_CLOSE`) plus the graceful-stop handshake, per the spike.
+- **M2 — the Tauri shell**: supervise the Node sidecar with a Job Object (`KILL_ON_JOB_CLOSE`) plus the graceful-stop handshake, per spike 001; honour the two path rules from spike 002.
 
 ### Planned
 - Approval interface, the herd, receipts

@@ -1,0 +1,13 @@
+[package]
+name = "capybaras-msix-launcher"
+version = "0.0.1"
+edition = "2021"
+
+[[bin]]
+name = "launcher"
+path = "src/main.rs"
+
+# No dependencies. This is throwaway spike code and must not drag in a crate graph.
+[profile.release]
+strip = true
+opt-level = "z"
