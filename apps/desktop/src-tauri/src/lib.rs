@@ -141,6 +141,7 @@ fn spawn_protocol_forwarder(app: &tauri::AppHandle, mut rx: std::sync::mpsc::Rec
                 "approval.resolved" => "capybaras://approval-resolved",
                 "action.proceeded" => "capybaras://action-proceeded",
                 "action.dry_run" => "capybaras://action-dry-run",
+                "agents.state" => "capybaras://agents",
                 "grants.listed" => "capybaras://grants",
                 "error" => "capybaras://protocol-error",
                 "ready" => "capybaras://ready",

@@ -147,6 +147,81 @@ document.addEventListener('keydown', (event) => {
 });
 
 /* ------------------------------------------------------------------ */
+/* The herd                                                            */
+/* ------------------------------------------------------------------ */
+
+// The character art is a PLACEHOLDER. The calçadão wave mark stands in until
+// the commissioned model sheet exists (one character, four poses, one sign,
+// D18). Swapping the art must not require touching this layout.
+const WAVE_PATHS = [
+  'M 60,152 C 95,130 123,130 158,152 C 193,174 221,174 256,152 C 291,130 319,130 354,152 C 389,174 417,174 452,152',
+  'M 60,256 C 95,278 123,278 158,256 C 193,234 221,234 256,256 C 291,278 319,278 354,256 C 389,234 417,234 452,256',
+  'M 60,360 C 95,338 123,338 158,360 C 193,382 221,382 256,360 C 291,338 319,338 354,360 C 389,382 417,382 452,360',
+];
+
+const STATE_LABEL = {
+  dozing: 'dozing',
+  listening: 'listening',
+  working: 'working',
+  'needs-you': 'needs you',
+};
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function buildAgent(agent) {
+  const el = document.createElement('div');
+  el.className = `agent agent--${agent.accent}`;
+  el.dataset.agent = agent.id;
+  el.title = `${agent.label} — ${agent.job}`;
+
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 512 512');
+  svg.setAttribute('class', 'agent__mark');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const d of WAVE_PATHS) {
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('class', 'wave');
+    path.setAttribute('d', d);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke-width', '34');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    svg.append(path);
+  }
+
+  const name = document.createElement('span');
+  name.className = 'agent__name';
+  name.textContent = agent.label;
+
+  const state = document.createElement('span');
+  state.className = 'agent__state';
+
+  el.append(svg, name, state);
+  return el;
+}
+
+function renderHerd(agents) {
+  const host = $('herd');
+  if (!host || !Array.isArray(agents)) return;
+
+  // Build the row once, then update in place. Rebuilding would restart every
+  // animation on each message, which would look twitchy rather than calm.
+  if (host.childElementCount !== agents.length) {
+    host.textContent = '';
+    for (const agent of agents) host.append(buildAgent(agent));
+  }
+
+  for (const agent of agents) {
+    const el = host.querySelector(`[data-agent="${agent.id}"]`);
+    if (!el) continue;
+    const label = STATE_LABEL[agent.state] ?? agent.state;
+    el.dataset.state = agent.state;
+    el.querySelector('.agent__state').textContent = label;
+    el.setAttribute('aria-label', `${agent.label}, ${agent.job}: ${label}`);
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Events pushed from the shell                                       */
 /* ------------------------------------------------------------------ */
 
@@ -157,6 +232,7 @@ if (listen) {
     log(`proceeded: ${e.payload.id} (${e.payload.tier}) — ${e.payload.because ?? ''}`),
   );
   listen('capybaras://action-dry-run', (e) => log(`dry run: ${e.payload.headline}`));
+  listen('capybaras://agents', (e) => renderHerd(e.payload.agents));
   listen('capybaras://protocol-error', (e) => log(`refused: ${e.payload.message}`));
   listen('capybaras://ready', (e) => log(`sidecar ready (protocol ${e.payload.protocol})`));
 } else {

@@ -174,6 +174,93 @@ fn a_silent_read_proceeds_without_asking() {
     assert_eq!(proceeded["tier"], "silent");
 }
 
+/// Collect every message that arrives within `ms`. Used where the ORDER of
+/// messages matters — `expect` skips non-matching ones, which would discard the
+/// `agents.state` frames that arrive just before an approval request.
+fn drain(sidecar: &Sidecar, ms: u64) -> Vec<Value> {
+    let deadline = Instant::now() + Duration::from_millis(ms);
+    let mut seen = Vec::new();
+    while Instant::now() < deadline {
+        if let Some(message) = sidecar.recv_json(Duration::from_millis(150)) {
+            seen.push(message);
+        }
+    }
+    seen
+}
+
+fn latest<'a>(seen: &'a [Value], message_type: &str) -> Option<&'a Value> {
+    seen.iter().filter(|m| m["type"] == message_type).next_back()
+}
+
+/// M4.6 — the herd.
+///
+/// Verifies the state machine through the real protocol, not just in unit
+/// tests: the sidecar must report all six agents, show the correct owner at
+/// work, raise exactly one sign when a human is needed, and lower it after.
+#[test]
+fn the_herd_reports_who_is_busy_and_who_needs_you() {
+    let dir = state_dir("herd");
+    let mut sidecar = spawn(&dir);
+    expect(&sidecar, "ready", Duration::from_secs(25));
+
+    // ---- idle: all six present, all attentive ----
+    let idle = drain(&sidecar, 900);
+    let first = latest(&idle, "agents.state").expect("no agents.state at startup");
+    let agents = first["agents"].as_array().expect("agents must be an array");
+    assert_eq!(agents.len(), 6, "all six must always be present: {first}");
+    assert!(
+        agents.iter().all(|a| a["state"] == "listening"),
+        "everything should start attentive: {first}"
+    );
+
+    // ---- a write is Nina's work, and it needs a human ----
+    sidecar
+        .send(&json!({
+            "v": 1,
+            "type": "action.propose",
+            "id": "h1",
+            "action": { "tool": "fs.write", "args": { "path": "notes.md" } },
+            "context": { "targetLabel": "notes.md" }
+        }))
+        .expect("could not send action.propose");
+
+    let during = drain(&sidecar, 1600);
+    assert!(
+        during.iter().any(|m| m["type"] == "approval.required"),
+        "the write should have asked for approval"
+    );
+    let shown = latest(&during, "agents.state").expect("no agents.state while pending");
+    let list = shown["agents"].as_array().unwrap();
+    let nina = list.iter().find(|a| a["id"] == "nina").expect("nina must be present");
+    assert_eq!(
+        nina["state"], "needs-you",
+        "Nina owns fs.write and should be the one asking: {shown}"
+    );
+    assert_eq!(
+        list.iter().filter(|a| a["state"] == "needs-you").count(),
+        1,
+        "only one agent may need you at a time: {shown}"
+    );
+
+    // ---- answer, and the sign comes down ----
+    sidecar
+        .send(&json!({ "v": 1, "type": "approval.answer", "id": "h1", "decision": "deny" }))
+        .expect("could not send denial");
+
+    let after = drain(&sidecar, 1300);
+    let settled = latest(&after, "agents.state").expect("no agents.state after the decision");
+    let nina = settled["agents"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["id"] == "nina")
+        .expect("nina");
+    assert_eq!(
+        nina["state"], "listening",
+        "the sign should come down once answered: {settled}"
+    );
+}
+
 #[test]
 fn an_unsupported_protocol_version_is_refused_not_guessed_at() {
     let dir = state_dir("version");

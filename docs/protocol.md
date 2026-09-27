@@ -64,10 +64,40 @@ Rules:
 | `action.dry_run` | `id`, `headline`, `reasons` | Shown, not run. |
 | `approval.required` | `id`, `request` | **Blocked, and waiting for a human.** |
 | `approval.resolved` | `id`, `outcome` | What the human decided. |
+| `agents.state` | `agents[]` | The herd, whole, in fixed display order. |
 | `grants.listed` | `id`, `grants` | Reply to `grants.list`. |
 | `error` | `id?`, `message` | Something was refused or failed. |
 | `log` | `level`, `message` | Diagnostics. |
 | `heartbeat` | `uptimeMs` | Liveness. |
+
+### `agents.state`
+
+The whole herd, sent whenever anything changes. It is a **whole-state message, not a delta** — the interface always receives the complete picture, so a dropped message self-corrects on the next one rather than leaving the display permanently wrong.
+
+```jsonc
+{
+  "v": 1,
+  "type": "agents.state",
+  "agents": [
+    {
+      "id": "nina",          // stable id
+      "label": "Nina",        // display name
+      "job": "writes and edits files",
+      "accent": "leaf",       // token name; coral is never assigned
+      "state": "working",     // dozing | listening | working | needs-you
+      "sinceMs": 412           // ms since this agent last changed state
+    }
+    // ...five more, always all six, always in the same order
+  ]
+}
+```
+
+Three rules the sidecar enforces before sending (BRAND.md):
+
+1. **At most one agent is in `needs-you`** — the loudest state, never a badge.
+2. **At most two agents are `working` at once.** A third contender pushes the longest-busy one back to `listening`.
+3. **All six are always present.** A list that omits idle agents cannot show that the herd is quiet, and quiet is information.
+
 
 `request` is an `ApprovalRequest`: `{ tier, headline, reasons[], confirmationPhrase?, canRemember, requiresTypedConfirmation, target }`.
 

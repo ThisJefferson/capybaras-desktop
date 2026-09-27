@@ -19,6 +19,7 @@ import { join } from 'node:path';
 
 import { gate, GrantStore, describeGrant, loadGrants, saveGrants } from '../../../../src/policy/index';
 import type { ApprovalRequest, GateContext, LoadResult } from '../../../../src/policy/index';
+import { Herd } from './agents';
 import type { ActionDescriptor, Classification } from '../../../../src/risk-classifier/index';
 
 const PROTOCOL = 1;
@@ -98,8 +99,37 @@ function persistGrants(): void {
   }
 }
 
+/**
+ * The herd: which specialist is doing what.
+ *
+ * Sent as WHOLE STATE rather than deltas, so a dropped message self-corrects on
+ * the next one instead of leaving the display permanently wrong.
+ */
+const herd = new Herd();
+
+function emitHerd(): void {
+  emit({ type: 'agents.state', agents: herd.snapshot() });
+}
+
+// Send the initial picture straight away, so the interface never has to guess
+// what the herd looks like before anything has happened.
+emitHerd();
+
+/** How long a completed action keeps its agent looking busy. Long enough to be
+ * seen, short enough not to imply work is still happening. */
+const WORK_VISIBLE_MS = 600;
+
 /** Actions blocked and waiting for a human, keyed by correlation id. */
-const pending = new Map<string, { action: ActionDescriptor; classification: Classification; request: ApprovalRequest }>();
+const pending = new Map<
+  string,
+  {
+    action: ActionDescriptor;
+    classification: Classification;
+    request: ApprovalRequest;
+    /** The specialist that raised the sign, so it can be lowered again. */
+    owner: string;
+  }
+>();
 
 let stopped = false;
 
@@ -135,7 +165,16 @@ function propose(id: string, action: ActionDescriptor, context?: Partial<GateCon
   });
 
   switch (decision.outcome) {
-    case 'proceed':
+    case 'proceed': {
+      // Show the owner briefly at work, then back to attentive. The action is
+      // instantaneous from the sidecar's point of view, but the interface
+      // should still be able to see that somebody did something.
+      const owner = herd.beginWork(action.tool);
+      emitHerd();
+      setTimeout(() => {
+        herd.release(owner);
+        emitHerd();
+      }, WORK_VISIBLE_MS);
       emit({
         type: 'action.proceeded',
         id,
@@ -143,6 +182,7 @@ function propose(id: string, action: ActionDescriptor, context?: Partial<GateCon
         because: decision.because,
       });
       return;
+    }
 
     case 'dry_run':
       emit({
@@ -160,11 +200,18 @@ function propose(id: string, action: ActionDescriptor, context?: Partial<GateCon
       }
       // Rule 1: from here the action is BLOCKED. It stays blocked until an
       // explicit answer arrives. Nothing times it out into approval.
+      // The owner raises the sign and holds it. This is the loudest state.
+      const owner = herd.beginWork(action.tool);
+      herd.needsYou(owner);
+      emitHerd();
+
       pending.set(id, {
         action,
         classification: decision.classification,
         request: decision.request,
+        owner,
       });
+
       emit({ type: 'approval.required', id, request: decision.request });
       say(`approval required id=${id} tier=${decision.request.tier}`);
       return;
@@ -186,6 +233,8 @@ function answer(id: string, decision: string): void {
   // Rule 2: a denial is final for this action.
   if (decision === 'deny') {
     pending.delete(id);
+    herd.release(entry.owner);
+    emitHerd();
     emit({ type: 'approval.resolved', id, outcome: 'denied' });
     say(`denied id=${id}`);
     return;
@@ -221,6 +270,8 @@ function answer(id: string, decision: string): void {
   }
 
   pending.delete(id);
+  herd.release(entry.owner);
+  emitHerd();
   emit({ type: 'approval.resolved', id, outcome: 'allowed' });
   emit({
     type: 'action.proceeded',

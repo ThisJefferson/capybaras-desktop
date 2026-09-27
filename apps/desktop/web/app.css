@@ -43,6 +43,122 @@ dd {
 .ok { color: var(--color-semantic-state-success); }
 .bad { color: var(--color-semantic-state-needsYou); }
 
+/* ---------------- the herd ----------------
+ *
+ * Six instances of ONE character design, duplicated (D18). They are told apart
+ * by label, accent colour and fixed position — not by being different animals.
+ *
+ * The character art here is a PLACEHOLDER: the calçadão wave mark stands in
+ * until the commissioned model sheet exists (one character, four poses, one
+ * sign). Swapping it should not require touching this layout.
+ */
+
+.herd {
+  display: flex;
+  gap: var(--space-5);
+  align-items: flex-start;
+  margin: var(--space-6) 0 var(--space-2);
+  flex-wrap: wrap;
+}
+
+.agent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  width: 84px;
+  text-align: center;
+}
+
+.agent__mark {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-lg);
+  display: block;
+  transition: transform var(--motion-duration-standard) var(--motion-easing-standard),
+              opacity var(--motion-duration-standard) var(--motion-easing-standard);
+}
+
+.agent__name {
+  font-size: var(--typography-size-xs);
+  font-weight: var(--typography-weight-semibold);
+  color: var(--color-semantic-text-primary);
+}
+
+.agent__state {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-semantic-text-muted);
+}
+
+/* Accent colours: the six non-coral palette colours, one each (D18).
+   Coral is never an agent accent — it means one thing. */
+.agent--atlantic { --agent-accent: var(--color-brand-atlantic); }
+.agent--sky      { --agent-accent: var(--color-brand-sky); }
+.agent--ink      { --agent-accent: var(--color-brand-ink); }
+.agent--leaf     { --agent-accent: var(--color-brand-leaf); }
+.agent--capy     { --agent-accent: var(--color-brand-capy); }
+.agent--sand     { --agent-accent: var(--color-brand-sand); }
+
+/* Duda's accent is sand, which is very nearly the page colour — so sand waves
+   on cream are invisible. Give Duda a sand TILE with dark waves instead, so the
+   accent still reads and the icon is legible. */
+.agent--sand .agent__mark {
+  background: var(--color-brand-sand);
+  outline: 1px solid var(--color-semantic-border-strong);
+}
+.agent--sand .agent__mark .wave { stroke: var(--color-semantic-text-primary); }
+
+/* NOTE ON SPECIFICITY: the rule below is `.agent__mark .wave` (two classes).
+   The sand override above must therefore use THREE classes to win, because CSS
+   source order decides equal specificity — and this rule comes later in the
+   file. Raising the specificity makes the override order-independent. */
+.agent__mark .wave { stroke: var(--agent-accent); }
+
+/* ---- the four states ---- */
+
+/* Dozing: barely there. */
+.agent[data-state='dozing'] .agent__mark { opacity: 0.35; }
+
+/* Listening: attentive, still. */
+.agent[data-state='listening'] .agent__mark { opacity: 0.75; }
+
+/* Working: fully present, and gently moving. Purposeful, not frantic. */
+.agent[data-state='working'] .agent__mark { opacity: 1; }
+.agent[data-state='working'] .wave {
+  animation: capy-work 1.6s var(--motion-easing-standard) infinite;
+}
+@keyframes capy-work {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(3px); }
+}
+
+/* Needs you: the loudest thing in the interface. Coral, lifted, and the only
+   asymmetric motion. It has to be unmistakable from across the room. */
+.agent[data-state='needs-you'] .agent__mark {
+  opacity: 1;
+  transform: translateY(-6px) scale(1.1);
+  box-shadow: 0 0 0 2px var(--color-semantic-state-needsYou),
+              0 6px 16px rgba(242, 112, 90, 0.32);
+}
+.agent[data-state='needs-you'] .agent__name { color: var(--color-semantic-state-needsYou); }
+.agent[data-state='needs-you'] .agent__state {
+  color: var(--color-semantic-state-needsYou);
+  font-weight: var(--typography-weight-bold);
+}
+.agent[data-state='needs-you'] .wave {
+  animation: capy-sign 1.4s var(--motion-easing-attention) infinite;
+}
+@keyframes capy-sign {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent__mark, .wave { animation: none !important; transition: none !important; }
+}
+
 /* ---------------- the approval card ---------------- */
 
 .card {
