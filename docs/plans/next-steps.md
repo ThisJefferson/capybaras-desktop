@@ -4,6 +4,66 @@ Compiled 2026-09-27. Answers: *what happens next in the build?*
 
 ---
 
+## Status update — 2026-09-27, after M4.4
+
+**Sections below are partly out of date. Read this first.**
+
+### What has landed since this plan was written
+
+| Item | Commit (current SHAs) |
+|---|---|
+| Protocol v1, gate in the sidecar, non-bypassable round trip (M4.1–M4.3) | `29a90e0` |
+| Design tokens + the push path + the approval card (M4.4) | `776714a` |
+| Logo reworked after review rejected the first attempt | `66ea5f7` |
+
+153 tests green at the last run (141 TypeScript, 12 Rust). Working tree clean.
+
+### Two corrections to the sections below
+
+1. **The "gaps M4.4–M4.7 must close" section is obsolete.** It describes the push channel and the design tokens as missing. Both now exist: `spawn_protocol_forwarder` turns protocol messages into interface events, and `design/tokens.json` generates 66 CSS custom properties.
+2. **Every commit SHA in this document is stale.** The repository history was rewritten on 2026-09-27 to remove material that had been published by mistake, so all SHAs changed. `51c351a` (cited twice below) is now `29a90e0`.
+
+### Cleanup — verified, and much narrower than it first looked
+
+A history rewrite changes the SHA of every commit **from the first-changed commit onward**. Commits *before* that point keep their hashes, so not every old reference breaks. I checked each one rather than assuming:
+
+| Reference | Status |
+|---|---|
+| `STATUS.md` — `62f2a78` (M0) | **Fine.** Predates the rewrite; still resolves |
+| `next-steps.md` — `51c351a` (×2) | **Broken.** Rewritten; now `29a90e0`. Fixed. |
+| `packaging-and-signing.md` — `5954185`, `5874899` | **Not commit references at all.** Regex false positives |
+
+So the real damage was one reference in one file. Worth recording, because the first sweep flagged four and only one was real: **a rewrite invalidates later commits, not earlier ones.** Over-flagging is its own kind of error — it manufactures work and buries the genuine item.
+
+**Exit:** no document references a commit that does not resolve. **Met.**
+
+### M4.4 is built but UNVERIFIED — this is the open item
+
+The card, the tokens and the push path are all committed. What is **not** done is confirming the interface actually renders: the layout has never been looked at in a real window. Worth stating plainly — the plumbing is verified by tests, the appearance is not verified at all.
+
+This matters more than it sounds. The CSP is `script-src 'self'`, the frontend was split into external files to satisfy it, and none of that has been exercised at runtime.
+
+**Exit:** a screenshot of the running application, with the card visible, reviewed and accepted — or the defects found and fixed.
+
+### Then the remaining M4 work
+
+**M4.5 — durable grants.** `grants.ts` is an in-memory `Map` with no read or write anywhere. Grants must survive a restart, be revocable from the interface, and still never satisfy a hard gate. This is where D15 stops being theoretical: the file has to live somewhere, and under MSIX that path may be virtualised.
+**Exit:** a grant survives a restart, satisfies exactly one action against one target, expires, is revocable — and a hard gate is still never satisfied by memory.
+
+**M4.6 — the herd, driven by real state.** Blocked on the protocol: there is currently **no message that reports which agent is active or what state it is in**, so the herd cannot be driven by anything real until one exists. Needs a new message type plus the state machine behind it, then six instances of one character (D18) distinguished by label, accent colour and position.
+**Exit:** a state change in the sidecar produces the correct visible state, and no animation is decorative.
+
+**M4.7 — the acceptance test, through the interface.** The logic is already proven: `tests/replit-acceptance.test.ts` carries 15 cases. This proves the *product* — the scenario driven by hand through the real interface, with a real person clicking.
+**Exit:** the documented scenario halts, states plainly what it intends to do, and cannot proceed without a click. **This is the milestone gate.**
+
+### Design stream — remaining
+
+Tokens are done. Outstanding: typography (a bundled OFL face for the wordmark), adopting Lucide in place of hand-drawn icons, the motion spec including the *needs you* moment, and the mascot model sheet — **one character, four poses, one sign** (D18).
+
+---
+
+---
+
 ## Where we are
 
 | Milestone | State |
@@ -12,7 +72,7 @@ Compiled 2026-09-27. Answers: *what happens next in the build?*
 | **M1** Classifier complete | Done — 141 TypeScript tests |
 | **M2** Spike verdicts | Done — spike 001 PARTIAL, 002 VALIDATED, 003 on mascots |
 | **M3** Shell runs | **Done** — 7 Rust tests, released as `v0.0.3-alpha` |
-| **M4** The approval interface | **In progress** — M4.1–M4.3 done (`51c351a`); M4.4–M4.7 remain |
+| **M4** The approval interface | **In progress** — M4.1–M4.4 done (`29a90e0`, `776714a`); M4.5–M4.7 remain |
 | **M5** Onboarding | Not started |
 
 **What exists:** a risk classifier and policy layer with 148 passing tests across both languages; a Rust shell that supervises a Node sidecar with measured lifecycle guarantees; brand identity; design tokens pending; an approval-card design that has been reviewed.
@@ -77,7 +137,7 @@ The Replit scenario, run against the real app with a real person clicking. The e
 
 ### Progress, and the gaps M4.4–M4.7 actually have to close
 
-**M4.1–M4.3 are done and verified** — commit `51c351a`, 153 tests passing. Measured against the current code, here is what genuinely remains. **Three of the four are not the card.**
+**M4.1–M4.3 are done and verified** — commit `29a90e0`, 153 tests passing. Measured against the current code, here is what genuinely remains. **Three of the four are not the card.**
 
 **M4.4 — the card needs a push channel that does not exist.**
 The shell's only route to the interface today is a **pull-based** Tauri command (`shell_status`), and the frontend polls it every two seconds. There is **no `emit`, no event, no way for the shell to tell the UI that something needs a human.** Worse: **nothing consumes the protocol channel** — `recv_json` exists in `sidecar.rs` but is called only from tests, so in the real app the sidecar's messages currently go nowhere at all.
