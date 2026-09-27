@@ -42,24 +42,45 @@ The product runs **multiple agents**. OpenClaw's real design has a main agent pl
 
 > Five capybaras dozing, two awake, one walking up front with a sign — and the user instantly understands: *something is being worked on, by specialists, and one of them needs me.*
 
-That is not decoration. **It is the best available interface for a multi-agent system**, and it happens to be adorable. TunnelBear had one bear for one thing. We have a cast, because we have a cast.
+That is not decoration. **It is the best available interface for a multi-agent system**, and it happens to be adorable.
+
+**But the herd works through count and state, not through distinct character designs.** TunnelBear had one bear for one thing; we have one bear for six things. Six visibly different animals would imply a difference between the agents that does not exist — **they are the same software with different jobs, and one character repeated is the honest picture.** Repetition is also how mascots are supposed to work: recognition comes from seeing *the same form* again, not from a cast of six.
 
 ---
 
-## 3. The cast
+## 3. The cast — one character, six names
+
+**Decision (2026-09-27, Jeff): there is ONE capybara character design.** It is duplicated six times, not drawn six times. The names remain; the graphical personalisation does not extend to six different animals.
+
+This is the stronger choice, not merely the cheaper one:
+
+1. **It is what the herd actually is.** The six agents are one piece of software with six jobs. Distinct characters would be an illustration of a difference that does not exist.
+2. **It is how mascots work.** TunnelBear has one bear. Mailchimp has one Freddie. Duolingo has one owl. Six designs would dilute recognition six ways instead of compounding it.
+3. **It cuts the art from 24 poses to 4.** One character in four states (§4). That is a small enough job to be commissioned properly and done well, rather than a large job done cheaply.
+
+**How the six stay distinguishable.** This matters, because the entire point of the herd is that you can see *who is doing what*:
+
+| Differentiator | Notes |
+|---|---|
+| **Name label** | Always visible. The primary identifier. |
+| **Accent colour** | One per capybara, from the existing palette. **Coral stays reserved for "needs you"** and is never assigned to a character. |
+| **Fixed position** | Each has a permanent slot in the row, so the layout is learnable spatially. |
+| **State** | Dozing / listening / working / needs-you already differentiates at a glance. |
 
 Names are warm, short, Brazilian, and easy to say in English. Each capybara has **one job**, so the user learns who does what.
 
-| Capybara | Job | Maps to | Wakes when |
-|---|---|---|---|
-| **Tuca** | **The one you talk to.** Speaks for the herd. | Main agent | Immer — always present at the front |
-| **Bia** | Looks things up; reads pages | web_lookup / research | Research or browsing is needed |
-| **Zeca** | **Checks the work.** The sceptic. | checker / verification | Something must be double-checked |
-| **Nina** | Writes and edits files | edit / write | Documents are being created or changed |
-| **Joca** | Runs things; handles the machine | tools / exec | A command or system action is needed |
-| **Duda** | Tidies up; organises the results | normaliser / batch | Collecting, sorting, summarising |
+| Capybara | Job | Maps to | Accent | Wakes when |
+|---|---|---|---|---|
+| **Tuca** | **The one you talk to.** Speaks for the herd. | Main agent | atlantic | Always present at the front |
+| **Bia** | Looks things up; reads pages | web_lookup / research | sky | Research or browsing is needed |
+| **Zeca** | **Checks the work.** The sceptic. | checker / verification | ink | Something must be double-checked |
+| **Nina** | Writes and edits files | edit / write | leaf | Documents are being created or changed |
+| **Joca** | Runs things; handles the machine | tools / exec | capy | A command or system action is needed |
+| **Duda** | Tidies up; organises the results | normaliser / batch | sand | Collecting, sorting, summarising |
 
-**Narrative rule: Zeca is the one who asks.** The verification agent is the one that stops and raises a paw. That is the product promise, embodied — *the sceptic is a member of the team, not a gate bolted on.*
+That is the six non-coral palette colours, one each — so the accent scheme is exhausted exactly, with nothing spare to misuse. **Duda's sand needs a hairline outline** to read against the cream background; every other accent works as a flat chip.
+
+**Narrative rule: whoever needs you raises the sign.** The sign is not one character's signature prop — it is the visual definition of the *"needs you" state*, held by whichever capybara needs you (§4).
 
 Six is the right number: enough to feel like a herd, few enough to name.
 
@@ -75,6 +96,11 @@ The TunnelBear move — make the security/status state legible through a charact
 | **Listening** | Heads up, ears forward, eyes open | Gentle sway, occasional blink |
 | **Working** | Only the relevant capybara(s) awake and busy; the rest still dozing | Purposeful, syncopated — bossa rhythm |
 | **Needs you** | **One capybara walks to the front holding a small sign** | **The only state with asymmetric motion — it must be unmistakable from across the room** |
+
+**The sign belongs to the state, not to a character.** Any capybara can raise it; it *is* the visual definition of "needs you". Two consequences, both good:
+
+- The single most important moment in the interface is **always drawn identically**, so it is recognised instantly rather than re-read.
+- The total art requirement stays at **one character × four poses + one sign**. Nothing has to be multiplied.
 
 Rules:
 - **"Needs you" is the loudest thing in the entire app.** Not a badge, not a red dot — a character standing in front of you.

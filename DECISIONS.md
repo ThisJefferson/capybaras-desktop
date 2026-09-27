@@ -264,6 +264,36 @@ The chosen mechanism needs no cleanup: **Windows releases the handle when the pr
 
 ---
 
+## D18 — One capybara, duplicated six times (Jeff's decision)
+**2026-09-27**
+
+**Decision: there is ONE character design.** It is duplicated six times, not drawn six times. The six names stay; the graphical personalisation does not extend to six different animals. Accents and labels do the differentiating.
+
+**Proposed by Jeff, and it is the right call — for three reasons, only one of which is cost.**
+
+**1. It is the honest picture.** The six agents are one piece of software with six jobs. Six visibly different animals would illustrate a difference between them that does not exist. Repetition of a single character says what is actually true.
+
+**2. It is how mascot recognition works.** TunnelBear has one bear. Mailchimp has one Freddie. Duolingo has one owl. Recognition compounds through *seeing the same form again* — six designs would dilute the brand six ways rather than building it. `BRAND.md` previously claimed "we have a cast, because we have a cast"; that line is now corrected, because it argued for the expensive path on aesthetic grounds when the cheap path is also the more truthful one.
+
+**3. It removes the exact blocker the mascot spike found.** Spike 003 established that generation cannot be shipped because the same prompt produced two different capybaras — continuity drift, with 24 mutually consistent poses required. **One character × four states is 4 poses.** The hard requirement drops by roughly 85%, from "a large illustration commission" to "a small, standard one."
+
+**How the six stay distinguishable** — this is the part that must not be skipped, because the entire point of the herd is seeing *who is doing what*:
+
+| Differentiator | Note |
+|---|---|
+| **Name label** | Always visible; the primary identifier |
+| **Accent colour** | One per capybara. The six non-coral palette colours, one each — the scheme is exhausted exactly, with nothing spare to misuse. **Coral remains reserved for "needs you"** and is never a character accent. |
+| **Fixed position** | A permanent slot in the row makes the layout spatially learnable |
+| **State** | Dozing / listening / working / needs-you already separate them at a glance |
+
+**The sign moves from a character's prop to a state's symbol.** It was Zeca's; it is now simply the visual definition of *"needs you"*, raised by whichever capybara needs you. Two wins: the most important moment in the interface is **always drawn identically** and therefore recognised instantly rather than re-read — and nothing has to be multiplied per character.
+
+**Total art requirement: one character × four poses + one sign.**
+
+**What this does not change:** the names, the jobs, the four states, the palette, and the rule that "needs you" is the loudest thing in the app. The herd still makes the architecture legible. It now does so through **count, accent and state** rather than through six distinct designs.
+
+---
+
 ## Standing constraints
 
 - **Never restart the Gateway** — owner-only.

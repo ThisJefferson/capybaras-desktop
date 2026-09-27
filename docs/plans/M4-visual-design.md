@@ -79,7 +79,7 @@ Professional feel lives disproportionately in motion. Define **durations** (shor
 
 ### Step 6 — Mascots: spiked, and the answer is in (spike 003)
 
-**Status: done**, and the premise changed. Jeff confirmed the capybaras are **integral to the product**, not decoration — which raises the bar rather than lowering it.
+**Status: done**, and the premise changed twice. Jeff confirmed the capybaras are **integral to the product**, not decoration — which raises the bar rather than lowering it. Then Jeff proposed **one character design, duplicated six times** (recorded as `DECISIONS.md` D18), which is the standard mascot pattern *and* removes the blocker this spike found.
 
 Generation was **tested rather than debated**: three images via `gemini-3-pro-image`, **$0.14 and ~20 s each**, evaluated with a task-specific vision prompt. Full detail: [`spikes/003-mascot-generation/README.md`](../../spikes/003-mascot-generation/README.md).
 
@@ -92,10 +92,10 @@ Generation was **tested rather than debated**: three images via `gemini-3-pro-im
 **The revised strategy — and it changes what we buy:**
 
 1. **Generate to explore.** At $0.14 an image, a hundred-image exploration pass costs about **$14**. That replaces mood boards and sharpens the brief. It should be done *before* any money is spent, and it is the capability generation is genuinely good at.
-2. **Commission a character model sheet — not 24 illustrations.** One canonical drawing per character (front, side, expression range, the prop) is the real asset. It is a far smaller job than a full illustration set, and a standard thing for an illustrator to quote.
-3. **The model sheet also cures the consistency problem.** With a locked canonical reference, derivative poses become viable *image-to-image* — matching a reference instead of inventing a character from text every time. **The sheet is what makes the cheap path work.**
+2. **Commission ONE character model sheet — four poses and the sign.** Per D18 the design is a single capybara duplicated six times, so the real asset is one canonical drawing: front, side, expression range, and the sign. That is a **small, standard, quotable job** — plausibly an illustrator-day — rather than a character-set commission. The reduction from 24 poses to 4 is what makes it affordable.
+3. **The sheet also cures the consistency problem.** With a locked canonical reference, derivative poses become viable *image-to-image* — matching a reference instead of inventing a character from text every time. **The sheet is what makes the cheap path work.**
 
-**Exit:** a direction chosen from generated exploration, and the model-sheet commission briefed and quotable.
+**Exit:** a direction chosen from generated exploration, and the **one-character** model-sheet commission briefed and quotable.
 
 ### Step 7 — The review loop and the quality bar
 Screenshot the **running app** (not the mockup), put it next to reference products, and iterate. Define the bar explicitly:
@@ -110,7 +110,7 @@ Repeat until the honest answer is the first one. This loop is where most of the 
 
 ## What this needs from Jeff
 
-1. **The mascot commission — now confirmed as planned spend.** You've said the capybaras are integral, which settles it: this is a commission, not a nice-to-have. What it needs next is an **art brief** (which the generated exploration will produce) and a **quote**, when revenue allows.
+1. **The mascot commission — now confirmed as planned spend, and much smaller than it was.** You've said the capybaras are integral, which settles that it should be done properly; D18 then cut it from a character set to **one character × four poses + one sign**. What it needs next is an **art brief** (which the generated exploration produces) and a **quote**.
 2. **Everything else in this plan is free and unblocked** — steps 1–5 and 7 can start immediately. The interface will look clean and intentional long before the mascots are beautiful, which is the correct order: the system carries the quality, the illustration is the garnish.
 
 ---

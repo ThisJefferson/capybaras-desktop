@@ -57,17 +57,17 @@ That is **continuity drift**, and it is structural. A herd of six characters acr
 **Use generation for the part it is actually good at, and buy the part it cannot do.**
 
 1. **Generate to explore, not to ship.** At $0.14 an image, we can produce dozens of variations and converge on a *direction* — silhouette, warmth, how simple, how serious. That is a real, cheap, fast capability and it should be used. It replaces mood boards, not illustrators.
-2. **The thing to commission is a character model sheet, not 24 illustrations.** One canonical drawing per character — front, side, expression range, the prop — is the actual asset. It is a much smaller job than a full illustration set, and once it exists, the states can be *derived* from it rather than re-imagined.
+2. **The thing to commission is ONE character model sheet — four poses, one sign.** Per D18 the design is a single capybara, duplicated, so the real asset is one canonical drawing: front, side, expression range, and the sign. That is a **small, standard, quotable job** — plausibly a single illustrator's day — not a large character-set commission.
 3. **The model sheet also fixes the consistency problem.** With a canonical reference, image-to-image generation becomes viable for derivative poses, because the model is matching a reference rather than inventing a character from a prompt each time.
 
-**Sequencing:** explore with generation now (free-ish, and it sharpens the brief), commission the sheet when there is budget, derive the rest.
+**Sequencing:** explore with generation now (free-ish, and it sharpens the brief), commission the one sheet when there is budget, derive the rest.
 
 ---
 
 ## Cost reality
 
 - Generation: **~$0.14 per image.** A hundred-image exploration pass costs about **$14** — genuinely cheap, and worth doing before writing any brief.
-- Commission: the real cost, and the one decision that needs Jeff. A model sheet for six characters is a smaller, more standard job than a full character set, so it should be quotable.
+- Commission: the real cost, and the one decision that needs Jeff. **After D18 (one character, four poses) this is a small job** — the kind an illustrator can quote in a day rather than a project. The reduction from 24 poses to 4 is what makes it affordable.
 
 ---
 
