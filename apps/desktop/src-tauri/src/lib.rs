@@ -1,15 +1,22 @@
 pub mod paths;
 pub mod sidecar;
+pub mod single_instance;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
 use serde::Serialize;
 use sidecar::Sidecar;
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::TrayIconBuilder;
 use tauri::{Manager, RunEvent};
 
 pub struct AppState {
     sidecar: Mutex<Option<Sidecar>>,
+    /// Refreshed by the supervision thread. Kept separate from the sidecar lock
+    /// so the UI never blocks on a health probe.
+    healthy: AtomicBool,
 }
 
 #[derive(Serialize)]
@@ -20,6 +27,7 @@ pub struct ShellStatus {
     node_path: String,
     node_exists: bool,
     sidecar_running: bool,
+    sidecar_healthy: bool,
     sidecar_pid: Option<u32>,
     job_assigned: bool,
     job_error: Option<String>,
@@ -47,6 +55,7 @@ fn shell_status(state: tauri::State<'_, AppState>) -> ShellStatus {
         node_path: node.display().to_string(),
         node_exists: node.is_file(),
         sidecar_running: running,
+        sidecar_healthy: state.healthy.load(Ordering::Relaxed),
         sidecar_pid: pid,
         job_assigned: assigned,
         job_error: err,
@@ -67,11 +76,60 @@ fn stop_sidecar(app: &tauri::AppHandle) {
                     outcome.exit_code,
                     outcome.waited_ms
                 );
-                // `s` is dropped here. Its job handle closes, which terminates
+                // `s` drops here. Its job handle closes, which terminates
                 // anything the sidecar left running.
+                state.healthy.store(false, Ordering::Relaxed);
             }
         }
     }
+}
+
+fn build_tray(app: &tauri::App) -> tauri::Result<()> {
+    let show = MenuItem::with_id(app, "show", "Show Capybaras", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Capybaras", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show, &quit])?;
+
+    let mut builder = TrayIconBuilder::with_id("capybaras")
+        .menu(&menu)
+        .show_menu_on_left_click(true)
+        .tooltip("Capybaras")
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "quit" => app.exit(0),
+            "show" => {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+            _ => {}
+        });
+
+    if let Some(icon) = app.default_window_icon() {
+        builder = builder.icon(icon.clone());
+    }
+
+    builder.build(app)?;
+    Ok(())
+}
+
+/// Watches the sidecar so the interface can report a dead agent rather than
+/// showing a window that quietly stopped working.
+fn spawn_health_thread(app: &tauri::AppHandle) {
+    let handle = app.clone();
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(3));
+        let Some(state) = handle.try_state::<AppState>() else {
+            return; // app is shutting down
+        };
+        let alive = match state.sidecar.lock() {
+            Ok(mut guard) => guard.as_mut().map(|s| s.is_running()).unwrap_or(false),
+            Err(_) => false,
+        };
+        let was = state.healthy.swap(alive, Ordering::Relaxed);
+        if was && !alive {
+            log::error!("sidecar is no longer running");
+        }
+    });
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -79,6 +137,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(AppState {
             sidecar: Mutex::new(None),
+            healthy: AtomicBool::new(false),
         })
         .invoke_handler(tauri::generate_handler![shell_status])
         .setup(|app| {
@@ -90,15 +149,15 @@ pub fn run() {
 
             let node = paths::bundled_node();
             let script = paths::sidecar_script();
-            let state = paths::state_dir();
+            let state_dir = paths::state_dir();
 
             log::info!("shell up pid={}", std::process::id());
-            log::info!("  exe dir    : {}", paths::exe_dir().display());
-            log::info!("  state dir  : {}", state.display());
-            log::info!("  node       : {}", node.display());
-            log::info!("  sidecar    : {}", script.display());
+            log::info!("  exe dir   : {}", paths::exe_dir().display());
+            log::info!("  state dir : {}", state_dir.display());
+            log::info!("  node      : {}", node.display());
+            log::info!("  sidecar   : {}", script.display());
 
-            let spawned = match Sidecar::spawn(&node, &script, &state) {
+            let sidecar = match Sidecar::spawn(&node, &script, &state_dir) {
                 Ok(s) => {
                     log::info!(
                         "sidecar spawned pid={:?} job_assigned={}",
@@ -116,7 +175,15 @@ pub fn run() {
                 }
             };
 
-            *app.state::<AppState>().sidecar.lock().unwrap() = spawned;
+            let healthy = sidecar.is_some();
+            let state = app.state::<AppState>();
+            *state.sidecar.lock().unwrap() = sidecar;
+            state.healthy.store(healthy, Ordering::Relaxed);
+            drop(state);
+
+            build_tray(app)?;
+            spawn_health_thread(&app.handle().clone());
+
             Ok(())
         })
         .build(tauri::generate_context!())

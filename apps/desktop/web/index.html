@@ -56,6 +56,7 @@
         row('state dir', s.state_dir);
         row('node runtime', s.node_path, s.node_exists ? 'ok' : 'bad');
         row('sidecar running', String(s.sidecar_running), s.sidecar_running ? 'ok' : 'bad');
+        row('sidecar health', s.sidecar_healthy ? 'healthy' : 'NOT healthy', s.sidecar_healthy ? 'ok' : 'bad');
         row('sidecar pid', s.sidecar_pid == null ? '—' : String(s.sidecar_pid));
         row('job object', s.job_assigned ? 'assigned (KILL_ON_JOB_CLOSE)' : 'NOT assigned', s.job_assigned ? 'ok' : 'bad');
         if (s.job_error) row('job error', s.job_error, 'bad');

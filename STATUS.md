@@ -3,10 +3,10 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-27 12:25 EDT
-**Current phase:** **M3 — the shell runs.** Steps 1–6 done and verified; Step 7 (single instance, health, tray) outstanding
-**Next milestone:** M3 complete — then M4, the approval interface, where the Replit gate meets a real UI
-**Plan:** `docs/plans/M3-shell.md` · **Evidence:** `DECISIONS.md` D16
+**Last updated:** 2026-09-27 12:40 EDT
+**Current phase:** **M3 — the shell runs. COMPLETE.** All 7 steps done and verified → **next: M4, the approval interface**
+**Next milestone:** M4 — where the Replit gate meets a real UI. The phase where the product becomes itself
+**Plan:** `docs/plans/M3-shell.md` · **Evidence:** `DECISIONS.md` D15–D17
 **Recently decided:** D14 (no Bayesian maths in the safety path) · D15 (state directory) · D16 (supervision verified)
 **Repo:** https://github.com/ThisJefferson/capybaras-desktop (public) · releases cut per milestone
 
@@ -128,12 +128,13 @@
 | 4. State directory | D15 — explicit, overridable, and surfaced in the UI |
 | 5. Sidecar supervision | Job Object with `KILL_ON_JOB_CLOSE` + graceful-stop handshake |
 | 6. Non-orphaning, measured | **Hard-killed the shell from outside the process tree: zero orphans** |
+| 7. Single instance, health, tray | **Second launch refused and exited cleanly; exactly one shell runs** |
 
-**Tests:** 6 in the shell crate — 3 path, 3 supervision — all passing. The supervision test that matters asserts a graceful stop **reaches the sidecar's own handler**; on Windows a plain `Child::kill()` runs no handler, so it is a real assertion.
+**Tests:** 7 in the shell crate — 3 path, 1 single-instance, 3 supervision — all passing. The supervision test that matters asserts a graceful stop **reaches the sidecar's own handler**; on Windows a plain `Child::kill()` runs no handler, so it is a real assertion.
+
+**Runtime verification of step 7:** launched twice. First instance ran with a heartbeating sidecar; second printed `Capybaras is already running (lock held at …)` and exited. One shell process, one sidecar, and both cleared on shutdown.
 
 **Reproduce:** `cargo test` in `apps/desktop/src-tauri`; `apps/desktop/scripts/verify-supervision.ps1` for the outside-the-tree measurement.
-
-**Outstanding: Step 7** — single instance, health check, tray icon.
 
 ---
 

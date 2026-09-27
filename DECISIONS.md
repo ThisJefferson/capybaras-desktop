@@ -245,6 +245,25 @@ Verification is scripted and repeatable: `apps/desktop/scripts/verify-supervisio
 
 ---
 
+## D17 — Single instance: a lock file, and refusal rather than a second agent
+**2026-09-27**
+
+**Decision:** a second launch **refuses and exits**. It does not start a second agent, and it does not try to steal focus from the first.
+
+**Why this is a safety property and not tidiness.** Two agents sharing one state directory, one set of credentials and one sidecar port is precisely the contention this project exists to prevent. There is already a precedent for how that ends: two Ollama servers on one machine contending for the same GPU produced crashes and hangs. Being a consumer app makes it worse, not better — the user will double-click the icon twice and not think about it.
+
+**Mechanism: an exclusively-opened lock file** (`share_mode(0)`, handle held for the process lifetime) at `<state dir>\shell.lock`. Rejected alternatives:
+- A **named mutex** would also work, but the lock file sits next to the state it protects, which makes it inspectable when something goes wrong.
+- **Validating a stored pid** is the classic mistake — pids are reused, so a stale file can point at an unrelated process and either block a legitimate launch or permit a duplicate.
+
+The chosen mechanism needs no cleanup: **Windows releases the handle when the process dies, including when it dies badly.** There is no stale lock state to reason about.
+
+**Verified at runtime, not just in a test:** the first instance ran with a heartbeating sidecar; the second printed `Capybaras is already running (lock held at …)` and exited. Exactly one shell, one sidecar, both cleared on exit.
+
+**Known gap, stated plainly:** the plan's exit criterion said a second launch should *focus the first window*. It exits instead. Focusing requires an IPC channel to the running instance, which does not exist yet — the sidecar will own IPC later, and this can be revisited then. **Refusing to start a second agent is the safety-critical half and it works; focusing is a convenience and it is deferred.**
+
+---
+
 ## Standing constraints
 
 - **Never restart the Gateway** — owner-only.

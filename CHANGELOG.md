@@ -36,7 +36,7 @@ Throwaway harness in `spikes/002-msix-sidecar/`: a zero-dependency Rust launcher
 - **Milestone numbering corrected.** `EXECUTION-PLAN.md` §7 numbers **M2 = spike verdict, M3 = shell runs**. Earlier notes here called the shell "M2". Corrected rather than carried forward.
 - **`DECISIONS.md` D14 — Bayesian mathematics: no in the safety path, yes in exactly one place, not yet.** The classifier's guarantees (escalation-only, fail-safe unknowns, hard gates never satisfied by memory) are structural properties of a rule system. A posterior probability cannot be proved — only stated — so putting probability in the tier decision would *downgrade* the guarantee. Where it legitimately fits: an escalation-only soft-signal scorer (can only raise a tier, so a false negative is impossible), and a written justification of the priors and asymmetric loss behind each default threshold. The second is a document, not code, and is now a parallel stream on the M3 plan.
 
-### M3 — the Tauri shell (steps 1–6 of 7)
+### M3 — the Tauri shell (complete)
 
 New app at `apps/desktop/`: Tauri v2 shell (`src-tauri/`), a Node sidecar (`sidecar/sidecar.mjs`), and a minimal status frontend (`web/index.html`). The shell imports the classifier rather than duplicating it.
 
@@ -52,7 +52,13 @@ New app at `apps/desktop/`: Tauri v2 shell (`src-tauri/`), a Node sidecar (`side
 
 **Reproduce:** `cargo test` in `apps/desktop/src-tauri`; `apps/desktop/scripts/verify-supervision.ps1` re-takes the outside-the-tree measurement.
 
-**Outstanding:** step 7 — single instance, health check, tray icon. Decisions recorded as D15 (state directory) and D16 (supervision verified).
+**Step 7 — single instance, health, tray.** A second launch **refuses and exits** rather than starting a second agent, enforced by an exclusively-opened lock file (`share_mode(0)`, handle held for the process lifetime). Windows releases the handle when the process dies, including badly, so there is no stale lock to clean up. Verified at runtime: the first instance ran with a heartbeating sidecar; the second printed `Capybaras is already running` and exited; exactly one shell and one sidecar remained. A health thread watches the sidecar so the window can report a dead agent instead of quietly showing a stale state, and a tray icon exposes Show/Quit.
+
+**Known gap, stated plainly:** the plan's exit criterion said a second launch should *focus the first window*. It exits instead. Focusing needs an IPC channel to the running instance, which arrives with the sidecar's IPC later. Refusing to start a second agent is the safety-critical half and it works.
+
+**Tests:** 7 in the shell crate (3 path, 1 single-instance, 3 supervision), all passing.
+
+Decisions recorded as D15 (state directory), D16 (supervision verified) and D17 (single instance).
 
 ### Planned
 - Approval interface, the herd, receipts (design drafted — `docs/design/approval-card.md`)
