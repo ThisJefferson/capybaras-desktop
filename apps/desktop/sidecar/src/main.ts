@@ -97,8 +97,19 @@ if (restored.problem) {
  * point: protection comes from configuration, not from the action descriptor --
  * because a protection the protected agent supplies is not a protection. So
  * there is deliberately no code path here that creates or edits one.
+ *
+ * A MACHINE-WIDE policy WINS when present. That is the copy an operator can
+ * protect with an ACL (docs/operations/policy-acl.md), so it is the one that is
+ * actually enforceable; the per-user copy remains supported for single-user
+ * setups, where it is convenient and unenforceable. Whichever is used is logged,
+ * because "which policy is in force" should never be a guess.
  */
-const policyPath = stateDir ? join(stateDir, 'policy.json') : null;
+const programData = process.env.ProgramData ?? process.env.PROGRAMDATA;
+const machinePolicyPath = programData ? join(programData, 'Capybaras', 'policy.json') : null;
+const userPolicyPath = stateDir ? join(stateDir, 'policy.json') : null;
+
+const machinePolicyInUse = machinePolicyPath !== null && existsSync(machinePolicyPath);
+const policyPath = machinePolicyInUse ? machinePolicyPath : userPolicyPath;
 const protection = policyPath
   ? loadProtectionPolicy((p) => readFileSync(p, 'utf8'), policyPath)
   : { policy: {} };
@@ -109,6 +120,11 @@ const protection = policyPath
 // mechanism" is not really a mechanism.
 const effectivePolicy = withSelfProtection(protection.policy, stateDir);
 
+say(
+  policyPath
+    ? `protection policy: ${policyPath}${machinePolicyInUse ? ' (machine-wide)' : ' (per-user -- not enforceable by ACL)'}`
+    : 'protection policy: none (no state directory)',
+);
 say(
   effectivePolicy.freeze?.active
     ? `protection: a freeze is IN FORCE${effectivePolicy.freeze.reason ? ` (${effectivePolicy.freeze.reason})` : ''}`
