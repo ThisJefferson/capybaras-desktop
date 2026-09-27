@@ -13,6 +13,7 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, Manager, RunEvent};
 
 pub mod credential;
+pub mod exchange;
 pub mod integrity;
 pub mod loopback;
 pub mod oauth;

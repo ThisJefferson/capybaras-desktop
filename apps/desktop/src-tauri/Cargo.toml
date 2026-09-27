@@ -37,6 +37,11 @@ getrandom = "0.3"
 # we expect, and none of that handling is interesting enough to own. Adds no
 # async runtime to a shell that has none.
 tiny_http = "0.12"
+# The token exchange (src/exchange.rs). `default-tls` is the OS stack (schannel on
+# Windows) rather than a vendored one: this app is Windows-only already, and the OS
+# stack is the one that gets updated with the system rather than only on rebuild.
+# No `json` feature -- serde_json is already a direct dependency.
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls"] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
