@@ -12,6 +12,7 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, Manager, RunEvent};
 
+pub mod credential;
 pub mod integrity;
 
 pub struct AppState {

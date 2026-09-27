@@ -19,6 +19,13 @@ tauri-build = { version = "2.7.0" }
 [dependencies]
 sha2 = "0.10"
 hex = "0.4"
+# The OS credential store (docs/threat-model.md, T12). Preferred over hand-written
+# CREDENTIALW marshalling: more code, more pointer-lifetime mistakes, no benefit.
+# `windows-native` is REQUIRED. keyring 3.x declares no `default` feature, so a
+# bare keyring = "3" enables NO credential store and silently uses a no-op
+# backend: save() returns Ok, load() returns None, and every round trip fails as
+# if the store were broken. It compiled and lied, which is the worst combination.
+keyring = { version = "3", features = ["windows-native"] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
