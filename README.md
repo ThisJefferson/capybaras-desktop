@@ -138,6 +138,7 @@ Capybaras also reuses OpenClaw's control interface and gateway. Those components
 | [`BUILD-PLAN.md`](./BUILD-PLAN.md) | Packaging, distribution, licensing, UI spec |
 | [`BRAND.md`](./BRAND.md) | The herd, the states, the visual language |
 | [`EXECUTION-PLAN.md`](./EXECUTION-PLAN.md) | Build order, workstreams, handoffs |
+| [`docs/DEBUGGING.md`](./docs/DEBUGGING.md) | **Read before debugging.** Landmines, the layer-by-layer playbook, and the verification checklist |
 | [`docs/plans/M4-visual-design.md`](./docs/plans/M4-visual-design.md) | How the interface becomes beautiful rather than merely functional |
 
 ## Sponsors
