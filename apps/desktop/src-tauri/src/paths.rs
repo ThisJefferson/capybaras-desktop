@@ -43,15 +43,17 @@ pub fn sidecar_script() -> PathBuf {
     if let Ok(p) = std::env::var("CAPYBARAS_SIDECAR") {
         return PathBuf::from(p);
     }
-    let beside_exe = exe_dir().join("sidecar").join("sidecar.mjs");
+    let beside_exe = exe_dir().join("sidecar").join("dist").join("sidecar.mjs");
     if beside_exe.is_file() {
         return beside_exe;
     }
     // Development fallback. `CARGO_MANIFEST_DIR` is baked in at COMPILE time,
     // so this is still not dependent on the runtime working directory.
+    //
+    // This is the BUNDLED output, not the source: run `npm run build:sidecar`.
     PathBuf::from(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../sidecar/sidecar.mjs"
+        "/../sidecar/dist/sidecar.mjs"
     ))
 }
 

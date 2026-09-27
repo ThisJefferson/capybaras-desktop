@@ -38,3 +38,6 @@ spikes/**/target/
 spikes/**/*.msix
 spikes/**/*.cer
 spikes/**/*.exe
+
+# sidecar bundle output (build with: npm run build:sidecar)
+apps/desktop/sidecar/dist/

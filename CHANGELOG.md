@@ -60,9 +60,37 @@ New app at `apps/desktop/`: Tauri v2 shell (`src-tauri/`), a Node sidecar (`side
 
 Decisions recorded as D15 (state directory), D16 (supervision verified) and D17 (single instance).
 
-### Planned
-- Approval interface, the herd, receipts (design drafted — `docs/design/approval-card.md`)
-- OpenRouter OAuth onboarding
+### M4 — the approval interface (M4.1–M4.3 done)
+
+New spec: [`docs/protocol.md`](./docs/protocol.md) — protocol version 1, newline-delimited JSON in both directions.
+
+**M4.1 — bidirectional, versioned IPC.** The shell previously spawned the sidecar with `.stdout(Stdio::null())`, so **the sidecar could not reply at all**, and the only message that existed was `{"cmd":"shutdown"}`. stdout is now piped and drained by a reader thread into an unbounded channel (unbounded deliberately: a full pipe would block the child). The pre-M4 shutdown form is still accepted, so the existing supervision guarantee survives rather than being quietly re-broken.
+
+**M4.2 — the gate runs in the sidecar.** `apps/desktop/sidecar/src/main.ts` now runs the real policy layer, bundled with esbuild (`npm run build:sidecar`). Bundling rather than running TypeScript directly: the policy layer uses directory imports Node's ESM loader will not resolve, and Windows absolute paths need `file://` URLs.
+
+**M4.3 — the approval round trip.** A proposed action at `confirm` or `hard_gate` blocks until an explicit answer arrives.
+
+**Channel separation, enforced:** stdout carries ONLY protocol messages; every human-readable diagnostic goes to `sidecar.log`. Writing free text to stdout would corrupt the stream.
+
+**Rules enforced, each with a test:**
+- **An action at `confirm`/`hard_gate` cannot proceed without an `approval.answer`.** A test drains for three seconds with an approval pending and fails if anything proceeds.
+- **A denial is final and cannot be replayed.** An answer for an already-resolved action is an error, never a queued approval to be spent on something else.
+- **A hard gate refuses to be remembered** even when explicitly asked, and **stays pending** rather than being quietly approved.
+- **An unsupported protocol version is refused, not guessed at.**
+- Silent reads still proceed without asking.
+
+### Test results
+**153 tests passing** (141 TypeScript + 12 Rust).
+
+| Suite | Count |
+|---|---|
+| TypeScript (classify, policy, Replit acceptance) | 141 |
+| `tests/paths.rs` | 3 |
+| `tests/single_instance.rs` | 1 |
+| `tests/supervision.rs` | 3 |
+| `tests/protocol.rs` | 5 |
+
+Todo: M4.4 (the card), M4.5 (durable grants), M4.6 (the herd), M4.7 (the Replit test through the UI).
 
 ---
 

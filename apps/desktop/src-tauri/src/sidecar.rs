@@ -13,10 +13,11 @@
 //!    sidecar is asked to stop over its stdin, given a bounded grace period,
 //!    and only then killed.
 
-use std::io::Write;
+use std::io::{BufRead, BufReader, Write};
 use std::os::windows::io::AsRawHandle;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
+use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
 
 use windows::core::PCWSTR;
@@ -102,6 +103,8 @@ pub struct Sidecar {
     job_error: Option<String>,
     assigned: bool,
     exited: bool,
+    /// Protocol lines from the sidecar, delivered by a reader thread.
+    rx: Receiver<String>,
 }
 
 impl Sidecar {
@@ -113,13 +116,35 @@ impl Sidecar {
             Err(e) => (None, Some(e.to_string())),
         };
 
-        let child = Command::new(node)
+        let mut child = Command::new(node)
             .arg(script)
             .arg(format!("--state={}", state_dir.display()))
             .stdin(Stdio::piped())
-            .stdout(Stdio::null())
+            // Piped, NOT discarded. The sidecar speaks protocol v1 on stdout
+            // (docs/protocol.md). Before M4 this was `Stdio::null()`, which
+            // meant the sidecar had no way to reply at all.
+            .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()?;
+
+        // Drain stdout on its own thread and hand lines to the protocol reader.
+        // The channel is unbounded deliberately: a full pipe would block the
+        // child process, whereas an unconsumed channel only costs memory.
+        let (tx, rx) = mpsc::channel::<String>();
+        if let Some(out) = child.stdout.take() {
+            std::thread::spawn(move || {
+                for line in BufReader::new(out).lines() {
+                    match line {
+                        Ok(text) => {
+                            if tx.send(text).is_err() {
+                                break; // receiver gone: the shell is shutting down
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+        }
 
         let mut assigned = false;
         if let Some(job) = &job {
@@ -143,7 +168,31 @@ impl Sidecar {
             job_error,
             assigned,
             exited: false,
+            rx,
         })
+    }
+
+    /// Send one protocol message. Newline-terminated, always — see
+    /// `docs/protocol.md` for the framing.
+    pub fn send(&mut self, message: &serde_json::Value) -> std::io::Result<()> {
+        let stdin = self
+            .child
+            .stdin
+            .as_mut()
+            .ok_or_else(|| std::io::Error::other("sidecar stdin is closed"))?;
+        let mut line = serde_json::to_string(message)
+            .map_err(|e| std::io::Error::other(format!("serialising message: {e}")))?;
+        line.push('\n');
+        stdin.write_all(line.as_bytes())?;
+        stdin.flush()
+    }
+
+    /// Wait for the next protocol message, or `None` on timeout.
+    pub fn recv_json(&self, timeout: Duration) -> Option<serde_json::Value> {
+        self.rx
+            .recv_timeout(timeout)
+            .ok()
+            .and_then(|line| serde_json::from_str(&line).ok())
     }
 
     pub fn pid(&self) -> Option<u32> {

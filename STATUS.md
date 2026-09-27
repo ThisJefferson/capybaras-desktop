@@ -3,10 +3,10 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-27 12:48 EDT
-**Current phase:** **M3 — the shell runs. COMPLETE.** → **next: M4, the approval interface**
-**Next milestone:** **M4 — the approval interface.** Plan: `docs/plans/next-steps.md`. Where the Replit gate meets a real UI
-**Evidence so far:** `DECISIONS.md` D15–D18 · **Design:** `docs/plans/M4-visual-design.md`
+**Last updated:** 2026-09-27 13:05 EDT
+**Current phase:** **M4 — the approval interface.** M4.1–M4.3 done (IPC, gate in the sidecar, the blocking round trip) → **next: M4.4, the card**
+**Next milestone:** M4 complete — the Replit gate run through a real UI by a real person
+**Spec:** `docs/protocol.md` · **Plan:** `docs/plans/next-steps.md` · **Design:** `docs/plans/M4-visual-design.md`
 **Recently decided:** D14 (no Bayesian maths in the safety path) · D15 (state directory) · D16 (supervision verified)
 **Repo:** https://github.com/ThisJefferson/capybaras-desktop (public) · releases cut per milestone
 
@@ -78,7 +78,7 @@
 
 ## Next three actions
 
-1. **M4 — build the approval interface.** Full plan in `docs/plans/next-steps.md`. The gap it closes: the shell currently **discards the sidecar's stdout** (`.stdout(Stdio::null())`) and speaks a one-command language, and **nothing yet runs the policy layer inside the sidecar**. So: versioned bidirectional IPC → run the gate in the sidecar → the approval round trip (the wait must be real and unbrypassable) → the card → durable grants → the herd → **the Replit acceptance test through the real UI**.
+1. **M4.4–M4.7 — the card, durable grants, the herd, and the acceptance test.** M4.1–M4.3 are done: protocol v1 is live (`docs/protocol.md`), the gate runs inside the sidecar, and a hard gate provably cannot proceed without an answer. Remaining: render the reviewed card (**M4.4**), persist grants — where D15's MSIX state-path question stops being theoretical (**M4.5**), the herd in four states driven by real sidecar state (**M4.6**), and the Replit scenario through the real UI (**M4.7**, the milestone gate).
 2. **The design system runs in parallel** — `docs/plans/M4-visual-design.md`. Tokens first (including the neutral ramp the card review flagged), typography, Lucide instead of hand-drawn icons, component kit, motion spec. Then the mascot model sheet: **one character, four poses, one sign** (D18).
 3. Keep cutting a release per milestone with test results (Jeff's standing request).
 
