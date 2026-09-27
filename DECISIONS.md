@@ -168,6 +168,46 @@ Spike: `spikes/002-msix-sidecar/`. This closes the highest-risk unknown inherite
 
 ---
 
+## D14 — Bayesian mathematics in the app: no in the safety path, yes in exactly one place, not yet
+**2026-09-27** (asked by Jeff: *"utilize Bayesian mathematics in the app if possible but only if it makes sense — if it doesn't then don't do it"*)
+
+**Verdict: the idea is not silly, but it would be actively harmful in the core, and the one place it genuinely fits is not worth building yet.** Recording it as considered-and-deferred with the constraints it would have to satisfy, rather than silently dropping it.
+
+### Why it must NOT go in the core
+
+The classifier's guarantees are **structural properties of a rule system**, provable by inspection:
+
+- escalation-only — a classification can never become *less* cautious
+- unknown tools **fail safe** to `confirm`
+- **a hard gate is never satisfied by memory**, however many times it was approved
+- the model has **no code path** that creates a grant
+
+Replace the tier decision with a posterior probability and **none of those can be proved any more.** They become statements of the form "probably true" — which is a downgrade in a safety product, not an upgrade. A user cannot audit "the posterior exceeded 0.7." **The product's entire value is that a human can read the rule and know what happens. Probability is the thing we are protecting people from, not the tool we protect them with.**
+
+### Where it legitimately fits
+
+**1. Escalation-only soft-signal scoring.** When no hard rule fires, combine weak signals (unusual hour, unseen target, unfamiliar action shape, atypical scope) into a posterior that can **only raise** a tier. This is safe in one direction by construction: a false positive costs one click, and a false negative is impossible because the scorer cannot de-escalate anything. This is the only shape in which probability belongs in the decision path.
+
+**2. Threshold justification.** The defaults ("mass action" at some row count, scope limits) are currently **chosen, not derived.** Bayesian reasoning is genuinely the right tool to *state the priors and the asymmetric loss function* behind each one: missing a destructive action is catastrophic, an unnecessary prompt costs one click. That asymmetry is why the defaults are conservative, and writing it down makes them defensible and tunable. **This is a document, not runtime code.**
+
+### Constraints if (1) is ever built
+
+- The scorer **cannot** lower a tier, satisfy a grant, or affect a hard gate. Escalation-only, enforced structurally.
+- Its output is an **input to a deterministic rule**, never a replacement for one.
+- It must be **off by default**, behind a flag, with the deterministic behaviour as the default path.
+- Its reasons must render in plain language like every other reason. "This is unlike anything you have approved before" — never a number the user must interpret.
+- The acceptance suite must pass with it both on and off.
+
+### Timing
+
+**Not now.** The deterministic core is not yet proven end-to-end — M4 (the Replit gate in a real UI) is still ahead. Adding probabilistic machinery before the guarantee is demonstrated would dilute the guarantee *and* add false confidence. Sequence it **after** the acceptance test is green, if it still looks worth it then.
+
+### One distinction worth keeping
+
+Jeff's standing directive is that **I reason and communicate with calibrated uncertainty**. That is a good idea and stays. This decision is about something different: whether the *product's safety engine* should be probabilistic. Same word, different question. **Calibrated confidence in how I talk to Jeff: yes. Probabilistic permissions in the app: no.**
+
+---
+
 ## Standing constraints
 
 - **Never restart the Gateway** — owner-only.

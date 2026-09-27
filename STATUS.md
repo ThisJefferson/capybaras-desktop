@@ -3,9 +3,10 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-27 11:58 EDT
-**Current phase:** Phase 2 ✅ **COMPLETE** — spike 001 PARTIAL (supervision), spike 002 **VALIDATED** (MSIX + bundled Node) → **next: M2, the Tauri shell**
-**Next milestone:** M2 — the Tauri shell supervising a Node sidecar, anchored by a Windows Job Object with `KILL_ON_JOB_CLOSE`
+**Last updated:** 2026-09-27 12:05 EDT
+**Current phase:** Phase 2 ✅ **COMPLETE** — spike 001 PARTIAL (supervision), spike 002 **VALIDATED** (MSIX + bundled Node) → **next: M3, the Tauri shell**
+**Next milestone:** **M3 — the shell runs.** Plan: `docs/plans/M3-shell.md`. Supervise a Node sidecar, anchored by a Windows Job Object with `KILL_ON_JOB_CLOSE`
+**Recently decided:** D14 — Bayesian mathematics stays out of the safety path (see below)
 **Repo:** https://github.com/ThisJefferson/capybaras-desktop (public) · releases cut per milestone
 
 ---
@@ -76,7 +77,7 @@
 
 ## Next three actions
 
-1. **M2 — build the Tauri shell.** Supervise the Node sidecar with a Windows Job Object carrying `KILL_ON_JOB_CLOSE`, plus a graceful-stop handshake over IPC before any forcible kill. The spike itself stays throwaway. **Carry in the two rules from spike 002:** never resolve paths from `cwd`, and pick the state directory deliberately because MSIX hides AppData writes.
+1. **M3 — build the Tauri shell.** Full plan in `docs/plans/M3-shell.md`: toolchain → repo layout → path discipline → state directory → sidecar supervision → non-orphaning measured from outside → single instance, health, tray. Carry in the two spike-002 rules and the Job-Object supervision from spike 001.
 2. **Re-take one measurement when packaging starts.** `app dir writable` was taken from a loose layout (writable by definition), not a real `WindowsApps` install. One elevated command is needed to install a self-signed package properly; the Store path needs no certificate at all.
 3. Keep cutting a release per milestone with test results (Jeff's standing request).
 

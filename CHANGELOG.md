@@ -30,8 +30,14 @@ Throwaway harness in `spikes/002-msix-sidecar/`: a zero-dependency Rust launcher
 - **Honest gap:** `app dir writable` read `yes`, but the test used a loose layout (writable by definition), not a real `WindowsApps` install. That reading will be re-taken when packaging begins.
 - No production code changed. No test-count change (still 141). Decision recorded as `DECISIONS.md` D13.
 
+### Planning — M3 defined, and a decision on Bayesian mathematics
+
+- **M3 shell plan written:** `docs/plans/M3-shell.md`. Toolchain → repo layout → path discipline → state directory → sidecar supervision → non-orphaning measured from outside → single instance, health, tray. Every step ends with something runnable.
+- **Milestone numbering corrected.** `EXECUTION-PLAN.md` §7 numbers **M2 = spike verdict, M3 = shell runs**. Earlier notes here called the shell "M2". Corrected rather than carried forward.
+- **`DECISIONS.md` D14 — Bayesian mathematics: no in the safety path, yes in exactly one place, not yet.** The classifier's guarantees (escalation-only, fail-safe unknowns, hard gates never satisfied by memory) are structural properties of a rule system. A posterior probability cannot be proved — only stated — so putting probability in the tier decision would *downgrade* the guarantee. Where it legitimately fits: an escalation-only soft-signal scorer (can only raise a tier, so a false negative is impossible), and a written justification of the priors and asymmetric loss behind each default threshold. The second is a document, not code, and is now a parallel stream on the M3 plan.
+
 ### In progress
-- **M2 — the Tauri shell**: supervise the Node sidecar with a Job Object (`KILL_ON_JOB_CLOSE`) plus the graceful-stop handshake, per spike 001; honour the two path rules from spike 002.
+- **M3 — the Tauri shell**: supervise the Node sidecar with a Job Object (`KILL_ON_JOB_CLOSE`) plus the graceful-stop handshake, per spike 001; honour the two path rules from spike 002. Plan: `docs/plans/M3-shell.md`.
 
 ### Planned
 - Approval interface, the herd, receipts
