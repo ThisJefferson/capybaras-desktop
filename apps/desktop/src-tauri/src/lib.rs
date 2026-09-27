@@ -12,6 +12,8 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, Manager, RunEvent};
 
+pub mod integrity;
+
 pub struct AppState {
     sidecar: Mutex<Option<Sidecar>>,
     /// Refreshed by the supervision thread. Kept separate from the sidecar lock
@@ -246,6 +248,16 @@ pub fn run() {
             let node = paths::bundled_node();
             let script = paths::sidecar_script();
             let state_dir = paths::state_dir();
+
+            // ---- sidecar integrity (docs/threat-model.md, T2) --------------
+            // The decision logic is a plain, writable file. Refuse to launch a
+            // bundle that is not the one this binary was built against, rather
+            // than running whatever happens to be there.
+            if let Err(problem) = integrity::verify(&script) {
+                log::error!("refusing to start: {problem}");
+                return Err(problem.into());
+            }
+            log::info!("sidecar integrity: verified");
 
             log::info!("shell up pid={}", std::process::id());
             log::info!("  exe dir   : {}", paths::exe_dir().display());
