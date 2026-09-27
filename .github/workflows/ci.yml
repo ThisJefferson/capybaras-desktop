@@ -1,16 +1,18 @@
-name: ci
+name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
-
-permissions:
-  contents: read
+  workflow_dispatch:
 
 jobs:
-  test:
+  verify:
+    # Windows deliberately. The product is a Windows desktop app -- the shell
+    # supervises its worker with Windows Job Objects, and the UI smoke test needs
+    # Chrome. Checking all of that on Linux would test something we do not ship.
     runs-on: windows-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -19,35 +21,38 @@ jobs:
           node-version: '24'
           cache: npm
 
-      - name: Install
+      - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck
-        run: npm run typecheck
+      # Builds the generated assets FIRST, because everything downstream needs
+      # them: the token stylesheet, and the sidecar bundle that the Rust tests
+      # resolve by path. Skipping the generators is how a broken token reference
+      # or a stale bundle gets as far as a green test run.
+      #
+      # The chain is: build tokens (which refuses an unresolvable reference),
+      # bundle the sidecar, lint for undefined custom properties, typecheck, and
+      # run the TypeScript suite.
+      - name: Build, lint, typecheck, unit test
+        run: npm run verify
 
-      - name: Tests
-        run: npx vitest run --reporter=default --reporter=json --outputFile=vitest.json
+      # The shell's own tests. These drive the REAL sidecar over the REAL pipe,
+      # so they need the bundle built by the step above.
+      - name: Rust tests
+        working-directory: apps/desktop/src-tauri
+        run: cargo test
 
-      - name: Publish test summary
+      # Renders the interface, asserts on the live DOM (six agents, the card,
+      # and that the semantic tokens RESOLVED rather than merely existing), and
+      # writes a screenshot.
+      - name: UI smoke test
+        run: npm run verify:ui
+
+      # So a human can look at what the machine just checked. The assertion says
+      # the tokens resolved; only a person can say it looks right.
+      - name: Keep the screenshot for review
         if: always()
-        shell: pwsh
-        run: |
-          if (-not (Test-Path vitest.json)) {
-            "## Test results`n`nNo results file was produced." |
-              Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-            exit 0
-          }
-          $r = Get-Content vitest.json -Raw | ConvertFrom-Json
-          $verdict = if ($r.success) { 'all passing' } else { 'FAILURES PRESENT' }
-          $lines = @()
-          $lines += "## Test results - $verdict"
-          $lines += ""
-          $lines += "| Metric | Count |"
-          $lines += "|---|---|"
-          $lines += "| Passed | $($r.numPassedTests) |"
-          $lines += "| Failed | $($r.numFailedTests) |"
-          $lines += "| Total | $($r.numTotalTests) |"
-          $lines += ""
-          $lines += "Includes the acceptance suite: an agent with delete rights, told not to"
-          $lines += "touch production, acting during a declared freeze, must be hard-gated."
-          $lines -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+        uses: actions/upload-artifact@v4
+        with:
+          name: interface-screenshot
+          path: apps/desktop/web/card-verify.png
+          if-no-files-found: warn

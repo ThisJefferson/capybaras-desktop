@@ -35,10 +35,24 @@ $web = [System.IO.Path]::GetFullPath((Join-Path $here '..\web'))
 $index = Join-Path $web 'index.html'
 $harness = Join-Path $web 'verify-card.html'
 $shot = Join-Path $web 'card-verify.png'
-$server = Join-Path $env:USERPROFILE '.openclaw\workspace\.openclaw\tmp\serve-static.mjs'
-$chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
 
-if (-not (Test-Path $chrome)) { throw "Chrome not found at $chrome" }
+# The server lives IN THE REPO. It used to point at a scratch file outside it,
+# which meant this script -- the smoke test -- could only run on the machine it
+# was written on, and so could never run in CI.
+$server = [System.IO.Path]::GetFullPath((Join-Path $here '..\..\..\scripts\serve-static.mjs'))
+
+# Chrome in a few plausible places, because hard-coding one path is how a check
+# silently stops running on a different machine.
+$chromeCandidates = @(
+    'C:\Program Files\Google\Chrome\Application\chrome.exe',
+    'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+    (Join-Path $env:LOCALAPPDATA 'Google\Chrome\Application\chrome.exe'),
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium'
+)
+$chrome = $chromeCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+if (-not $chrome) { throw 'Chrome not found. Tried: ' + ($chromeCandidates -join ', ') }
 if (-not (Test-Path $server)) { throw "Static server not found at $server" }
 
 # ---------------------------------------------------------------------------

@@ -15,7 +15,9 @@
     "replit-test": "vitest run tests/replit-acceptance.test.ts",
     "build:sidecar": "node apps/desktop/sidecar/build.mjs",
     "build:tokens": "node design/build-tokens.mjs",
-    "build": "npm run build:tokens && npm run build:sidecar"
+    "build": "npm run build:tokens && npm run build:sidecar",
+    "verify": "npm run build:tokens && npm run build:sidecar && node scripts/check-tokens.mjs && npm run typecheck && npm test",
+    "verify:ui": "powershell -NoProfile -ExecutionPolicy Bypass -File apps/desktop/scripts/verify-ui.ps1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.0",
