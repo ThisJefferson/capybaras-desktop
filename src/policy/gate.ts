@@ -20,10 +20,19 @@
 
 import type { ActionDescriptor, Classification } from '../risk-classifier';
 import { classify } from '../risk-classifier';
-import { headlineFor as skillHeadline } from '../skills/registry';
+import { headlineFor as skillHeadline, moreCautious } from '../skills/registry';
+import { resolveProtection } from './protection';
+import type { ProtectionPolicy } from './protection';
 import type { GrantStore } from './grants';
 
 export interface GateContext {
+  /**
+   * The protection policy: freezes and off-limits targets (D21).
+   *
+   * Absent means no protection beyond what the action itself claims, which is
+   * what every existing caller does -- so this is inert until a policy exists.
+   */
+  policy?: ProtectionPolicy;
   grants: GrantStore;
   /** When true, show the plan instead of executing anything above silent. */
   dryRun?: boolean;
@@ -79,7 +88,40 @@ function headlineFor(action: ActionDescriptor, ctx: GateContext): string {
 /* ------------------------------------------------------------------ */
 
 export function gate(action: ActionDescriptor, ctx: GateContext): GateDecision {
-  const classification = classify(action);
+  // Protection comes from the POLICY, not from what the action claims (D21).
+  // Until now `protectedTarget` was supplied by the caller -- so the "declared
+  // code and action freeze" that failed to stop the July 2025 deletion was in
+  // the same position: a request the agent could simply not make.
+  //
+  // The invariant is one-way: an action can ADD caution, never remove it. So
+  // `protectedTarget: false` cannot clear a policy match.
+  const protection = resolveProtection(action, ctx.policy, {
+    targetLabel: ctx.targetLabel,
+    claimedProtected: action.protectedTarget === true,
+  });
+
+  let classification = classify({ ...action, protectedTarget: protection.protectedTarget });
+
+  // A freeze is about CHANGES.
+  //
+  // Reads still proceed. Gating them would be surprising, would not prevent the
+  // harm (the harm is a change), and -- most importantly -- would teach people
+  // that a freeze is a nuisance to be switched off. A control people route
+  // around is worse than no control, because it also removes the signal.
+  //
+  // So the floor rises for anything that is NOT silent.
+  if (protection.freezeActive && classification.tier !== 'silent') {
+    classification = { ...classification, tier: moreCautious('confirm', classification.tier) };
+  }
+
+  // Whatever the policy decided is stated on the card. A freeze nobody is told
+  // about is indistinguishable from a malfunction.
+  if (protection.reasons.length > 0) {
+    classification = {
+      ...classification,
+      reasons: [...new Set([...protection.reasons, ...classification.reasons])],
+    };
+  }
   const now = ctx.now ?? Date.now();
   const target = ctx.targetLabel ?? action.tool;
 
