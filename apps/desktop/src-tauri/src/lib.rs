@@ -14,6 +14,7 @@ use tauri::{Emitter, Manager, RunEvent};
 
 pub mod credential;
 pub mod integrity;
+pub mod loopback;
 pub mod oauth;
 
 pub struct AppState {
@@ -132,7 +133,7 @@ fn answer_approval(
 /// Before this existed the shell had no way to tell the interface anything — its
 /// only route was a command the frontend polled every two seconds. This is the
 /// push path, and without it the protocol built in M4.1 goes nowhere.
-fn spawn_protocol_forwarder(app: &tauri::AppHandle, mut rx: std::sync::mpsc::Receiver<String>) {
+fn spawn_protocol_forwarder(app: &tauri::AppHandle, rx: std::sync::mpsc::Receiver<String>) {
     let handle = app.clone();
     std::thread::spawn(move || {
         while let Ok(line) = rx.recv() {
