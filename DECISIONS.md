@@ -105,6 +105,23 @@ The first implementation only recorded a reason when the tier actually rose. The
 
 ---
 
+## D11 — Distribution corrected: the Store is free, and MSIX changes the service model
+**2026-09-27**
+
+Research is in `docs/research/packaging-and-signing.md`. It corrected two things already written into `BUILD-PLAN.md`, and surfaced one architecture change.
+
+**1. The Microsoft Store developer account is now free.** Microsoft removed the fee for individual developers in September 2025, and for companies on 7 May 2026. Microsoft Learn now states: *"there are no registration fees for either account type."* **I had budgeted $19 and told Jeff so — the correct figure is $0.** Correction recorded because it was stated as fact.
+
+**2. MSIX Store packages are re-signed by Microsoft**, which yields instant SmartScreen trust with no separate certificate. This makes the Store the **only guaranteed no-warning path**.
+
+Correspondingly: **Azure Artifact Signing (~$10/mo) does NOT grant instant SmartScreen reputation.** Microsoft's own documentation contradicts the third-party marketing that claims otherwise. Third-party claim, debunked.
+
+**3. Architecture change — MSIX has no Scheduled Tasks.** The Gateway's Windows auto-start is currently a Scheduled Task. Under MSIX that mechanism does not exist and must become an **MSIX Start-up Task**. This is a real change to how the Gateway is supervised at startup, not a packaging detail.
+
+**Carrying real, unverified risk:** whether a bundled **Node sidecar** behaves correctly inside an MSIX *full-trust* package. The current evidence is a composite of separately-documented parts; no single source documents MSIX + Tauri sidecar + Store submission together. **The Phase 2 spike must test this case specifically**, before any packaging work begins.
+
+---
+
 ## Standing constraints
 
 - **Never restart the Gateway** — owner-only.

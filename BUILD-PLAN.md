@@ -171,7 +171,7 @@ This is where "anyone can use it" actually gets decided, and the news is worse t
 
 | Path | Cost | SmartScreen | Notes |
 |---|---|---|---|
-| **Microsoft Store (MSIX)** | ~$19 one-time dev account | **Handled** — Store apps are trusted | **Cleanest consumer path.** Store handles signing and updates. Some sandboxing constraints (see below) |
+| **Microsoft Store (MSIX)** | $0 — free since Sept 2025 (individuals) and May 2026 (companies) | **Handled** — Store apps are trusted | **Cleanest consumer path.** Store handles signing and updates. Some sandboxing constraints (see below) |
 | **Azure Artifact Signing** (formerly Trusted Signing) | **$9.99/mo** (5k signatures) or $99.99/mo (100k) | Reputation still builds — *not* instant | No hardware token; CI/CD friendly. Availability: organizations US/CA/EU/UK; **individuals US/CA only** |
 | **OV certificate** | ~$200–400/yr + token | Reputation builds | Functionally equivalent to Artifact Signing for SmartScreen |
 | **Unsigned** | free | Bad warning, poor conversion | Not acceptable for this product |
@@ -179,6 +179,10 @@ This is where "anyone can use it" actually gets decided, and the news is worse t
 **Recommendation: publish to the Microsoft Store as primary, and also ship a signed MSI for winget and direct download.** The Store removes the reputation problem entirely and gives automatic updates. Keep the MSI path because power users and IT departments prefer it, and winget manifests accept MSI/MSIX/EXE installers (script-based installers are not accepted).
 
 **One Store caveat to design around:** Store packaging constrains some system-level behaviours. Given this app runs a local server and writes to a user data directory, verify early that the Gateway's file and network patterns are Store-compatible. **Do this in Phase 0, not Phase 6** — discovering it late would force a repackage.
+
+**Partly resolved, and one part is new.** Research (`docs/research/packaging-and-signing.md`) confirms MSIX *full-trust* packages should permit Node sidecar spawning — but no single source documents MSIX + Tauri sidecar + Store submission together, so the Phase 2 spike must test it specifically before packaging work begins.
+
+**And a genuine architecture change:** MSIX packages do not support traditional Scheduled Tasks. The Gateway's Windows auto-start must therefore become an **MSIX Start-up Task** under Store distribution. See `DECISIONS.md` D11.
 
 ---
 
