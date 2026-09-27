@@ -92,6 +92,19 @@ Setup becomes two clicks with no key handling. Provider menu hidden behind Advan
 
 ---
 
+## D10 — Every hazard gets its own reason, even when the tier doesn't move
+**2026-09-27**
+
+The first implementation only recorded a reason when the tier actually rose. The Replit acceptance test caught it immediately: an action that was **simultaneously** off-limits, 1,200 rows, and irreversible reported exactly **one** reason — "off-limits".
+
+**That is the bug this product exists to prevent.** A human approving a dangerous action while being shown only the first thing that made it dangerous is barely better off than not being asked at all.
+
+**Rule:** tier and reasons are computed independently. The tier decides **whether** we interrupt; the reasons decide whether the human can **understand** what they are approving. An action carrying four hazards lists four reasons.
+
+**Guard:** `tests/replit-acceptance.test.ts` asserts at least three reasons are present, and that the plain-language ones ("off-limits", "cannot be undone") actually appear.
+
+---
+
 ## Standing constraints
 
 - **Never restart the Gateway** — owner-only.

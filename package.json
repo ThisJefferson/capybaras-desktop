@@ -1,11 +1,13 @@
-﻿{
+{
   "name": "capybaras-desktop",
   "version": "0.0.1",
   "private": true,
   "description": "A calm herd of helpers that ask before they act. Desktop agent with a risk-gated approval layer.",
   "license": "Apache-2.0",
   "type": "module",
-  "engines": { "node": ">=24.0.0" },
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
@@ -13,7 +15,8 @@
     "replit-test": "vitest run tests/replit-acceptance.test.ts"
   },
   "devDependencies": {
-    "typescript": "^5.7.0",
-    "vitest": "^3.0.0"
+    "@types/node": "^26.6.3",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
   }
 }

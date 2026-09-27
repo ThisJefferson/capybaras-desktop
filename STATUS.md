@@ -3,9 +3,9 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-27 10:52 EDT
-**Current phase:** Phase 0 — ✅ **COMPLETE (M0)** → starting Phase 1
-**Next milestone:** M1 (risk classifier passes the case suite + the Replit test)
+**Last updated:** 2026-09-27 11:03 EDT
+**Current phase:** Phase 1 — ✅ **classifier core green (M1 reached)**
+**Next milestone:** M4 (gates wired into a real interface — the Replit test must pass *end to end*)
 **Repo:** https://github.com/ThisJefferson/capybaras-desktop (public)
 
 ---
@@ -44,7 +44,11 @@
 - **GitHub auth complete** as `ThisJefferson` (device flow, phone)
 - **Git identity set** — `264281275+ThisJefferson@users.noreply.github.com` (noreply, real address never in history)
 - **Repo created and pushed — M0 COMPLETE.** https://github.com/ThisJefferson/capybaras-desktop · public · 13 files · commit `62f2a78`
-- **`DECISIONS.md` written** — D1–D9 recorded so settled questions don't get relitigated
+- **`DECISIONS.md` written** — D1–D10 recorded so settled questions don't get relitigated
+- **Phase 1 complete: the risk classifier.** `src/risk-classifier/` — `tiers.ts` (four tiers, ordinal helpers), `classify.ts` (the classifier), `index.ts` (exports). Escalation-only; unknown tools fail safe.
+- **99 tests green, typecheck clean.** `tests/classify.test.ts` — 84 cases across baseline tiers, blast radius, reversibility, egress, taint, destructive patterns, protected targets, remember-rules, and escalation-only properties. `tests/replit-acceptance.test.ts` — 15 cases.
+- **The Replit acceptance test passes.** An agent with delete rights, told not to touch production, acting during a freeze: hard-gated, typed confirmation required, never rememberable, and the user is shown *every* reason — off-limits, 1,200 rows, irreversible.
+- **Fixed a real bug the acceptance test caught** (D10): the classifier originally recorded a reason only when the tier moved, so a triple-hazard action reported a single reason. Tier and reasons are now computed independently.
 
 ## In flight
 
@@ -66,9 +70,9 @@
 
 ## Next three actions
 
-1. **Phase 1: the risk classifier** — headless, typed, with the case suite and the Replit acceptance test. No UI.
-2. `npm install` → get `npm test` green (vitest + typescript).
-3. Open streams C (brand assets), D (docs), E (packaging research) as subagents.
+1. **Commit + push Phase 1** so the state is durable.
+2. **Open streams C (brand assets), D (docs/CI), E (packaging research) as subagents.**
+3. **Next on the critical path: the policy layer** — bind the classifier to a grant store (scoped, expiring, human-only) and a dry-run mode. That is what turns a classification into an actual gate.
 
 ---
 
