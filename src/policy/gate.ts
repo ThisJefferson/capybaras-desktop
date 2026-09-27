@@ -79,7 +79,17 @@ function verbFor(action: ActionDescriptor): string {
 function headlineFor(action: ActionDescriptor, ctx: GateContext): string {
   const base = verbFor(action);
   if (!ctx.targetLabel) return `${base}?`;
-  const joiner = action.tool.startsWith('fs.') ? 'in' : 'to';
+  // The preposition matters more than it looks. "Delete 1,200 records TO the
+  // production database" was the first version, visible in the milestone run --
+  // and the entire promise of this card is that a person who does not know what
+  // `db.delete` means can still read it. A preposition that is merely wrong makes
+  // the sentence feel machine-generated at exactly the moment it needs to feel
+  // deliberate.
+  const joiner = action.tool.startsWith('fs.')
+    ? 'in'
+    : action.tool.startsWith('db.')
+      ? 'from'
+      : 'to';
   return `${base} ${joiner} ${ctx.targetLabel}?`;
 }
 
