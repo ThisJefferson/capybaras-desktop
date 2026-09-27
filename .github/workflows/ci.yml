@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npx vitest run --reporter=default --reporter=json --outputFile=vitest.json
+
+      - name: Publish test summary
+        if: always()
+        shell: pwsh
+        run: |
+          if (-not (Test-Path vitest.json)) {
+            "## Test results`n`nNo results file was produced." |
+              Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            exit 0
+          }
+          $r = Get-Content vitest.json -Raw | ConvertFrom-Json
+          $verdict = if ($r.success) { 'all passing' } else { 'FAILURES PRESENT' }
+          $lines = @()
+          $lines += "## Test results - $verdict"
+          $lines += ""
+          $lines += "| Metric | Count |"
+          $lines += "|---|---|"
+          $lines += "| Passed | $($r.numPassedTests) |"
+          $lines += "| Failed | $($r.numFailedTests) |"
+          $lines += "| Total | $($r.numTotalTests) |"
+          $lines += ""
+          $lines += "Includes the acceptance suite: an agent with delete rights, told not to"
+          $lines += "touch production, acting during a declared freeze, must be hard-gated."
+          $lines -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
