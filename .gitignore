@@ -52,3 +52,8 @@ docs/papers/verify-render.png
 # synthesis build artifacts (the parts in synthesis/ are the source of truth)
 docs/papers/verify-*.png
 docs/papers/ai-quantum-and-harm.md
+
+# research and papers are NOT published from this repo
+docs/papers/
+docs/research/agentic-harm.md
+docs/research/safe-agent-blueprint.md

@@ -16,7 +16,6 @@ This project starts from a specific, evidence-backed fear, and it is worth stati
 
 Research compiled for this project puts the probability of **serious harm to society from agentic AI within ten years at roughly 70%.** The companion estimate — that AI-orchestrated offensive operations become routine in the same window — is **~90%.**
 
-The evidence is in this repo, not asserted from nowhere: [`docs/research/agentic-harm.md`](./docs/research/agentic-harm.md) and [`docs/research/safe-agent-blueprint.md`](./docs/research/safe-agent-blueprint.md).
 
 **Neither figure is a prophecy, and neither depends on a rogue superintelligence.** The harms are ordinary, and most of them are already documented:
 
@@ -139,11 +138,7 @@ Capybaras also reuses OpenClaw's control interface and gateway. Those components
 | [`BUILD-PLAN.md`](./BUILD-PLAN.md) | Packaging, distribution, licensing, UI spec |
 | [`BRAND.md`](./BRAND.md) | The herd, the states, the visual language |
 | [`EXECUTION-PLAN.md`](./EXECUTION-PLAN.md) | Build order, workstreams, handoffs |
-| [`docs/research/agentic-harm.md`](./docs/research/agentic-harm.md) | The harm classes, and the ten-year estimates cited above |
-| [`docs/research/safe-agent-blueprint.md`](./docs/research/safe-agent-blueprint.md) | Can a safe agent exist at all, and where the parts already exist |
 | [`docs/plans/M4-visual-design.md`](./docs/plans/M4-visual-design.md) | How the interface becomes beautiful rather than merely functional |
-| [`docs/papers/ai-in-defensive-cybersecurity.pdf`](./docs/papers/ai-in-defensive-cybersecurity.pdf) | **The paper** — AI in defensive cybersecurity and threat detection, and why autonomous response is the part that needs a gate |
-| [`docs/papers/ai-quantum-and-harm.pdf`](./docs/papers/ai-quantum-and-harm.pdf) | **The synthesis** — 48 pages: AI capability, quantum computing, the harm record, the brain, defensive security, and a unified Bayesian model. Parts in [`docs/papers/synthesis/`](./docs/papers/synthesis/) |
 
 ## Sponsors
 
