@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Rounded background - atlantic teal -->
+  <rect x="0" y="0" width="512" height="512" rx="90" fill="#0F5C63"/>
+
+  <!-- Capybara head - large and centered, readable at 32 px -->
+  <rect x="96" y="66" width="320" height="360" rx="100" fill="#8B6239"/>
+
+  <!-- Ears -->
+  <rect x="116" y="36" width="60" height="55" rx="28" fill="#7A5530"/>
+  <rect x="336" y="36" width="60" height="55" rx="28" fill="#7A5530"/>
+
+  <!-- Eyes - large dots for readability at small sizes -->
+  <circle cx="196" cy="240" r="22" fill="#161616"/>
+  <circle cx="316" cy="240" r="22" fill="#161616"/>
+
+  <!-- Eye highlights -->
+  <circle cx="191" cy="234" r="8" fill="#FFFFFF"/>
+  <circle cx="311" cy="234" r="8" fill="#FFFFFF"/>
+
+  <!-- Nose -->
+  <ellipse cx="256" cy="310" rx="28" ry="22" fill="#5C4023"/>
+
+  <!-- Gentle smile -->
+  <path d="M235,350 q18,18 36,0" stroke="#5C4023" stroke-width="8" fill="none" stroke-linecap="round"/>
+</svg>

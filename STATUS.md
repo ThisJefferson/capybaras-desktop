@@ -3,10 +3,10 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-27 11:03 EDT
-**Current phase:** Phase 1 — ✅ **classifier core green (M1 reached)**
-**Next milestone:** M4 (gates wired into a real interface — the Replit test must pass *end to end*)
-**Repo:** https://github.com/ThisJefferson/capybaras-desktop (public)
+**Last updated:** 2026-09-27 11:19 EDT
+**Current phase:** Phase 1 ✅ **COMPLETE** (classifier + policy layer) → **next: Phase 2 spike**
+**Next milestone:** M2 — the Tauri shell supervising a Node sidecar, *specifically inside an MSIX full-trust package*
+**Repo:** https://github.com/ThisJefferson/capybaras-desktop (public) · releases cut per milestone
 
 ---
 
@@ -49,6 +49,12 @@
 - **99 tests green, typecheck clean.** `tests/classify.test.ts` — 84 cases across baseline tiers, blast radius, reversibility, egress, taint, destructive patterns, protected targets, remember-rules, and escalation-only properties. `tests/replit-acceptance.test.ts` — 15 cases.
 - **The Replit acceptance test passes.** An agent with delete rights, told not to touch production, acting during a freeze: hard-gated, typed confirmation required, never rememberable, and the user is shown *every* reason — off-limits, 1,200 rows, irreversible.
 - **Fixed a real bug the acceptance test caught** (D10): the classifier originally recorded a reason only when the tier moved, so a triple-hazard action reported a single reason. Tier and reasons are now computed independently.
+- **Policy layer complete.** `src/policy/` — `grants.ts` (GrantStore), `gate.ts` (the gate), `index.ts`. Turns a classification into `proceed` / `ask` / `dry_run`.
+- **141 tests passing, typecheck clean.** 3 suites: classify (84), policy (42), acceptance (15).
+- **CI live and green** on every push, with a published test-results summary.
+- **Community documents** — CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, FUNDING, issue templates.
+- **Brand assets** — 6 SVGs in `assets/brand/`, all valid, with coral correctly reserved to the two "needs you" files only.
+- **Packaging + signing research** (31 KB) — found the Store account is now **free**, that MSIX gives instant SmartScreen trust, and that **MSIX has no Scheduled Tasks** (Gateway auto-start must become an MSIX Start-up Task). Recorded as D11; `BUILD-PLAN.md` §5 corrected.
 
 ## In flight
 
@@ -70,9 +76,9 @@
 
 ## Next three actions
 
-1. **Commit + push Phase 1** so the state is durable.
-2. **Open streams C (brand assets), D (docs/CI), E (packaging research) as subagents.**
-3. **Next on the critical path: the policy layer** — bind the classifier to a grant store (scoped, expiring, human-only) and a dry-run mode. That is what turns a classification into an actual gate.
+1. **Phase 2 — the viability spike.** Throwaway prototype: does a Tauri window cleanly supervise a Node sidecar on Windows **inside an MSIX full-trust package**? This is the last unverified architectural assumption, and packaging depends on the answer.
+2. Write the verdict in `DECISIONS.md` and stop if it is a no-go.
+3. Fold any remaining stream output in; keep cutting a release per milestone with test results (Jeff's standing request).
 
 ---
 

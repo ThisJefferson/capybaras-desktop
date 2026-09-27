@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" width="120" height="80">
+  <!-- Body - forward lean, busy -->
+  <ellipse cx="62" cy="53" rx="32" ry="18" fill="#8B6239"/>
+  <!-- Hind legs -->
+  <rect x="37" y="65" width="8" height="10" rx="4" fill="#7A5530"/>
+  <rect x="59" y="65" width="8" height="10" rx="4" fill="#7A5530"/>
+  <!-- Head - lowered, purposeful -->
+  <rect x="81" y="34" width="36" height="28" rx="13" fill="#8B6239"/>
+  <!-- Ear - perked -->
+  <ellipse cx="89" cy="31" rx="5" ry="6" fill="#7A5530"/>
+  <!-- Open eye - focused -->
+  <circle cx="99" cy="48" r="2.8" fill="#161616"/>
+  <!-- Nose -->
+  <ellipse cx="114" cy="52" rx="3.6" ry="3" fill="#5C4023"/>
+</svg>

@@ -21,10 +21,38 @@ Test counts and notable findings are included deliberately — the acceptance su
 ## [0.0.2] — 2026-09-27
 
 ### Added
-- **CI on every push** — Windows runner, Node 24. Runs typecheck and the full suite, and publishes a test-results summary to the run page so the acceptance outcome is visible without opening logs.
+- **Policy layer** — `src/policy/`. The gate turns a classification into an actual decision: `proceed`, `ask`, or `dry_run`.
+  - `GrantStore` remembers **one action against one specific target**, expiring after 30 days by default.
+  - Approval requests carry **every** reason the classifier found — not just the first — in plain language with no tool ids.
+- **Community documents** — `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `.github/FUNDING.yml`, and issue templates.
+- **Brand assets** — six SVGs in `assets/brand/`: four capybara states (sleep, listening, working, needs-you), a six-capybara herd strip, and a 512 px app icon.
+- **Packaging and signing research** — `docs/research/packaging-and-signing.md` (31 KB), with corrections recorded as `DECISIONS.md` D11.
+- **CI on every push** — Windows runner, Node 24. Runs typecheck and the full suite, and publishes a test-results summary to the run page.
 
-### Fixed
-- Nothing. (The workflow itself previously could not be pushed: the GitHub token lacked the `workflow` scope. Worked around by holding the file out of commits; the scope has since been granted and the file is now tracked.)
+### Rules enforced, each with tests
+- A remembered grant satisfies a `confirm` **and nothing else**. **A hard gate is never satisfied by memory**, however many times it was approved.
+- **Dry run can only add caution.** It never turns an `ask` into a `proceed`.
+- Grants are scoped to one action against one target — **wildcards are structurally impossible**, because the store refuses to hold one.
+- **The model has no code path that creates a grant.** `record()` demands human provenance *and* a classification that already permits remembering.
+
+### Test results
+**141 tests passing · typecheck clean** (was 99)
+
+| Suite | Cases |
+|---|---|
+| `tests/classify.test.ts` | 84 |
+| `tests/policy.test.ts` | 42 |
+| `tests/replit-acceptance.test.ts` | 15 |
+
+### Corrections to previously stated facts
+- **The Microsoft Store developer account is free.** The fee was removed for individual developers in September 2025 and for companies on 7 May 2026. Previously budgeted at $19 in this repository.
+- **Azure Artifact Signing does not grant instant SmartScreen reputation**, contrary to third-party marketing. Microsoft's own documentation says reputation is built over time.
+
+### Changed
+- `BUILD-PLAN.md` distribution section corrected for both of the above, plus a new architecture note: **MSIX has no Scheduled Tasks**, so the Gateway's auto-start must become an MSIX Start-up Task under Store distribution.
+
+### Known unverified risk
+Whether a bundled **Node sidecar** behaves correctly inside an MSIX *full-trust* package. No single source documents MSIX + Tauri sidecar + Store submission together, so the Phase 2 spike must test that specific case before packaging work begins.
 
 ---
 

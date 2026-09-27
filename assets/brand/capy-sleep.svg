@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" width="120" height="80">
+  <!-- Body - dozing, settled low -->
+  <ellipse cx="58" cy="56" rx="34" ry="20" fill="#8B6239"/>
+  <!-- Hind legs tucked -->
+  <rect x="33" y="68" width="8" height="11" rx="4" fill="#7A5530"/>
+  <rect x="55" y="68" width="8" height="11" rx="4" fill="#7A5530"/>
+  <!-- Head -->
+  <rect x="79" y="34" width="36" height="30" rx="13" fill="#8B6239"/>
+  <!-- Ear drooped -->
+  <ellipse cx="89" cy="31" rx="5" ry="6" fill="#7A5530"/>
+  <!-- Closed eye (small arc, sleeping) -->
+  <path d="M94,48 q4,3 8,0" stroke="#161616" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- Nose -->
+  <ellipse cx="112" cy="53" rx="3.6" ry="3" fill="#5C4023"/>
+</svg>
