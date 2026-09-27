@@ -44,3 +44,7 @@ apps/desktop/sidecar/dist/
 
 # generated CSS custom properties (build with: npm run build:tokens)
 apps/desktop/web/tokens.css
+
+# paper build artifacts (build with: docs/papers/build-pdf.ps1)
+docs/papers/*.html
+docs/papers/verify-render.png

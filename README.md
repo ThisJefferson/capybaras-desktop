@@ -142,6 +142,7 @@ Capybaras also reuses OpenClaw's control interface and gateway. Those components
 | [`docs/research/agentic-harm.md`](./docs/research/agentic-harm.md) | The harm classes, and the ten-year estimates cited above |
 | [`docs/research/safe-agent-blueprint.md`](./docs/research/safe-agent-blueprint.md) | Can a safe agent exist at all, and where the parts already exist |
 | [`docs/plans/M4-visual-design.md`](./docs/plans/M4-visual-design.md) | How the interface becomes beautiful rather than merely functional |
+| [`docs/papers/ai-in-defensive-cybersecurity.pdf`](./docs/papers/ai-in-defensive-cybersecurity.pdf) | **The paper** — AI in defensive cybersecurity and threat detection, and why autonomous response is the part that needs a gate |
 
 ## Sponsors
 
