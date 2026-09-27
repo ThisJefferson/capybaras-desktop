@@ -12,6 +12,7 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, Manager, RunEvent};
 
+pub mod connect;
 pub mod credential;
 pub mod exchange;
 pub mod integrity;
@@ -237,10 +238,13 @@ pub fn run() {
             sidecar: Mutex::new(None),
             healthy: AtomicBool::new(false),
         })
+        .manage(connect::ConnectState::default())
         .invoke_handler(tauri::generate_handler![
             shell_status,
             propose_action,
-            answer_approval
+            answer_approval,
+            connect::connect_status,
+            connect::start_connect
         ])
         .setup(|app| {
             app.handle().plugin(

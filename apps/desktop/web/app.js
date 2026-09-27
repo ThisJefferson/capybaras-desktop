@@ -97,6 +97,62 @@ async function refreshStatus() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Connecting a model                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Whether a model is connected, and whether this app can hold a key at all.
+ *
+ * If the OS credential store is unavailable, the button is DISABLED and the reason
+ * is shown, rather than being offered and then failing. That is the honest failure
+ * direction: Capybaras will not fall back to keeping a key in a file, because a key
+ * in a file is one the agent can read and then use outside the gate (T12).
+ *
+ * The key itself never reaches this function. Only whether one exists.
+ */
+async function refreshConnect() {
+  if (!invoke) return;
+  const state = $('connect-state');
+  const button = $('btn-connect');
+  if (!state || !button) return;
+
+  try {
+    const status = await invoke('connect_status');
+    if (!status.store_available) {
+      state.textContent =
+        'Capybaras cannot reach the Windows credential store, so it cannot keep a key. ' +
+        'It will not store one anywhere else.';
+      state.className = 'hint bad';
+      button.hidden = true;
+      return;
+    }
+    state.textContent = status.connected ? 'Connected.' : 'Not connected yet.';
+    state.className = status.connected ? 'hint ok' : 'hint';
+    button.hidden = status.connected;
+    button.disabled = status.connected;
+  } catch (error) {
+    state.textContent = `Could not check the connection: ${error}`;
+    state.className = 'hint bad';
+  }
+}
+
+const connectButton = $('btn-connect');
+if (connectButton) {
+  connectButton.addEventListener('click', async () => {
+    // Disabled immediately: a second click would start a second sign-in, and the
+    // user would have no way to tell which browser tab belonged to which.
+    connectButton.disabled = true;
+    try {
+      const port = await invoke('start_connect');
+      log(`sign-in started — finish it in your browser (port ${port})`);
+    } catch (error) {
+      log(`could not start the sign-in: ${error}`);
+      connectButton.disabled = false;
+    }
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /* The card                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -268,6 +324,17 @@ if (listen) {
   listen('capybaras://agents', (e) => renderHerd(e.payload.agents));
   listen('capybaras://protocol-error', (e) => log(`refused: ${e.payload.message}`));
   listen('capybaras://ready', (e) => log(`sidecar ready (protocol ${e.payload.protocol})`));
+  listen('capybaras://connect-waiting', (e) =>
+    log(`waiting for your browser to come back (port ${e.payload.port})`),
+  );
+  listen('capybaras://connect-connected', (e) => {
+    log(`connected — a key is stored as "${e.payload.credentialName}" in Windows`);
+    refreshConnect();
+  });
+  listen('capybaras://connect-failed', (e) => {
+    log(`sign-in failed (${e.payload.reason}): ${e.payload.detail}`);
+    refreshConnect();
+  });
 } else {
   log('not running inside Tauri — the card cannot be driven from here');
 }
@@ -335,3 +402,4 @@ for (const button of document.querySelectorAll('.dev button[data-tool]')) {
 
 refreshStatus();
 setInterval(refreshStatus, 5000);
+refreshConnect();

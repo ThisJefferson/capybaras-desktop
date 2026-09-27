@@ -12,6 +12,19 @@
 
   <dl id="status"><dt>loading</dt><dd>…</dd></dl>
 
+  <!-- Connecting a model. The key is stored by Windows, not in a file, so the
+       agent cannot read it and act outside the gate (T12, docs/threat-model.md). -->
+  <section class="connect" id="connect" aria-label="Your model">
+    <h2>Your model</h2>
+    <p class="hint" id="connect-state">Checking…</p>
+    <button class="btn btn--primary" id="btn-connect">Connect to OpenRouter</button>
+    <p class="hint">
+      Signing in opens your browser. Capybaras never sees your password, and the key
+      it receives is kept by Windows — not in a file the agent could read. You can
+      delete it from your OpenRouter account at any time.
+    </p>
+  </section>
+
   <!-- The herd. Six instances of ONE character design (D18), distinguished by
        label, accent colour and fixed position. Rendered by app.js from real
        state reported by the sidecar. -->
