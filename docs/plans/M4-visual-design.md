@@ -77,18 +77,25 @@ Professional feel lives disproportionately in motion. Define **durations** (shor
 
 **Exit:** a motion spec, plus the *needs you* moment implemented and reviewed.
 
-### Step 6 — Mascots: spike the options, then decide
-This is the one that may cost money, so it gets decided with evidence rather than enthusiasm. Three candidate approaches:
+### Step 6 — Mascots: spiked, and the answer is in (spike 003)
 
-| Approach | Quality ceiling | Cost | Risk |
-|---|---|---|---|
-| **Disciplined vector work** (Figma, proper iteration) | Clean and intentional | Free | Not illustrator-grade; will always read as "designed by an engineer" |
-| **Generative raster** (11 models already available) | Can be genuinely good | Free | **Consistency across six characters × four states is the hard problem.** Output licensing must be checked before shipping |
-| **Commissioned illustration** | The actual ceiling | Real money | Needs a budget and a brief |
+**Status: done**, and the premise changed. Jeff confirmed the capybaras are **integral to the product**, not decoration — which raises the bar rather than lowering it.
 
-**Recommendation:** spike the first two, compare honestly against the third as a benchmark, and put the commission on the roadmap as the first thing funded when there is revenue. Good mascot art is the one part of this project you genuinely pay for — and saying so is more useful than pretending otherwise.
+Generation was **tested rather than debated**: three images via `gemini-3-pro-image`, **$0.14 and ~20 s each**, evaluated with a task-specific vision prompt. Full detail: [`spikes/003-mascot-generation/README.md`](../../spikes/003-mascot-generation/README.md).
 
-**Exit:** a written comparison with actual outputs side by side, and a decision with its reasoning recorded.
+**Verdict: PARTIAL.** Generation is excellent for *exploring* a direction and not good enough for *shipping* a set:
+
+- **The same prompt produced two different capybaras** — different muzzle, head shape, belly patch, line weight, palette. That is continuity drift, and a herd needs **24 mutually consistent poses**.
+- **Zeca's sign sat inside his torso silhouette** — no silhouette separation, so the prop, the hand and the belly patch collapse into one blob at 64 px. That is the most basic requirement for an icon, failed.
+- Malformed hands, floating debris (a deformed folder icon, a stray cursor, stray dots), and gibberish badge detail that turns to one-pixel noise when scaled down.
+
+**The revised strategy — and it changes what we buy:**
+
+1. **Generate to explore.** At $0.14 an image, a hundred-image exploration pass costs about **$14**. That replaces mood boards and sharpens the brief. It should be done *before* any money is spent, and it is the capability generation is genuinely good at.
+2. **Commission a character model sheet — not 24 illustrations.** One canonical drawing per character (front, side, expression range, the prop) is the real asset. It is a far smaller job than a full illustration set, and a standard thing for an illustrator to quote.
+3. **The model sheet also cures the consistency problem.** With a locked canonical reference, derivative poses become viable *image-to-image* — matching a reference instead of inventing a character from text every time. **The sheet is what makes the cheap path work.**
+
+**Exit:** a direction chosen from generated exploration, and the model-sheet commission briefed and quotable.
 
 ### Step 7 — The review loop and the quality bar
 Screenshot the **running app** (not the mockup), put it next to reference products, and iterate. Define the bar explicitly:
@@ -103,10 +110,8 @@ Repeat until the honest answer is the first one. This loop is where most of the 
 
 ## What this needs from Jeff
 
-Only one real decision, and it can wait:
-
-1. **The mascot budget, when there is revenue.** Until then the interface will look *clean and intentional*, and the mascots will be *competent* — not beautiful. **Everything else in this plan is free and can start immediately.**
-2. **Are the mascots load-bearing or decorative?** If they are decoration, the floor is much higher and we can be patient. If the brand genuinely depends on six charming capybaras, that is a commission and it should be planned for.
+1. **The mascot commission — now confirmed as planned spend.** You've said the capybaras are integral, which settles it: this is a commission, not a nice-to-have. What it needs next is an **art brief** (which the generated exploration will produce) and a **quote**, when revenue allows.
+2. **Everything else in this plan is free and unblocked** — steps 1–5 and 7 can start immediately. The interface will look clean and intentional long before the mascots are beautiful, which is the correct order: the system carries the quality, the illustration is the garnish.
 
 ---
 
