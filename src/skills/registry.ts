@@ -53,51 +53,119 @@ export interface Skill {
    * the moment someone adds a skill the classifier does not know.
    */
   floor: RiskTier;
+  /**
+   * Whether a WRONG result would be invisible.
+   *
+   * This is the field that exists because of redaction. Applying a black
+   * rectangle over text leaves the text intact underneath and extractable, and
+   * the document *looks* redacted — the harm does not announce itself. A tier
+   * cannot express that, because the problem is not the size of the action but
+   * the fact that nobody will notice it went wrong.
+   *
+   * Required on every skill, and when true it demands a `postCondition`.
+   */
+  silentlyWrong: boolean;
+  /** What must be verified AFTER the action. Required when `silentlyWrong`. */
+  postCondition?: string;
 }
 
 /**
  * Every tool the agent can use. Ordered for reviewability, not for behaviour.
  */
 export const SKILLS: readonly Skill[] = Object.freeze([
+  // =======================================================================
+  // File and system skills
+  // =======================================================================
+
   // ---- perception: reads and listings -----------------------------------
-  { tool: 'fs.read',            headline: { one: 'Read a file', many: 'Read {n} files' },                 owner: 'bia',  readsUntrusted: true,  leavesMachine: false, reversible: true,  blastRadiusSensitive: true,  floor: 'silent' },
-  { tool: 'fs.list',            headline: { one: 'Look at your files' },                                 owner: 'bia',  readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'silent' },
-  { tool: 'web.fetch',          headline: { one: 'Fetch a page' },                                       owner: 'bia',  readsUntrusted: true,  leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'silent' },
-  { tool: 'web.search',         headline: { one: 'Search the web' },                                     owner: 'bia',  readsUntrusted: true,  leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'silent' },
+  { tool: 'fs.read',            headline: { one: 'Read a file', many: 'Read {n} files' },                 owner: 'bia',  readsUntrusted: true,  leavesMachine: false, reversible: true,  blastRadiusSensitive: true,  floor: 'silent',  silentlyWrong: false },
+  { tool: 'fs.list',            headline: { one: 'Look at your files' },                                 owner: 'bia',  readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'silent',  silentlyWrong: false },
+  { tool: 'web.fetch',          headline: { one: 'Fetch a page' },                                       owner: 'bia',  readsUntrusted: true,  leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'silent',  silentlyWrong: false },
+  { tool: 'web.search',         headline: { one: 'Search the web' },                                     owner: 'bia',  readsUntrusted: true,  leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'silent',  silentlyWrong: false },
 
   // ---- creation: the originals are untouched ----------------------------
-  { tool: 'fs.create',          headline: { one: 'Create a file', many: 'Create {n} files' },            owner: 'nina', readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: true,  floor: 'notify' },
-  { tool: 'fs.mkdir',           headline: { one: 'Create a folder' },                                    owner: 'nina', readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'notify' },
+  { tool: 'fs.create',          headline: { one: 'Create a file', many: 'Create {n} files' },            owner: 'nina', readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: true,  floor: 'notify',  silentlyWrong: false },
+  { tool: 'fs.mkdir',           headline: { one: 'Create a folder' },                                    owner: 'nina', readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'notify',  silentlyWrong: false },
 
   // ---- mutation: changes something that already existed -----------------
-  { tool: 'fs.write',           headline: { one: 'Change a file', many: 'Change {n} files' },            owner: 'nina', readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: true,  floor: 'confirm' },
-  { tool: 'fs.edit',            headline: { one: 'Change a file', many: 'Change {n} files' },            owner: 'nina', readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: true,  floor: 'confirm' },
-  { tool: 'fs.move',            headline: { one: 'Move a file' },                                        owner: 'nina', readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: true,  floor: 'confirm' },
-  { tool: 'fs.rename',          headline: { one: 'Rename a file' },                                      owner: 'nina', readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'confirm' },
-  { tool: 'fs.truncate',        headline: { one: 'Empty a file' },                                       owner: 'nina', readsUntrusted: false, leavesMachine: false, reversible: false, blastRadiusSensitive: true,  floor: 'confirm' },
-  { tool: 'db.update',          headline: { one: 'Change a record', many: 'Change {n} records' },        owner: 'zeca', readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: true,  floor: 'confirm' },
-  { tool: 'exec',               headline: { one: 'Run a command' },                                      owner: 'joca', readsUntrusted: false, leavesMachine: false, reversible: false, blastRadiusSensitive: false, floor: 'confirm' },
+  { tool: 'fs.write',           headline: { one: 'Change a file', many: 'Change {n} files' },            owner: 'nina', readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: true,  floor: 'confirm', silentlyWrong: false },
+  { tool: 'fs.edit',            headline: { one: 'Change a file', many: 'Change {n} files' },            owner: 'nina', readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: true,  floor: 'confirm', silentlyWrong: false },
+  { tool: 'fs.move',            headline: { one: 'Move a file' },                                        owner: 'nina', readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: true,  floor: 'confirm', silentlyWrong: false },
+  { tool: 'fs.rename',          headline: { one: 'Rename a file' },                                      owner: 'nina', readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'confirm', silentlyWrong: false },
+  { tool: 'fs.truncate',        headline: { one: 'Empty a file' },                                       owner: 'nina', readsUntrusted: false, leavesMachine: false, reversible: false, blastRadiusSensitive: true,  floor: 'confirm', silentlyWrong: false },
+  { tool: 'db.update',          headline: { one: 'Change a record', many: 'Change {n} records' },        owner: 'zeca', readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: true,  floor: 'confirm', silentlyWrong: false },
+  { tool: 'exec',               headline: { one: 'Run a command' },                                      owner: 'joca', readsUntrusted: false, leavesMachine: false, reversible: false, blastRadiusSensitive: false, floor: 'confirm', silentlyWrong: false },
 
   // ---- the irreversible -------------------------------------------------
-  { tool: 'fs.delete',          headline: { one: 'Delete a file', many: 'Delete {n} files' },            owner: 'zeca', readsUntrusted: false, leavesMachine: false, reversible: false, blastRadiusSensitive: true,  floor: 'confirm' },
-  { tool: 'db.delete',          headline: { one: 'Delete a record', many: 'Delete {n} records' },        owner: 'zeca', readsUntrusted: false, leavesMachine: false, reversible: false, blastRadiusSensitive: true,  floor: 'confirm' },
+  { tool: 'fs.delete',          headline: { one: 'Delete a file', many: 'Delete {n} files' },            owner: 'zeca', readsUntrusted: false, leavesMachine: false, reversible: false, blastRadiusSensitive: true,  floor: 'confirm', silentlyWrong: false },
+  { tool: 'db.delete',          headline: { one: 'Delete a record', many: 'Delete {n} records' },        owner: 'zeca', readsUntrusted: false, leavesMachine: false, reversible: false, blastRadiusSensitive: true,  floor: 'confirm', silentlyWrong: false },
 
   // ---- leaving the machine ---------------------------------------------
-  { tool: 'message.send',       headline: { one: 'Send a message' },                                     owner: 'tuca', readsUntrusted: false, leavesMachine: true,  reversible: false, blastRadiusSensitive: true,  floor: 'confirm' },
-  { tool: 'mail.send',          headline: { one: 'Send an email' },                                      owner: 'tuca', readsUntrusted: false, leavesMachine: true,  reversible: false, blastRadiusSensitive: true,  floor: 'confirm' },
-  { tool: 'net.post',           headline: { one: 'Send something out' },                                 owner: 'tuca', readsUntrusted: false, leavesMachine: true,  reversible: false, blastRadiusSensitive: false, floor: 'confirm' },
-  { tool: 'net.put',            headline: { one: 'Upload something' },                                   owner: 'tuca', readsUntrusted: false, leavesMachine: true,  reversible: false, blastRadiusSensitive: false, floor: 'confirm' },
-  { tool: 'net.delete',         headline: { one: 'Delete something remotely' },                          owner: 'tuca', readsUntrusted: false, leavesMachine: true,  reversible: false, blastRadiusSensitive: false, floor: 'confirm' },
+  { tool: 'message.send',       headline: { one: 'Send a message' },                                     owner: 'tuca', readsUntrusted: false, leavesMachine: true,  reversible: false, blastRadiusSensitive: true,  floor: 'confirm', silentlyWrong: false },
+  { tool: 'mail.send',          headline: { one: 'Send an email' },                                      owner: 'tuca', readsUntrusted: false, leavesMachine: true,  reversible: false, blastRadiusSensitive: true,  floor: 'confirm', silentlyWrong: false },
+  { tool: 'net.post',           headline: { one: 'Send something out' },                                 owner: 'tuca', readsUntrusted: false, leavesMachine: true,  reversible: false, blastRadiusSensitive: false, floor: 'confirm', silentlyWrong: false },
+  { tool: 'net.put',            headline: { one: 'Upload something' },                                   owner: 'tuca', readsUntrusted: false, leavesMachine: true,  reversible: false, blastRadiusSensitive: false, floor: 'confirm', silentlyWrong: false },
+  { tool: 'net.delete',         headline: { one: 'Delete something remotely' },                          owner: 'tuca', readsUntrusted: false, leavesMachine: true,  reversible: false, blastRadiusSensitive: false, floor: 'confirm', silentlyWrong: false },
 
   // ---- money ------------------------------------------------------------
-  { tool: 'spend',              headline: { one: 'Spend money' },                                        owner: 'zeca', readsUntrusted: false, leavesMachine: false, reversible: false, blastRadiusSensitive: true,  floor: 'confirm' },
-  { tool: 'payment.send',       headline: { one: 'Send a payment' },                                     owner: 'zeca', readsUntrusted: false, leavesMachine: true,  reversible: false, blastRadiusSensitive: true,  floor: 'confirm' },
+  { tool: 'spend',              headline: { one: 'Spend money' },                                        owner: 'zeca', readsUntrusted: false, leavesMachine: false, reversible: false, blastRadiusSensitive: true,  floor: 'confirm', silentlyWrong: false },
+  { tool: 'payment.send',       headline: { one: 'Send a payment' },                                     owner: 'zeca', readsUntrusted: false, leavesMachine: true,  reversible: false, blastRadiusSensitive: true,  floor: 'confirm', silentlyWrong: false },
 
   // ---- credentials and the agent's own behaviour ------------------------
-  { tool: 'credentials.read',   headline: { one: 'Read your saved passwords' },                          owner: 'zeca', readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'confirm' },
-  { tool: 'credentials.write',  headline: { one: 'Change your saved passwords' },                        owner: 'zeca', readsUntrusted: false, leavesMachine: false, reversible: false, blastRadiusSensitive: false, floor: 'confirm' },
-  { tool: 'config.security',    headline: { one: 'Change your security settings' },                      owner: 'joca', readsUntrusted: false, leavesMachine: false, reversible: false, blastRadiusSensitive: false, floor: 'confirm' },
-  { tool: 'agent.selfModify',   headline: { one: 'Change how it works' },                                owner: 'joca', readsUntrusted: false, leavesMachine: false, reversible: false, blastRadiusSensitive: false, floor: 'confirm' },
+  { tool: 'credentials.read',   headline: { one: 'Read your saved passwords' },                          owner: 'zeca', readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'confirm', silentlyWrong: false },
+  { tool: 'credentials.write',  headline: { one: 'Change your saved passwords' },                        owner: 'zeca', readsUntrusted: false, leavesMachine: false, reversible: false, blastRadiusSensitive: false, floor: 'confirm', silentlyWrong: false },
+  { tool: 'config.security',    headline: { one: 'Change your security settings' },                      owner: 'joca', readsUntrusted: false, leavesMachine: false, reversible: false, blastRadiusSensitive: false, floor: 'confirm', silentlyWrong: false },
+  { tool: 'agent.selfModify',   headline: { one: 'Change how it works' },                                owner: 'joca', readsUntrusted: false, leavesMachine: false, reversible: false, blastRadiusSensitive: false, floor: 'confirm', silentlyWrong: false },
+
+  // =======================================================================
+  // PDF family -- the first real suite (docs/skills.md section 3)
+  //
+  // A PDF is a document someone ELSE wrote, and it can carry a script, an
+  // embedded file or a launch action. So reading one is reading untrusted
+  // input, which is why almost everything here declares readsUntrusted.
+  // =======================================================================
+
+  // ---- reading: nothing changes -----------------------------------------
+  { tool: 'pdf.read',           headline: { one: 'Open a PDF' },                                         owner: 'bia',  readsUntrusted: true,  leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'silent',  silentlyWrong: false },
+  { tool: 'pdf.extract-text',   headline: { one: 'Take the text out of a PDF' },                          owner: 'bia',  readsUntrusted: true,  leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'silent',  silentlyWrong: false },
+  { tool: 'pdf.info',           headline: { one: 'Look at a PDF\'s details' },                            owner: 'bia',  readsUntrusted: true,  leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'silent',  silentlyWrong: false },
+  { tool: 'pdf.page-count',     headline: { one: 'Count the pages in a PDF' },                            owner: 'bia',  readsUntrusted: true,  leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'silent',  silentlyWrong: false },
+
+  // ---- creating: originals untouched ------------------------------------
+  { tool: 'pdf.create',         headline: { one: 'Make a new PDF' },                                      owner: 'nina', readsUntrusted: false, leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'notify',  silentlyWrong: false },
+  { tool: 'pdf.merge',          headline: { one: 'Combine PDFs into one', many: 'Combine {n} PDFs into one' }, owner: 'nina', readsUntrusted: true, leavesMachine: false, reversible: true, blastRadiusSensitive: true,  floor: 'notify',  silentlyWrong: false },
+  { tool: 'pdf.split',          headline: { one: 'Split a PDF apart', many: 'Split a PDF into {n} parts' },    owner: 'nina', readsUntrusted: true, leavesMachine: false, reversible: true, blastRadiusSensitive: true,  floor: 'notify',  silentlyWrong: false },
+  { tool: 'pdf.convert',        headline: { one: 'Change a PDF into another format' },                    owner: 'nina', readsUntrusted: true,  leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'notify',  silentlyWrong: false },
+
+  // ---- mutating: changes a document that already existed ----------------
+  { tool: 'pdf.overwrite',      headline: { one: 'Rewrite an existing PDF' },                              owner: 'nina', readsUntrusted: true,  leavesMachine: false, reversible: false, blastRadiusSensitive: false, floor: 'confirm', silentlyWrong: false },
+  { tool: 'pdf.delete-pages',   headline: { one: 'Remove pages from a PDF', many: 'Remove {n} pages from a PDF' }, owner: 'nina', readsUntrusted: true, leavesMachine: false, reversible: false, blastRadiusSensitive: true, floor: 'confirm', silentlyWrong: false },
+  { tool: 'pdf.rotate',         headline: { one: 'Turn pages in a PDF' },                                  owner: 'nina', readsUntrusted: true,  leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'confirm', silentlyWrong: false },
+  { tool: 'pdf.fill-form',      headline: { one: 'Fill in a PDF form' },                                   owner: 'nina', readsUntrusted: true,  leavesMachine: false, reversible: true,  blastRadiusSensitive: false, floor: 'confirm', silentlyWrong: false },
+  { tool: 'pdf.sign',           headline: { one: 'Sign a PDF' },                                           owner: 'zeca', readsUntrusted: true,  leavesMachine: false, reversible: false, blastRadiusSensitive: false, floor: 'confirm', silentlyWrong: false },
+
+  // ---- the one whose failure is invisible -------------------------------
+  {
+    tool: 'pdf.redact',
+    headline: { one: 'Black out parts of a PDF', many: 'Black out {n} parts of a PDF' },
+    owner: 'zeca',
+    readsUntrusted: true,
+    leavesMachine: false,
+    reversible: false,
+    blastRadiusSensitive: true,
+    floor: 'confirm',
+    // THE REASON THIS FIELD EXISTS. A black rectangle drawn over text leaves the
+    // text intact underneath and extractable by anyone -- and the document
+    // looks redacted. The failure is invisible, permanent, and the opposite of
+    // what the person asked for, so a tier alone cannot express the risk.
+    silentlyWrong: true,
+    postCondition:
+      'Re-extract the text and confirm the removed content is genuinely gone, not merely covered. Say so in the receipt: "removed the underlying text, verified by re-extraction", never "redacted 4 passages".',
+  },
+
+  // ---- the rest of the hard gates ---------------------------------------
+  { tool: 'pdf.decrypt',        headline: { one: 'Unlock a password-protected PDF' },                      owner: 'zeca', readsUntrusted: true,  leavesMachine: false, reversible: false, blastRadiusSensitive: false, floor: 'hard_gate', silentlyWrong: false },
+  { tool: 'pdf.attach-file',    headline: { one: 'Attach a file inside a PDF' },                           owner: 'tuca', readsUntrusted: false, leavesMachine: false, reversible: false, blastRadiusSensitive: false, floor: 'hard_gate', silentlyWrong: false },
 ]);
 
 const BY_TOOL = new Map(SKILLS.map((skill) => [skill.tool, skill]));
@@ -110,6 +178,11 @@ export function skillFor(tool: string): Skill | undefined {
 /** The owning capybara, or `undefined` if the skill is undeclared. */
 export function ownerFor(tool: string): string | undefined {
   return BY_TOOL.get(tool)?.owner;
+}
+
+/** The declared tier floor, or `undefined` if the skill is undeclared. */
+export function floorFor(tool: string): RiskTier | undefined {
+  return BY_TOOL.get(tool)?.floor;
 }
 
 /**
@@ -182,8 +255,7 @@ export function validateRegistry(skills: readonly Skill[] = SKILLS): string[] {
       // headline ("Spend money"), and flagging that is the check being wrong
       // rather than the skill being wrong.
       problems.push(`${where}: headline.one names the tool, which the card must never show`);
-    }
-    if (skill.headline?.many && !skill.headline.many.includes('{n}')) {
+    } else if (skill.headline?.many && !skill.headline.many.includes('{n}')) {
       problems.push(`${where}: headline.many is present but has no {n} placeholder`);
     }
 
@@ -192,8 +264,25 @@ export function validateRegistry(skills: readonly Skill[] = SKILLS): string[] {
     else if (!KNOWN_OWNERS.has(skill.owner)) problems.push(`${where}: unknown owner "${skill.owner}"`);
 
     // --- the safety declarations: required, and required to be booleans ---
-    for (const field of ['readsUntrusted', 'leavesMachine', 'reversible', 'blastRadiusSensitive'] as const) {
+    for (const field of [
+      'readsUntrusted',
+      'leavesMachine',
+      'reversible',
+      'blastRadiusSensitive',
+      'silentlyWrong',
+    ] as const) {
       if (typeof skill[field] !== 'boolean') problems.push(`${where}: ${field} must be declared as a boolean`);
+    }
+
+    // --- silent wrongness demands a stated post-condition ---
+    if (skill.silentlyWrong === true && !skill.postCondition) {
+      problems.push(
+        `${where}: declares a wrong result would be invisible but states no postCondition -- ` +
+          'say what must be verified afterwards, or the harm ships unnoticed',
+      );
+    }
+    if (skill.silentlyWrong === false && skill.postCondition) {
+      problems.push(`${where}: declares a postCondition but says a wrong result would be visible`);
     }
 
     // --- floor: required, and a real tier ---

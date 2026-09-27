@@ -110,3 +110,78 @@ describe('helpers', () => {
     expect(moreCautious('notify', 'notify')).toBe('notify');
   });
 });
+
+describe('the PDF family — the first real suite', () => {
+  const pdf = SKILLS.filter((s) => s.tool.startsWith('pdf.'));
+
+  it('is declared', () => {
+    expect(pdf.length).toBeGreaterThanOrEqual(13);
+  });
+
+  it('treats a PDF as untrusted input, because someone else wrote it', () => {
+    for (const tool of ['pdf.read', 'pdf.extract-text', 'pdf.merge', 'pdf.convert']) {
+      expect(skillFor(tool)?.readsUntrusted, `${tool} reads a document it did not write`).toBe(true);
+    }
+  });
+
+  it('floors pure reading at silent', () => {
+    for (const tool of ['pdf.read', 'pdf.extract-text', 'pdf.info', 'pdf.page-count']) {
+      expect(skillFor(tool)?.floor).toBe('silent');
+    }
+  });
+
+  it('floors creating at notify, because the originals are untouched', () => {
+    for (const tool of ['pdf.create', 'pdf.merge', 'pdf.split', 'pdf.convert']) {
+      expect(skillFor(tool)?.floor).toBe('notify');
+    }
+  });
+
+  it('floors mutating at confirm', () => {
+    for (const tool of ['pdf.overwrite', 'pdf.delete-pages', 'pdf.fill-form', 'pdf.sign', 'pdf.redact']) {
+      expect(skillFor(tool)?.floor).toBe('confirm');
+    }
+  });
+
+  it('floors unlocking and attaching at hard gate', () => {
+    expect(skillFor('pdf.decrypt')?.floor).toBe('hard_gate');
+    expect(skillFor('pdf.attach-file')?.floor).toBe('hard_gate');
+  });
+
+  it('says redaction can be silently wrong, and demands a post-condition', () => {
+    const redact = skillFor('pdf.redact');
+    expect(redact?.silentlyWrong).toBe(true);
+    expect(redact?.postCondition).toBeTruthy();
+    // The post-condition must be about VERIFYING the result, not about doing it.
+    // A black rectangle over text leaves the text intact underneath, so "done"
+    // is not the claim -- "gone" is.
+    expect(redact?.postCondition?.toLowerCase()).toContain('verif');
+  });
+});
+
+describe('skills whose failure is invisible', () => {
+  const good = SKILLS.find((s) => s.tool === 'fs.read')!;
+
+  it('are exactly the ones that need a post-condition, and all of them have one', () => {
+    const flagged = SKILLS.filter((s) => s.silentlyWrong);
+    expect(flagged.length).toBeGreaterThan(0);
+    for (const skill of flagged) {
+      expect(skill.postCondition, `${skill.tool} must state a postCondition`).toBeTruthy();
+    }
+  });
+
+  it('refuses silent wrongness with no post-condition', () => {
+    const problems = validateRegistry([{ ...good, silentlyWrong: true } as never]);
+    expect(problems.join(' ')).toMatch(/postCondition/i);
+  });
+
+  it('refuses a post-condition on a skill that cannot be silently wrong', () => {
+    const problems = validateRegistry([
+      { ...good, silentlyWrong: false, postCondition: 'checked for no reason' } as never,
+    ]);
+    expect(problems.join(' ')).toMatch(/postCondition/i);
+  });
+
+  it('refuses an undeclared silentlyWrong', () => {
+    expect(validateRegistry([{ ...good, silentlyWrong: undefined } as never])).not.toEqual([]);
+  });
+});
