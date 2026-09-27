@@ -17,8 +17,8 @@
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { gate, GrantStore, describeGrant, loadGrants, saveGrants, loadProtectionPolicy } from '../../../../src/policy/index';
-import { readFileSync } from 'node:fs';
+import { gate, GrantStore, describeGrant, loadGrants, saveGrants, loadProtectionPolicy, withSelfProtection, policyIsUserWritable } from '../../../../src/policy/index';
+import { readFileSync, existsSync, accessSync, constants } from 'node:fs';
 import type { ApprovalRequest, GateContext, LoadResult } from '../../../../src/policy/index';
 import { Herd } from './agents';
 import type { ActionDescriptor, Classification } from '../../../../src/risk-classifier/index';
@@ -103,14 +103,37 @@ const protection = policyPath
   ? loadProtectionPolicy((p) => readFileSync(p, 'utf8'), policyPath)
   : { policy: {} };
 
+// The freeze protects itself. The protection files are off-limits to the agent's
+// own file tools whether or not an operator declared anything -- which is also a
+// test of the design, because a mechanism that cannot say "do not touch the
+// mechanism" is not really a mechanism.
+const effectivePolicy = withSelfProtection(protection.policy, stateDir);
+
 say(
-  protection.policy.freeze?.active
-    ? `protection: a freeze is IN FORCE${protection.policy.freeze.reason ? ` (${protection.policy.freeze.reason})` : ''}`
+  effectivePolicy.freeze?.active
+    ? `protection: a freeze is IN FORCE${effectivePolicy.freeze.reason ? ` (${effectivePolicy.freeze.reason})` : ''}`
     : 'protection: no freeze in force',
 );
 if (protection.problem) {
   say(protection.problem);
   emit({ type: 'error', message: protection.problem });
+}
+
+// THE HONEST LIMIT, said out loud at every boot rather than buried in a comment.
+// The agent runs as the same user as this process, so a policy file that user can
+// write is one the agent can rewrite. No code in this repository can prevent
+// that -- only the operating system can, with an ACL. So we detect it and say so,
+// because a protection that is silently unenforceable is worse than one known to
+// be unenforceable: people make decisions on it.
+if (policyPath && existsSync(policyPath)) {
+  const writable = policyIsUserWritable(policyPath, (p) => accessSync(p, constants.W_OK));
+  if (writable) {
+    const warning =
+      `the protection policy at ${policyPath} is writable by this account, so the agent ` +
+      'could rewrite it. Give it an ACL to make the freeze enforceable.';
+    say(warning);
+    emit({ type: 'error', message: warning });
+  }
 }
 
 /** Persist after any change. Reports failure rather than throwing. */
@@ -183,7 +206,7 @@ function fail(id: string | undefined, message: string): void {
 function propose(id: string, action: ActionDescriptor, context?: Partial<GateContext>): void {
   const decision = gate(action, {
     grants,
-    policy: protection.policy,
+    policy: effectivePolicy,
     now: Date.now(),
     targetLabel: context?.targetLabel,
     dryRun: context?.dryRun,

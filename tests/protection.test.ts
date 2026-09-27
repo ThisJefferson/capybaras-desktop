@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { gate } from '../src/policy/gate';
 import type { ProtectionPolicy } from '../src/policy/protection';
-import { loadProtectionPolicy, resolveProtection } from '../src/policy/protection';
+import {
+  loadProtectionPolicy,
+  policyIsUserWritable,
+  resolveProtection,
+  selfProtection,
+  withSelfProtection,
+} from '../src/policy/protection';
 import { GrantStore } from '../src/policy/index';
 
 const readFrom = (contents: string | undefined) => () => {
@@ -142,5 +148,51 @@ describe('loading a policy FAILS CLOSED', () => {
     );
     expect(loaded.problem).toBeUndefined();
     expect(loaded.policy.freeze?.active).toBe(true);
+  });
+});
+
+describe('the freeze protects itself', () => {
+  const dir = 'C:\\Users\\Example\\AppData\\Local\\Capybaras';
+
+  it('treats the protection files as off-limits with no operator input at all', () => {
+    const self = selfProtection(dir);
+    expect(self.protectedTargets).toContain(`${dir}\\policy.json`);
+    expect(self.protectedTargets).toContain(`${dir}\\grants.json`);
+  });
+
+  it('blocks the agent from rewriting the freeze it is operating under', () => {
+    // The design test: can the mechanism express "do not touch the mechanism"?
+    const policy = withSelfProtection({}, dir);
+    const attempt = resolveProtection(
+      { tool: 'fs.write', args: { path: `${dir}\\policy.json` } },
+      policy,
+      { targetLabel: `${dir}\\policy.json` },
+    );
+    expect(attempt.protectedTarget).toBe(true);
+  });
+
+  it('keeps what the operator declared, and adds to it', () => {
+    const policy = withSelfProtection({ protectedTargets: ['*production*'] }, dir);
+    expect(policy.protectedTargets).toContain('*production*');
+    expect(policy.protectedTargets).toContain(`${dir}\\policy.json`);
+  });
+
+  it('adds nothing when there is no state directory', () => {
+    expect(selfProtection(null).protectedTargets).toBeUndefined();
+    expect(withSelfProtection({}, null).protectedTargets).toEqual([]);
+  });
+});
+
+describe('the honest limit: a policy the user can write', () => {
+  it('reports a writable policy as unenforceable', () => {
+    expect(policyIsUserWritable('policy.json', () => undefined)).toBe(true);
+  });
+
+  it('reports a protected policy as enforceable', () => {
+    expect(
+      policyIsUserWritable('policy.json', () => {
+        throw new Error('EACCES');
+      }),
+    ).toBe(false);
   });
 });

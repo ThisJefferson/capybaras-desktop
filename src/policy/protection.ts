@@ -201,3 +201,61 @@ export function loadProtectionPolicy(readFile: (path: string) => string, path: s
 
   return { policy: candidate };
 }
+
+/**
+ * Protection that applies whether or not an operator has declared anything.
+ *
+ * **The configuration that protects you is the first thing that must be
+ * protected.** A policy the agent can rewrite is not a policy, so the files that
+ * carry protection are off-limits by default: the freeze protects itself.
+ *
+ * This is also a useful test of the design. If the protection mechanism cannot
+ * express "do not touch the protection mechanism", it is not really a mechanism.
+ */
+export function selfProtection(stateDir: string | null | undefined): ProtectionPolicy {
+  if (!stateDir) return {};
+  const sep = stateDir.includes('\\') ? '\\' : '/';
+  return {
+    protectedTargets: [`${stateDir}${sep}policy.json`, `${stateDir}${sep}grants.json`],
+  };
+}
+
+/** Merge declared protection with the built-in self-protection. */
+export function withSelfProtection(
+  policy: ProtectionPolicy,
+  stateDir: string | null | undefined,
+): ProtectionPolicy {
+  const self = selfProtection(stateDir);
+  return {
+    ...policy,
+    protectedTargets: [...(policy.protectedTargets ?? []), ...(self.protectedTargets ?? [])],
+    protectedTools: [...(policy.protectedTools ?? []), ...(self.protectedTools ?? [])],
+  };
+}
+
+/**
+ * Whether the policy file can be REWRITTEN by the account running the app.
+ *
+ * THIS IS THE HONEST LIMIT OF THE WHOLE MECHANISM, and it is worth stating
+ * plainly rather than burying:
+ *
+ *   The agent runs as the same user as the app. So if that user can write the
+ *   policy file, the agent can too -- and no code in this repository can prevent
+ *   it. **Only the operating system can enforce that**, with an ACL or a location
+ *   the account cannot modify.
+ *
+ * So we detect it and say so, loudly, at boot. A protection that is silently
+ * unenforceable is worse than one known to be unenforceable, because people
+ * make decisions on it.
+ */
+export function policyIsUserWritable(
+  path: string,
+  probe: (path: string) => void,
+): boolean {
+  try {
+    probe(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
