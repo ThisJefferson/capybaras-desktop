@@ -122,6 +122,29 @@ Correspondingly: **Azure Artifact Signing (~$10/mo) does NOT grant instant Smart
 
 ---
 
+## D12 — The Phase 2 spike: PARTIAL, and the honest reason why
+**2026-09-27**
+
+Spike code and findings: `spikes/001-sidecar-supervision/`. Question: when a supervisor spawns a Node sidecar and the supervisor dies, does the sidecar orphan?
+
+**Verdict: PARTIAL.** Clean shutdown works. The orphaning question could **not** be answered from inside the agent's own process tree — this host anchors descendants with a Windows Job Object (the runtime runs `service-child-windows-job-anchor.js`), so there is no way to distinguish *"the product would orphan"* from *"the harness killed it."* **The instrument contaminates the measurement.** Recording that plainly rather than reporting a confident result the evidence does not support.
+
+**1. The mechanism that would have answered the spike is the mechanism to build with.** A Windows Job Object with `KILL_ON_JOB_CLOSE`: when the supervisor dies, every process in the job dies with it. This is already a proven pattern in this exact stack — OpenClaw's own runtime supervises its children this way. Not an invention; a known-good approach applied deliberately.
+
+**2. `child.kill()` is not a graceful shutdown on Windows.** It calls `TerminateProcess` — no `SIGTERM` handler runs. Verified in the spike: the sidecar's signal handler never logged. A Gateway that owns sessions, sockets and credentials must be asked to stop over IPC and given a bounded grace period **before** the force. A hard kill on every quit means risking half-written state.
+
+**3. The first harness was confounded, and its output was contradictory.** The sidecar's stdout was piped to the supervisor, so the pipe broke when the supervisor died — a second death mechanism mixed into the test. The results table said "cleaned up" while a process sweep appeared to show survivors. Both were noise. Rebuilt with `stdio: 'ignore'` and file-based logging. **Bad instrumentation is not a finding**, and a contradictory result is a signal to check the instrument before believing the number.
+
+**4. The MSIX full-trust question remains untested — and this is the important one.** The unverified risk inherited from D11 was whether a bundled Node sidecar behaves correctly inside an MSIX full-trust package. It cannot be tested on this machine right now:
+- **Developer Mode is off** (`AllowDevelopmentWithoutDevLicense` unset), so a loose unsigned MSIX cannot be installed.
+- Trusting a test certificate requires **elevation**, which this channel does not have.
+
+The highest-risk unknown of the whole packaging plan is therefore still unknown — for an environmental reason, not a technical one. **This is a user action, not an engineering one:** either enable Developer Mode, or run one elevated shell when the packaging phase begins.
+
+**Also noted for the shell work:** the Tauri CLI is not installed here (`no such command: tauri`), and the Windows SDK's `makeappx`/`signtool` are present only under the **arm64** kit path. Both are Phase 3 setup items, not blockers now.
+
+---
+
 ## Standing constraints
 
 - **Never restart the Gateway** — owner-only.

@@ -26,3 +26,9 @@ npm-debug.log*
 
 # local scratch
 tmp/
+
+# spike runtime artefacts (the spike code is committed; its logs and pidfiles are not)
+spikes/**/.*.log
+spikes/**/.*.pid
+spikes/**/.*.out*.txt
+spikes/**/.*.err*.txt

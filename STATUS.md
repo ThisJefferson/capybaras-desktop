@@ -3,9 +3,9 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-27 11:19 EDT
-**Current phase:** Phase 1 ✅ **COMPLETE** (classifier + policy layer) → **next: Phase 2 spike**
-**Next milestone:** M2 — the Tauri shell supervising a Node sidecar, *specifically inside an MSIX full-trust package*
+**Last updated:** 2026-09-27 11:26 EDT
+**Current phase:** Phase 2 spike ✅ **COMPLETE — verdict PARTIAL** (sidecar supervision; MSIX half blocked) → **next: M2, the Tauri shell**
+**Next milestone:** M2 — the Tauri shell supervising a Node sidecar, anchored by a Windows Job Object with `KILL_ON_JOB_CLOSE`
 **Repo:** https://github.com/ThisJefferson/capybaras-desktop (public) · releases cut per milestone
 
 ---
@@ -76,9 +76,23 @@
 
 ## Next three actions
 
-1. **Phase 2 — the viability spike.** Throwaway prototype: does a Tauri window cleanly supervise a Node sidecar on Windows **inside an MSIX full-trust package**? This is the last unverified architectural assumption, and packaging depends on the answer.
-2. Write the verdict in `DECISIONS.md` and stop if it is a no-go.
-3. Fold any remaining stream output in; keep cutting a release per milestone with test results (Jeff's standing request).
+1. **M2 — build the Tauri shell.** Supervise the Node sidecar with a Windows Job Object carrying `KILL_ON_JOB_CLOSE`, plus a graceful-stop handshake over IPC before any forcible kill. This is what the spike recommends; the spike itself stays throwaway.
+2. **Unblock the MSIX test.** It needs Developer Mode enabled (`AllowDevelopmentWithoutDevLicense`) or one elevated shell to trust a test certificate. That is a user action; it gates packaging, not the shell.
+3. Keep cutting a release per milestone with test results (Jeff's standing request).
+
+---
+
+## Phase 2 spike — result (2026-09-27)
+
+`spikes/001-sidecar-supervision/` — code, harness and verdict. Question: does killing a supervisor orphan its Node sidecar, and what prevents it?
+
+**Verdict: PARTIAL.** Clean shutdown works. But the question *cannot be fully answered from inside the agent's own process tree* — the host runtime anchors descendants with a Windows Job Object (`service-child-windows-job-anchor.js`), so there is no way to tell "the product would orphan" apart from "the harness killed it." The instrument contaminates the measurement.
+
+**What the spike did establish, and it is actionable:**
+- The mechanism that would have answered the spike **is the mechanism to build with** — a Job Object with `KILL_ON_JOB_CLOSE`. It is already a proven pattern in this exact stack.
+- **`child.kill()` is not graceful on Windows** — it calls `TerminateProcess`, so no `SIGTERM` handler runs. A Gateway that owns sessions and sockets needs a handshake before the force.
+- First harness was **confounded** (piped stdout) and produced contradictory output; rebuilt with `stdio: 'ignore'` + file logging. Bad instrumentation is not a finding.
+- **MSIX full-trust remains untested** — Developer Mode is off and trusting a certificate needs elevation. The highest-risk unknown is still unknown, for an environmental reason.
 
 ---
 
