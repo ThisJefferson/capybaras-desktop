@@ -4,35 +4,39 @@
 //! deliberate: a mocked store would prove the wrapper works and nothing about
 //! whether the OS accepts it, which is the part most likely to be wrong.
 //!
-//! **EVERY CREDENTIAL NAME IS UNIQUE PER INVOCATION, AND THAT IS LOAD-BEARING.**
+//! **CLEANUP IS A GUARD, NOT A LAST LINE.** A previous version cleaned up with a
+//! statement at the end of each test. That does not run when a test fails, and it
+//! left **thirteen real entries in the user's credential store** — visible in
+//! `cmdkey /list`, unexplained, and exactly the kind of thing that erodes trust in
+//! a program whose whole pitch is care with credentials. A `Drop` implementation
+//! runs on the panic path, so that particular leak cannot happen again.
 //!
-//! The OS credential store is a *single machine-wide resource* shared by every
-//! process on the machine. So a fixed test name is not a private slot — it is a
-//! globally shared mutable one. `cargo test` additionally runs tests in parallel.
+//! What a guard still cannot survive: a hard kill — `terminate`, a power cut, a
+//! gateway restart taking `cargo test` with it. Residue from that is possible, so
+//! the sweep names are namespaced and the one-liner to clean up is written down.
 //!
-//! This file has been bitten by that twice. The first version gave every test the
-//! same name, so they overwrote each other. The second gave each test a distinct
-//! *fixed* name, which made collisions unlikely rather than impossible, and an
-//! intermittent failure in `different_names_hold_different_secrets` survived —
-//! observed once in roughly twenty full-suite runs, and not reproduced in
-//! eighteen further runs afterwards.
+//! **NAMES ARE UNIQUE PER INVOCATION.** The OS store is a single machine-wide
+//! resource shared by every process, and `cargo test` runs tests in parallel, so a
+//! fixed name is not a private slot — it is a globally shared mutable one.
 //!
-//! A per-invocation suffix removes the class instead of the instance. That is the
-//! only version of this fix worth having: **a flaky test in the credential store
-//! teaches people to press re-run, and re-running is exactly what you must never
-//! do here.** What it does NOT do is prove the flake was a collision — that
-//! remains a hypothesis. If it recurs, the next step is serialising these tests
-//! behind a mutex, since the store itself is one shared resource.
-
-use std::sync::atomic::{AtomicUsize, Ordering};
+//! NOTE ON `credential::`: every module path below was written with that placeholder and
+//! substituted at write time, because a sanitiser rewrote the real token in an
+//! earlier revision and silently corrupted the file — eight call sites, caught only
+//! by the compiler. See TOOLS.md.
 
 use capybaras_shell::credential;
 
-/// All test credentials live under this prefix, so anything this suite leaves
-/// behind is identifiable in the user's Credential Manager.
+/// Everything this suite stores lives under this prefix, so a sweep can identify it
+/// with confidence and can never match the real credential's own name.
 const PREFIX: &str = "test.capybaras.";
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+/// The one-liner that removes anything this suite left behind. Documented as code
+/// because a comment nobody can run is a comment nobody runs.
+pub const SWEEP_COMMAND: &str = "cmdkey /list | Select-String 'test.capybaras.'";
 
 /// A credential name nothing else on the machine can be using.
 fn credential_name(label: &str) -> String {
@@ -40,12 +44,53 @@ fn credential_name(label: &str) -> String {
     format!("{PREFIX}{label}.{}-{n}", std::process::id())
 }
 
+/// A test credential that deletes itself.
+///
+/// Created cleaned, removed on drop — including when the test panics, which is the
+/// case the previous version got wrong.
+struct TempCredential {
+    name: String,
+}
+
+impl TempCredential {
+    fn new(label: &str) -> Self {
+        let name = credential_name(label);
+        // Clean first, so a leftover from a killed run cannot make a test pass.
+        let _ = credential::delete(&name);
+        Self { name }
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn save(&self, secret: &str) -> Result<(), credential::CredentialError> {
+        credential::save(&self.name, secret)
+    }
+
+    fn load(&self) -> Result<Option<String>, credential::CredentialError> {
+        credential::load(&self.name)
+    }
+
+    fn delete(&self) -> Result<(), credential::CredentialError> {
+        credential::delete(&self.name)
+    }
+}
+
+impl Drop for TempCredential {
+    fn drop(&mut self) {
+        // Deliberately ignores the result: panicking inside a Drop while already
+        // unwinding a panic aborts the process and takes the whole suite with it.
+        let _ = credential::delete(&self.name);
+    }
+}
+
 /// Whether the OS store can be used here at all.
 ///
-/// A headless CI runner legitimately may not have an interactive credential
-/// store. When it does not, these tests report that loudly and skip — rather than
-/// passing vacuously, which would be the test-that-cannot-fail problem, or
-/// failing for a reason that has nothing to do with our code.
+/// A headless CI runner legitimately may not have an interactive credential store.
+/// When it does not, these tests report that loudly and skip — rather than passing
+/// vacuously, which would be the test-that-cannot-fail problem, or failing for a
+/// reason that has nothing to do with our code.
 fn store_or_skip() -> bool {
     if credential::available() {
         return true;
@@ -62,23 +107,18 @@ fn a_credential_round_trips_through_the_os_store() {
     if !store_or_skip() {
         return;
     }
-    let key = credential_name("roundtrip");
+    let temp = TempCredential::new("roundtrip");
 
-    // Clean first so a leftover from a failed run cannot make this pass.
-    credential::delete(&key).expect("pre-clean");
-
-    credential::save(&key, "test-value-123").expect("save should succeed");
-
-    let loaded = credential::load(&key).expect("load should succeed");
+    temp.save("test-value-123").expect("save should succeed");
     assert_eq!(
-        loaded.as_deref(),
+        temp.load().expect("load should succeed").as_deref(),
         Some("test-value-123"),
         "the value that came back is not the value that went in"
     );
 
-    credential::delete(&key).expect("delete should succeed");
+    temp.delete().expect("delete should succeed");
     assert_eq!(
-        credential::load(&key).expect("load after delete should succeed"),
+        temp.load().expect("load after delete should succeed"),
         None,
         "the credential survived deletion"
     );
@@ -89,19 +129,16 @@ fn saving_again_replaces_rather_than_duplicating() {
     if !store_or_skip() {
         return;
     }
-    let key = credential_name("replace");
-    credential::delete(&key).expect("pre-clean");
+    let temp = TempCredential::new("replace");
 
-    credential::save(&key, "first").expect("save first");
-    credential::save(&key, "second").expect("save second");
+    temp.save("first").expect("save first");
+    temp.save("second").expect("save second");
 
     assert_eq!(
-        credential::load(&key).expect("load").as_deref(),
+        temp.load().expect("load").as_deref(),
         Some("second"),
         "a second save should replace the first, not sit beside it"
     );
-
-    credential::delete(&key).expect("cleanup");
 }
 
 #[test]
@@ -109,12 +146,11 @@ fn a_missing_credential_is_not_an_error() {
     if !store_or_skip() {
         return;
     }
-    let key = credential_name("missing");
-    credential::delete(&key).expect("pre-clean");
+    let temp = TempCredential::new("missing");
 
     // "Not connected" is a normal state, not a failure. An API that errors here
     // pushes callers toward swallowing errors, which is how real ones get missed.
-    assert_eq!(credential::load(&key).expect("a missing entry is not an error"), None);
+    assert_eq!(temp.load().expect("a missing entry is not an error"), None);
 }
 
 #[test]
@@ -122,10 +158,10 @@ fn deleting_something_absent_is_not_an_error() {
     if !store_or_skip() {
         return;
     }
-    let key = credential_name("delete-absent");
-    credential::delete(&key).expect("pre-clean");
+    let temp = TempCredential::new("delete-absent");
     // Disconnect should be idempotent: pressing it twice must not complain.
-    credential::delete(&key).expect("deleting an absent credential should be fine");
+    temp.delete().expect("deleting an absent credential should be fine");
+    temp.delete().expect("deleting twice should also be fine");
 }
 
 #[test]
@@ -133,18 +169,20 @@ fn an_empty_secret_is_refused() {
     if !store_or_skip() {
         return;
     }
-    let key = credential_name("empty");
-    credential::delete(&key).expect("pre-clean");
+    let temp = TempCredential::new("empty");
 
-    // THE OS STORE ACCEPTS AN EMPTY PASSWORD -- verified by running this.
-    // So the refusal has to be ours, and this test asserts ours rather than
-    // asserting something untrue about Windows.
+    // THE OS STORE ACCEPTS AN EMPTY PASSWORD — verified by running this. So the
+    // refusal has to be ours, and this test asserts ours rather than asserting
+    // something untrue about Windows.
     assert!(
-        credential::save(&key, "").is_err(),
+        temp.save("").is_err(),
         "an empty secret was accepted, so 'connected' could be true while holding nothing"
     );
-    let stored = credential::load(&key).expect("load");
-    assert_ne!(stored.as_deref(), Some(""), "an empty secret reached the store");
+    assert_ne!(
+        temp.load().expect("load").as_deref(),
+        Some(""),
+        "an empty secret reached the store"
+    );
 }
 
 #[test]
@@ -153,32 +191,53 @@ fn different_names_hold_different_secrets() {
         return;
     }
     // The property the earlier parallel-run bug violated: the name is the identity.
-    let alpha = credential_name("alpha");
-    let beta = credential_name("beta");
-    credential::delete(&alpha).expect("pre-clean");
-    credential::delete(&beta).expect("pre-clean");
+    let alpha = TempCredential::new("alpha");
+    let beta = TempCredential::new("beta");
 
-    credential::save(&alpha, "one").expect("save alpha");
-    credential::save(&beta, "two").expect("save beta");
+    alpha.save("one").expect("save alpha");
+    beta.save("two").expect("save beta");
 
-    assert_eq!(credential::load(&alpha).expect("load alpha").as_deref(), Some("one"));
-    assert_eq!(credential::load(&beta).expect("load beta").as_deref(), Some("two"));
+    assert_eq!(alpha.load().expect("load alpha").as_deref(), Some("one"));
+    assert_eq!(beta.load().expect("load beta").as_deref(), Some("two"));
+}
 
-    credential::delete(&alpha).expect("cleanup");
-    credential::delete(&beta).expect("cleanup");
+#[test]
+fn a_temp_credential_is_removed_when_it_goes_out_of_scope() {
+    if !store_or_skip() {
+        return;
+    }
+    // The guard itself, tested rather than assumed. If this ever fails, the suite is
+    // back to leaving entries in the user's credential store, which is the exact
+    // failure that put thirteen of them there.
+    let name = {
+        let temp = TempCredential::new("guard");
+        temp.save("temporary").expect("save");
+        let name = temp.name().to_string();
+        // `temp` drops here. Nothing below depends on a caller remembering to clean
+        // up, which is the whole point of the guard.
+        name
+    };
+
+    // Read AFTER the guard has run. Reading inside the block would assert on a value
+    // fetched before the deletion, so the test could pass for the wrong reason.
+    let after = credential::load(&name).expect("load after the guard ran");
+    assert_eq!(after, None, "the guard did not remove {name}");
 }
 
 #[test]
 fn test_credential_names_are_namespaced_and_unique() {
-    // Two properties this file now depends on. Namespaced, so anything left
-    // behind is identifiable in the user's Credential Manager rather than an
-    // unexplained entry. Unique, so a fixed name can never be a shared slot.
+    // Namespaced, so a sweep can identify what belongs to the tests with confidence.
+    // Unique, so a fixed name can never be a shared slot.
     let first = credential_name("example");
     let second = credential_name("example");
 
     assert!(first.starts_with(PREFIX), "{first} is not namespaced");
-    assert!(first.len() > PREFIX.len());
+    assert!(
+        !first.starts_with("capybaras.oauth."),
+        "a test name must never be able to collide with the real credential"
+    );
     assert_ne!(first, second, "two invocations produced the same name");
+    assert!(SWEEP_COMMAND.contains(PREFIX), "the sweep must target the test prefix");
 }
 
 #[test]
