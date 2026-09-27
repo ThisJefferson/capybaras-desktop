@@ -3,8 +3,8 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-27 13:05 EDT
-**Current phase:** **M4 — the approval interface.** M4.1–M4.3 done (IPC, gate in the sidecar, the blocking round trip) → **next: M4.4, the card**
+**Last updated:** 2026-09-27 15:12 EDT
+**Current phase:** **M4 — the approval interface.** M4.1–M4.5 done → **next: M4.6, the herd**
 **Next milestone:** M4 complete — the Replit gate run through a real UI by a real person
 **Spec:** `docs/protocol.md` · **Plan:** `docs/plans/next-steps.md` · **Design:** `docs/plans/M4-visual-design.md`
 **Recently decided:** D14 (no Bayesian maths in the safety path) · D15 (state directory) · D16 (supervision verified)

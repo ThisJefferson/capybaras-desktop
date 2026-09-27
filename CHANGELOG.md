@@ -8,6 +8,19 @@ Test counts and notable findings are included deliberately — the acceptance su
 
 ## [Unreleased]
 
+### M4.5 — durable grants, and they fail closed
+
+Remembered approvals now survive a restart: `grants.json` in the state directory, loaded at sidecar boot and saved after any change.
+
+- **Persistence fails CLOSED.** A missing, unreadable, corrupt or unknown-format file yields an *empty* store, so everything asks again. A persistence bug must never be able to grant authority.
+- **`GrantStore.restore()` applies the same rules as `record()`.** Tool, target, wildcard rejection, human provenance and expiry are all re-checked, so a hand-edited grants file cannot become a second path to authority the approval flow would have refused.
+- **Expired grants are refused, not resurrected.**
+- **Writes are atomic** — temporary file plus rename, so a crash cannot leave a half-written file.
+- The store stays pure: `grant-file.ts` is the only module that touches disk.
+
+**Tests: 175 passing** (162 TypeScript, 13 Rust).
+
+A Rust integration test runs the sidecar **twice against the same state directory**: session one remembers an approval, session two is a fresh process and proceeds without asking — then confirms a hard gate still asks, with a grants file present.
 ### Spike 001 — sidecar supervision (verdict: PARTIAL)
 
 Throwaway harness in `spikes/001-sidecar-supervision/`. Question: when a supervisor spawns a Node sidecar and the supervisor is killed, does the sidecar orphan?

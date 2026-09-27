@@ -190,3 +190,87 @@ fn an_unsupported_protocol_version_is_refused_not_guessed_at() {
         "the refusal should name the version it did not understand: {error}"
     );
 }
+
+/// M4.5 — durable grants.
+///
+/// The whole point of persistence is that it survives a real process death, so
+/// this test runs the sidecar twice against the same state directory. Session 1
+/// remembers an approval; session 2 is a *fresh process* and must honour it
+/// without asking. Then it must still refuse to let a hard gate through, even
+/// though a grants file now exists.
+#[test]
+fn a_remembered_grant_survives_a_restart() {
+    let dir = state_dir("grants-restart");
+
+    let propose_write = |sidecar: &mut Sidecar, id: &str| {
+        sidecar
+            .send(&json!({
+                "v": 1,
+                "type": "action.propose",
+                "id": id,
+                "action": { "tool": "fs.write", "args": { "path": "notes.md" } },
+                "context": { "targetLabel": "notes.md" }
+            }))
+            .expect("could not send action.propose");
+    };
+
+    // ---- session 1: approve once, and ask for it to be remembered ----
+    {
+        let mut sidecar = spawn(&dir);
+        expect(&sidecar, "ready", Duration::from_secs(25));
+
+        propose_write(&mut sidecar, "g1");
+        let required = expect(&sidecar, "approval.required", Duration::from_secs(15));
+        assert_eq!(
+            required["request"]["tier"], "confirm",
+            "this action should be a confirm, not a hard gate: {required}"
+        );
+        assert_eq!(
+            required["request"]["canRemember"], true,
+            "a plain file write should be rememberable: {required}"
+        );
+
+        sidecar
+            .send(&json!({ "v": 1, "type": "approval.answer", "id": "g1", "decision": "remember" }))
+            .expect("could not send remember");
+        expect(&sidecar, "approval.resolved", Duration::from_secs(10));
+
+        let outcome = sidecar.stop(Duration::from_secs(10));
+        assert!(outcome.graceful || outcome.forced);
+    }
+
+    let grants_file = dir.join("grants.json");
+    assert!(
+        grants_file.is_file(),
+        "remembering an approval should have written {} -- it did not",
+        grants_file.display()
+    );
+
+    // ---- session 2: a fresh process must honour it without asking ----
+    {
+        let mut sidecar = spawn(&dir);
+        expect(&sidecar, "ready", Duration::from_secs(25));
+
+        propose_write(&mut sidecar, "g2");
+        let proceeded = expect(&sidecar, "action.proceeded", Duration::from_secs(15));
+        assert_eq!(proceeded["tier"], "confirm");
+        assert!(
+            proceeded["because"].as_str().unwrap_or("").contains("before"),
+            "the grant should have carried it through, citing the earlier approval: {proceeded}"
+        );
+
+        // And the invariant still holds after a restart: a hard gate asks.
+        propose_mass_delete(&mut sidecar, "g3");
+        let required = expect(&sidecar, "approval.required", Duration::from_secs(15));
+        assert_eq!(
+            required["request"]["tier"], "hard_gate",
+            "a hard gate must still ask, even with a grants file present"
+        );
+        assert_eq!(
+            required["request"]["canRemember"], false,
+            "a hard gate must never become rememberable"
+        );
+
+        let _ = sidecar.stop(Duration::from_secs(10));
+    }
+}

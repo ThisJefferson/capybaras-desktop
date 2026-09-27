@@ -17,8 +17,8 @@
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { gate, GrantStore, describeGrant } from '../../../../src/policy/index';
-import type { ApprovalRequest, GateContext } from '../../../../src/policy/index';
+import { gate, GrantStore, describeGrant, loadGrants, saveGrants } from '../../../../src/policy/index';
+import type { ApprovalRequest, GateContext, LoadResult } from '../../../../src/policy/index';
 import type { ActionDescriptor, Classification } from '../../../../src/risk-classifier/index';
 
 const PROTOCOL = 1;
@@ -67,7 +67,36 @@ say(`  cwd=${process.cwd()}`);
 
 emit({ type: 'ready', pid: process.pid, node: process.version, protocol: PROTOCOL });
 
-const grants = new GrantStore();
+/**
+ * The grant store, restored from disk.
+ *
+ * Persistence FAILS CLOSED: a missing, unreadable or corrupt file yields an
+ * EMPTY store, which means everything asks again. A persistence bug must never
+ * be able to grant authority. See src/policy/grant-file.ts.
+ */
+const grantsPath = stateDir ? join(stateDir, 'grants.json') : null;
+const restored: LoadResult = grantsPath
+  ? loadGrants(grantsPath)
+  : { store: new GrantStore(), loaded: 0, rejected: 0 };
+const grants = restored.store;
+
+say(
+  `grants: ${restored.loaded} restored, ${restored.rejected} refused` +
+    (restored.problem ? ` -- ${restored.problem}` : ''),
+);
+if (restored.problem) {
+  emit({ type: 'error', message: restored.problem });
+}
+
+/** Persist after any change. Reports failure rather than throwing. */
+function persistGrants(): void {
+  if (!grantsPath) return;
+  const problem = saveGrants(grantsPath, grants);
+  if (problem) {
+    say(problem);
+    emit({ type: 'error', message: problem });
+  }
+}
 
 /** Actions blocked and waiting for a human, keyed by correlation id. */
 const pending = new Map<string, { action: ActionDescriptor; classification: Classification; request: ApprovalRequest }>();
@@ -188,6 +217,7 @@ function answer(id: string, decision: string): void {
       return; // stays pending
     }
     say(`remembered: ${describeGrant(result.grant)}`);
+    persistGrants();
   }
 
   pending.delete(id);
@@ -276,6 +306,7 @@ function handleLine(line: string): void {
       }
       const removed = grants.revoke(target);
       say(removed ? `revoked ${target}` : `revoke: no such grant ${target}`);
+      persistGrants();
       listGrants(id);
       return;
     }

@@ -294,6 +294,26 @@ The chosen mechanism needs no cleanup: **Windows releases the handle when the pr
 
 ---
 
+---
+
+## D19 — Grant persistence: stored plainly, and it FAILS CLOSED
+**2026-09-27**
+
+Grants now survive a restart. `grants.json` lives beside the other state in `<state dir>` (D15), and the decisions below matter more than the storage mechanism.
+
+**1. Persistence fails CLOSED, and this is the whole design.** A missing, unreadable, corrupt or unknown-format file yields an **empty** store — which means everything asks again. A persistence bug must never be able to *grant* authority. The failure direction is the point: losing grants costs a user a few extra clicks; gaining grants costs them the guarantee.
+
+**2. Restoring a grant applies the SAME rules as recording one.** `GrantStore.restore()` is not a looser path. It re-checks tool, target, wildcard rejection, human provenance and expiry. A grants file is a file: it can be hand-edited, truncated, or written by an older version. **An entry that would not have been acceptable as a fresh human approval is not acceptable as a restored one** — otherwise the file becomes a way to obtain authority the approval path would have refused.
+
+**3. Expired grants are refused, not resurrected.** Loading does not revive them.
+
+**4. Writes are atomic.** A temporary file plus a rename, so a crash mid-write cannot leave a half-written grants file. On the same volume the replacement is atomic: the file is either wholly the old version or wholly the new one.
+
+**5. The store stays pure.** `grants.ts` holds no filesystem code; `grant-file.ts` is the only module that touches disk, and the sidecar wires the two together. This kept all 42 existing policy tests untouched and made the persistence layer testable in isolation.
+
+**Verified end to end, not just in unit tests:** a Rust integration test runs the sidecar **twice against the same state directory**. Session one approves a file write and asks for it to be remembered; session two is a fresh process and proceeds **without asking**, citing the earlier approval. The same test then confirms a hard gate still asks — with a grants file sitting on disk.
+
+**Still open from D15:** whether the state directory survives MSIX virtualisation. That question is unchanged, and this file now sits wherever the rest of the state does.
 ## Standing constraints
 
 - **Never restart the Gateway** — owner-only.

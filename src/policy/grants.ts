@@ -160,6 +160,49 @@ export class GrantStore {
     }
     return removed;
   }
+
+  /**
+   * Re-admit a grant loaded from disk.
+   *
+   * Applies the **same rules as `record`**, deliberately, rather than trusting
+   * the file. A grants file is a file: it can be hand-edited, truncated, or
+   * written by an older version of this software. Anything that would not have
+   * been acceptable as a fresh human approval is not acceptable as a restored
+   * one — persistence must not become a way to obtain authority that the
+   * approval path would have refused.
+   *
+   * Expired grants are refused rather than resurrected. Returns whether the
+   * candidate was admitted.
+   */
+  restore(candidate: unknown, now: number = Date.now()): boolean {
+    if (candidate === null || typeof candidate !== 'object') return false;
+    const g = candidate as Partial<Grant>;
+
+    if (typeof g.id !== 'string' || g.id.length === 0) return false;
+    if (typeof g.tool !== 'string' || g.tool.length === 0) return false;
+    if (typeof g.target !== 'string' || g.target.length === 0) return false;
+    if (WILDCARD.test(g.target)) return false;
+    if (g.grantedBy !== 'human') return false;
+    if (typeof g.createdAt !== 'number' || !Number.isFinite(g.createdAt)) return false;
+    if (typeof g.expiresAt !== 'number' || !Number.isFinite(g.expiresAt)) return false;
+    if (g.expiresAt <= now) return false;
+
+    this.grants.set(g.id, {
+      id: g.id,
+      tool: g.tool,
+      target: g.target,
+      createdAt: g.createdAt,
+      expiresAt: g.expiresAt,
+      grantedBy: 'human',
+    });
+    return true;
+  }
+
+  /** Everything currently held, for persistence. Prunes expired entries first. */
+  serialize(now: number = Date.now()): Grant[] {
+    this.prune(now);
+    return [...this.grants.values()];
+  }
 }
 
 /** Plain-language summary of a grant, for the settings list. */
