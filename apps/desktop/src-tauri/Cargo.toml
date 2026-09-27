@@ -26,6 +26,12 @@ hex = "0.4"
 # backend: save() returns Ok, load() returns None, and every round trip fails as
 # if the store were broken. It compiled and lied, which is the worst combination.
 keyring = { version = "3", features = ["windows-native"] }
+# The OAuth flow primitives (docs/plans/M5-onboarding.md). All three are already
+# in the tree transitively via Tauri, so this reuses compiled code rather than
+# pulling a new dependency graph.
+url = "2"
+base64 = "0.21"
+getrandom = "0.3"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"

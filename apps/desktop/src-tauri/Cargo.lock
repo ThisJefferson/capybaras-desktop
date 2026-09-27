@@ -260,6 +260,8 @@ dependencies = [
 name = "capybaras-shell"
 version = "0.1.0"
 dependencies = [
+ "base64 0.21.7",
+ "getrandom 0.3.4",
  "hex",
  "keyring",
  "log",
@@ -269,6 +271,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-log",
+ "url",
  "windows",
 ]
 

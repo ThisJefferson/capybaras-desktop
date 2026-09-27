@@ -14,6 +14,7 @@ use tauri::{Emitter, Manager, RunEvent};
 
 pub mod credential;
 pub mod integrity;
+pub mod oauth;
 
 pub struct AppState {
     sidecar: Mutex<Option<Sidecar>>,
