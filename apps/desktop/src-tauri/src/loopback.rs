@@ -29,7 +29,7 @@ use std::time::{Duration, Instant};
 
 use tiny_http::{Header, Response, Server, StatusCode};
 
-use crate::oauth::{self, CALLBACK_PATH, CallbackFailure, CallbackResult};
+use crate::oauth::{self, CALLBACK_PATH, CallbackFailure, CallbackResult, StatePolicy};
 
 /// The default patience, matching the provider's own limit: authorization codes
 /// expire 10 minutes after issue, so waiting longer than that can only produce a
@@ -108,9 +108,14 @@ impl Loopback {
     }
 
     /// Wait for the browser, serving anything else it asks for along the way.
+    ///
+    /// `state` is a POLICY, not a required value, and that distinction is load
+    /// bearing: OpenRouter sends no `state` at all, so demanding one makes every real
+    /// sign-in fail. The original signature took `Option<&str>` where `Some` meant
+    /// "require" -- it looked harmless and it broke the first live attempt.
     pub fn wait_for_code(
         self,
-        expected_state: Option<&str>,
+        state: StatePolicy<'_>,
         timeout: Duration,
     ) -> Result<Outcome, LoopbackError> {
         let deadline = Instant::now() + timeout;
@@ -144,7 +149,7 @@ impl Loopback {
             // The code lives in this string and nowhere else. It is not logged, not
             // stored, and not echoed into the response.
             let full_url = format!("http://localhost:{}{}", self.addr.port(), target);
-            match oauth::parse_callback(&full_url, expected_state) {
+            match oauth::parse_callback_with(&full_url, state) {
                 CallbackResult::Ok { code } => {
                     respond(request, 200, oauth::callback_page(true));
                     return Ok(Outcome::Code(code));

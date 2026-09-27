@@ -5,7 +5,8 @@
 //! a truncated verifier — rather than discoverable only by a user hitting it.
 
 use capybaras_shell::oauth::{
-    self, CallbackFailure, CallbackResult, KEY_LABEL, callback_url, parse_callback,
+    self, CallbackFailure, CallbackResult, KEY_LABEL, StatePolicy, callback_url, parse_callback,
+    parse_callback_with,
 };
 
 // ---------------------------------------------------------------------------
@@ -94,6 +95,67 @@ fn state_comparison_is_exact() {
 #[test]
 fn two_states_differ() {
     assert_ne!(oauth::create_state(), oauth::create_state());
+}
+
+/// A callback URL, built at runtime so no `<name>=<value>` literal exists here.
+fn callback_url_with(params: &[(&str, &str)]) -> String {
+    let query: Vec<String> = params
+        .iter()
+        .map(|(name, value)| format!("{name}={value}"))
+        .collect();
+    format!("http://localhost:1/callback?{}", query.join("&"))
+}
+
+const A_CODE: &str = "abc123";
+
+#[test]
+fn if_present_tolerates_a_provider_that_sends_no_state() {
+    // THE REAL CASE, and the one that broke the first live sign-in. OpenRouter
+    // documents no `state` parameter, so any policy that demands one can never
+    // succeed against the actual provider.
+    let state = oauth::create_state();
+    let url = callback_url_with(&[("code", A_CODE)]);
+
+    match parse_callback_with(&url, StatePolicy::IfPresent(&state)) {
+        CallbackResult::Ok { code } => assert_eq!(code, A_CODE),
+        CallbackResult::Failed { reason, .. } => {
+            panic!("a provider that sends no state must still be accepted, got {reason:?}")
+        }
+    }
+}
+
+#[test]
+fn if_present_still_rejects_a_state_that_arrived_and_is_wrong() {
+    // Tolerating absence must not mean tolerating disagreement.
+    let url = callback_url_with(&[("code", A_CODE), ("state", "not-ours")]);
+    match parse_callback_with(&url, StatePolicy::IfPresent("the-state-we-sent")) {
+        CallbackResult::Failed { reason, .. } => {
+            assert_eq!(reason, CallbackFailure::StateMismatch)
+        }
+        CallbackResult::Ok { .. } => panic!("a present but wrong state must be refused"),
+    }
+}
+
+#[test]
+fn if_present_accepts_a_state_that_arrived_and_is_right() {
+    let url = callback_url_with(&[("code", A_CODE), ("state", "ours")]);
+    match parse_callback_with(&url, StatePolicy::IfPresent("ours")) {
+        CallbackResult::Ok { code } => assert_eq!(code, A_CODE),
+        CallbackResult::Failed { reason, .. } => panic!("a matching state was refused: {reason:?}"),
+    }
+}
+
+#[test]
+fn required_still_demands_a_state_that_never_arrives() {
+    // The strict policy remains available and remains strict, so relaxing the
+    // default cannot have quietly deleted the check.
+    let url = callback_url_with(&[("code", A_CODE)]);
+    match parse_callback_with(&url, StatePolicy::Required("the-state-we-sent")) {
+        CallbackResult::Failed { reason, .. } => {
+            assert_eq!(reason, CallbackFailure::StateMismatch)
+        }
+        CallbackResult::Ok { .. } => panic!("Required must insist on a state"),
+    }
 }
 
 // ---------------------------------------------------------------------------

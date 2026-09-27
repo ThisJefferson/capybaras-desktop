@@ -27,7 +27,7 @@ use std::net::{IpAddr, TcpStream};
 use std::time::Duration;
 
 use capybaras_shell::loopback::{DEFAULT_TIMEOUT, Loopback, Outcome};
-use capybaras_shell::oauth::{self, CallbackFailure};
+use capybaras_shell::oauth::{self, CallbackFailure, StatePolicy};
 
 /// The values a real callback would carry.
 const SAMPLE_CODE: &str = "abc123";
@@ -86,9 +86,17 @@ fn listening(
     u16,
     std::thread::JoinHandle<Result<Outcome, capybaras_shell::loopback::LoopbackError>>,
 ) {
+    // `IfPresent`, matching what the real caller does. OpenRouter sends no `state`,
+    // and a helper that demanded one is precisely why nothing caught the bug: every
+    // test handed the listener a state, so the only case that ever happens in the
+    // field was the one case never exercised.
+    let policy = match expected_state {
+        Some(state) => StatePolicy::IfPresent(state),
+        None => StatePolicy::NotExpected,
+    };
     let listener = Loopback::bind().expect("bind an ephemeral loopback port");
     let port = listener.port();
-    let handle = std::thread::spawn(move || listener.wait_for_code(expected_state, timeout));
+    let handle = std::thread::spawn(move || listener.wait_for_code(policy, timeout));
     (port, handle)
 }
 
@@ -290,6 +298,52 @@ fn a_matching_state_is_accepted() {
 }
 
 // ---------------------------------------------------------------------------
+// The case that actually happens, and the check that must survive relaxing it
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_callback_with_no_state_is_accepted_when_one_was_not_required() {
+    // THE REGRESSION TEST THAT WAS MISSING.
+    //
+    // OpenRouter sends no `state` at all, and the shipped code demanded one -- so
+    // every real sign-in was refused with a state mismatch, and the only symptom the
+    // user saw was the generic "that did not work" page. Every other test in this
+    // file supplied a state, which is exactly why none of them caught it.
+    let state: &'static str = Box::leak(oauth::create_state().into_boxed_str());
+    let (port, handle) = listening(Some(state), Duration::from_secs(5));
+
+    // No state in the callback, exactly as OpenRouter behaves.
+    get(port, &target(&[("code", SAMPLE_CODE)]));
+
+    match handle.join().expect("listener thread") {
+        Ok(Outcome::Code(code)) => assert_eq!(code, SAMPLE_CODE),
+        other => panic!("a callback with no state was refused: {other:?}"),
+    }
+}
+
+#[test]
+fn a_missing_state_is_still_refused_when_the_policy_requires_it() {
+    // Relaxing the default to `IfPresent` must not have removed the check -- only
+    // made it conditional. A provider documented to echo a state must still be held
+    // to it, or the change would have quietly deleted a control.
+    let listener = Loopback::bind().expect("bind");
+    let port = listener.port();
+    let handle = std::thread::spawn(move || {
+        listener.wait_for_code(
+            StatePolicy::Required("the-state-we-sent"),
+            Duration::from_secs(5),
+        )
+    });
+
+    get(port, &target(&[("code", SAMPLE_CODE)]));
+
+    match handle.join().expect("listener thread") {
+        Ok(Outcome::Refused(reason)) => assert_eq!(reason, CallbackFailure::StateMismatch),
+        other => panic!("a required state was not enforced: {other:?}"),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Waiting
 // ---------------------------------------------------------------------------
 
@@ -299,7 +353,7 @@ fn nobody_calling_means_a_timeout_not_a_hang() {
     // that never closes.
     let listener = Loopback::bind().expect("bind");
     let outcome = listener
-        .wait_for_code(None, Duration::from_millis(150))
+        .wait_for_code(StatePolicy::NotExpected, Duration::from_millis(150))
         .expect("waiting should not error");
     assert_eq!(outcome, Outcome::TimedOut);
 }

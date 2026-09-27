@@ -111,7 +111,14 @@ pub fn start_connect(
 
     let handle = app.clone();
     std::thread::spawn(move || {
-        let outcome = listener.wait_for_code(Some(&attempt.state), loopback::DEFAULT_TIMEOUT);
+        // `IfPresent`, NOT `Required`. OpenRouter sends no `state`, so requiring one
+        // makes every sign-in fail -- which is exactly what the first live attempt
+        // did. PKCE covers the attack `state` defends against; see the note in
+        // oauth.rs and the `StatePolicy` documentation there.
+        let outcome = listener.wait_for_code(
+            oauth::StatePolicy::IfPresent(&attempt.state),
+            loopback::DEFAULT_TIMEOUT,
+        );
         finish(&handle, attempt, outcome);
     });
 
