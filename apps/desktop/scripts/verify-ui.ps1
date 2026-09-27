@@ -18,7 +18,12 @@ param(
     [int]$Height = 1060
 )
 
-$ErrorActionPreference = 'Stop'
+# Chrome writes progress text to stderr. Under 'Stop', PowerShell treats a native
+# command's stderr as a TERMINATING error -- which killed this script at the
+# screenshot line. It printed a successful screenshot and then exited 1 without
+# ever running its own assertions. Relaxed deliberately: every failure this
+# script cares about is an explicit `throw`, and those still stop it.
+$ErrorActionPreference = 'Continue'
 
 $here = $PSScriptRoot
 # NOTE: Join-Path in Windows PowerShell takes only TWO positional arguments
@@ -84,9 +89,19 @@ window.__TAURI__ = {
     }
   }
 };
+// Probe: record the RESOLVED value of the semantic tokens into the DOM, so a
+// text dump can prove the stylesheet actually loaded AND resolved. This is the
+// exact defect that got past every other check: tokens that exist in the file
+// but resolve to nothing.
+window.addEventListener('load', function () {
+  setTimeout(function () {
+    var style = getComputedStyle(document.documentElement);
+    document.body.setAttribute('data-probe-primary', style.getPropertyValue('--color-semantic-state-primary').trim());
+    document.body.setAttribute('data-probe-coral', style.getPropertyValue('--color-semantic-state-needsYou').trim());
+  }, 400);
+});
 </script>
 '@
-
 $anchor = '<script type="module" src="app.js">'
 if (-not $html.Contains($anchor)) { throw "could not find the app.js script tag in index.html" }
 [System.IO.File]::WriteAllText($harness, $html.Replace($anchor, $mock + $anchor), (New-Object System.Text.UTF8Encoding($false)))
@@ -112,13 +127,63 @@ try {
         --force-device-scale-factor=2 --virtual-time-budget=5000 `
         "--screenshot=$shot" "--window-size=$Width,$Height" `
         "http://127.0.0.1:$Port/verify-card.html" 2>$null | Out-Null
+
+    # -----------------------------------------------------------------------
+    # 4. Assert on the live DOM. A file appearing proves nothing; these check
+    #    that the script ran, the herd rendered, the card rendered, and the
+    #    tokens RESOLVED.
+    # -----------------------------------------------------------------------
+    Write-Host '=== asserting on the rendered DOM ==='
+    $dom = & $chrome --headless --disable-gpu --hide-scrollbars `
+        --virtual-time-budget=5000 --dump-dom `
+        "http://127.0.0.1:$Port/verify-card.html" 2>$null | Out-String
 }
 finally {
     Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
 }
 
 if (-not (Test-Path $shot)) { throw 'no screenshot was produced' }
+if ([string]::IsNullOrWhiteSpace($dom)) { throw 'no DOM was dumped -- the page did not load' }
+
+$failures = @()
+
+# The herd: six agents, all present.
+$agents = ([regex]::Matches($dom, 'data-agent=')).Count
+if ($agents -ne 6) { $failures += "expected 6 agents in the herd, found $agents" }
+
+# The card actually rendered, with a headline.
+if ($dom -notmatch 'card__headline') { $failures += 'the approval card is missing from the DOM' }
+
+# The tokens RESOLVED. Empty means the stylesheet loaded but the variables did
+# not, which is the silent failure this whole script exists to catch.
+# Probe values, extracted with simple string splits.
+#
+# Deliberately NOT regex, and deliberately not double-quoted strings containing
+# quotes. The previous version used \" inside a double-quoted PowerShell string,
+# and backslash is NOT an escape character in PowerShell -- so the strings
+# terminated early and the whole script failed to parse. A split cannot go wrong
+# that way.
+$primary = ($dom -split 'data-probe-primary="') | Select-Object -Skip 1 -First 1
+if ($primary) { $primary = ($primary -split '"') | Select-Object -First 1 }
+$coral = ($dom -split 'data-probe-coral="') | Select-Object -Skip 1 -First 1
+if ($coral) { $coral = ($coral -split '"') | Select-Object -First 1 }
+
+if ([string]::IsNullOrWhiteSpace($primary)) {
+    $failures += 'data-probe-primary resolved to nothing -- the token is missing or undefined'
+}
+if ([string]::IsNullOrWhiteSpace($coral)) {
+    $failures += 'data-probe-coral resolved to nothing -- the token is missing or undefined'
+}
+
+if ($failures.Count -gt 0) {
+    Write-Host ''
+    Write-Host 'SMOKE TEST FAILED:'
+    foreach ($f in $failures) { Write-Host ('  - ' + $f) }
+    throw 'the rendered interface did not pass its assertions'
+}
+
 Write-Host ''
-Write-Host ("DONE  {0} bytes -> {1}" -f (Get-Item $shot).Length, $shot)
+Write-Host ('PASSED  ' + $agents + ' agents, card present, tokens resolved (' + $primary + ' / ' + $coral + ')')
+Write-Host ('        ' + (Get-Item $shot).Length + ' bytes -> ' + $shot)
 Write-Host ''
-Write-Host 'Now LOOK at it. A byte count proves nothing about rendering.'
+Write-Host 'Now LOOK at it too. A passing assertion is not a judgement about design.'
