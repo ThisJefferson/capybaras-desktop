@@ -48,3 +48,7 @@ apps/desktop/web/tokens.css
 # paper build artifacts (build with: docs/papers/build-pdf.ps1)
 docs/papers/*.html
 docs/papers/verify-render.png
+
+# synthesis build artifacts (the parts in synthesis/ are the source of truth)
+docs/papers/verify-*.png
+docs/papers/ai-quantum-and-harm.md
