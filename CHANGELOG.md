@@ -36,11 +36,26 @@ Throwaway harness in `spikes/002-msix-sidecar/`: a zero-dependency Rust launcher
 - **Milestone numbering corrected.** `EXECUTION-PLAN.md` §7 numbers **M2 = spike verdict, M3 = shell runs**. Earlier notes here called the shell "M2". Corrected rather than carried forward.
 - **`DECISIONS.md` D14 — Bayesian mathematics: no in the safety path, yes in exactly one place, not yet.** The classifier's guarantees (escalation-only, fail-safe unknowns, hard gates never satisfied by memory) are structural properties of a rule system. A posterior probability cannot be proved — only stated — so putting probability in the tier decision would *downgrade* the guarantee. Where it legitimately fits: an escalation-only soft-signal scorer (can only raise a tier, so a false negative is impossible), and a written justification of the priors and asymmetric loss behind each default threshold. The second is a document, not code, and is now a parallel stream on the M3 plan.
 
-### In progress
-- **M3 — the Tauri shell**: supervise the Node sidecar with a Job Object (`KILL_ON_JOB_CLOSE`) plus the graceful-stop handshake, per spike 001; honour the two path rules from spike 002. Plan: `docs/plans/M3-shell.md`.
+### M3 — the Tauri shell (steps 1–6 of 7)
+
+New app at `apps/desktop/`: Tauri v2 shell (`src-tauri/`), a Node sidecar (`sidecar/sidecar.mjs`), and a minimal status frontend (`web/index.html`). The shell imports the classifier rather than duplicating it.
+
+**`src/paths.rs` — every path resolved from the executable, never from `cwd`.** The packaged app is launched with `cwd = C:\Windows\System32`, so a `cwd`-relative path fails quietly on a real install. Verified by launching the shell with that exact working directory: the sidecar still started.
+
+**`src/sidecar.rs` — supervision with two guarantees:**
+- the sidecar is assigned to a Windows Job Object created with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, so it cannot outlive the shell even on a hard kill;
+- a graceful stop is requested over the sidecar's stdin and given a bounded grace period, with a force only as fallback.
+
+**Measured, not assumed:** the shell was hard-killed from **outside the agent's own process tree** (via a Scheduled Task, so the host runtime's own Job Object could not contaminate the result). Result: **zero orphaned sidecar processes.** This is the measurement spike 001 could not take.
+
+**Tests:** 6 new tests in the shell crate — 3 path, 3 supervision — all passing. The load-bearing one asserts that a graceful stop **reaches the sidecar's own handler**. On Windows `Child::kill()` is `TerminateProcess` and runs no handler, so a passing assertion here is meaningful rather than decorative.
+
+**Reproduce:** `cargo test` in `apps/desktop/src-tauri`; `apps/desktop/scripts/verify-supervision.ps1` re-takes the outside-the-tree measurement.
+
+**Outstanding:** step 7 — single instance, health check, tray icon. Decisions recorded as D15 (state directory) and D16 (supervision verified).
 
 ### Planned
-- Approval interface, the herd, receipts
+- Approval interface, the herd, receipts (design drafted — `docs/design/approval-card.md`)
 - OpenRouter OAuth onboarding
 
 ---

@@ -208,6 +208,43 @@ Jeff's standing directive is that **I reason and communicate with calibrated unc
 
 ---
 
+## D15 — State directory: explicit, overridable, and surfaced to the user
+**2026-09-27**
+
+Spike 002 finding: MSIX silently virtualises writes to `%LOCALAPPDATA%`. A packaged app that writes to `%LOCALAPPDATA%\Capybaras\` will find its bytes in `Packages\<PFN>\LocalCache\Local\Capybaras\`, and **the process cannot detect the difference** — `process.env.LOCALAPPDATA` still reports the plain path.
+
+**Decision.** State resolves through one function, in this order:
+
+1. `CAPYBARAS_STATE_DIR` — explicit override, used by tests and development.
+2. `%LOCALAPPDATA%\Capybaras` — the default.
+
+And the resolved path is **shown in the shell UI**, because a state directory the user cannot find is a state directory they cannot back up, inspect, or delete.
+
+**Open question, to be measured not asserted:** whether a chosen *user-visible* path survives MSIX virtualisation, or whether only the package-private store is dependable. Known-folder redirection is not documented clearly enough to settle by reading. This is a packaging-phase measurement, and it is recorded here so it is not quietly forgotten.
+
+**What this does not yet solve.** The override is an escape hatch, not an answer. If MSIX virtualisation turns out to swallow the default path, the fix is to move to a location that is genuinely visible, and to say so in the UI — not to hope the user finds `LocalCache`.
+
+---
+
+## D16 — Supervision verified: no orphans, and graceful stop reaches the sidecar
+**2026-09-27**
+
+Spike 001 left one thing unmeasured: non-orphaning, because the agent's own runtime anchors descendants with a Job Object, making harness death and product death indistinguishable. **M3 Step 6 re-took that measurement from outside the process tree.**
+
+Launch was a **Scheduled Task** — outside the agent's job — with the working directory forced to `C:\Windows\System32`, which tests the spike-002 path rule at the same time.
+
+**Result 1 — path resolution survives `cwd = System32`.** The sidecar started and reported `cwd=C:\Windows\System32`. Had any path been resolved from the working directory, it would not have started at all.
+
+**Result 2 — no orphans.** The shell was hard-killed (`taskkill /F`, so no handlers, no cleanup, no chance to be polite). Five seconds later: **zero surviving sidecar processes.** The `KILL_ON_JOB_CLOSE` job object did exactly what it was chosen for.
+
+**Result 3 — a graceful stop runs the child's own handler.** An automated test asserts that `stop()` reaches the sidecar over stdin, that the sidecar exits 0 on its own rather than being terminated, and that its shutdown handler logged. On Windows `Child::kill()` is `TerminateProcess` and runs no handler, so this is a real assertion rather than a formality.
+
+Verification is scripted and repeatable: `apps/desktop/scripts/verify-supervision.ps1`, plus `cargo test` in `apps/desktop/src-tauri`.
+
+**Honest caveat:** in this development run the sidecar resolved to the Node on `PATH` (`C:\nvm4w\nodejs\node.exe`), because a debug build has no bundled `node.exe` beside the executable. The release bundle will place it there. The resolution *order* — executable directory first, `PATH` only as a development fallback — is what the shipped build relies on, and it is unchanged.
+
+---
+
 ## Standing constraints
 
 - **Never restart the Gateway** — owner-only.

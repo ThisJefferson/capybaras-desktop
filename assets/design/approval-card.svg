@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 610" width="900" height="610" font-family="Segoe UI, system-ui, -apple-system, sans-serif">
+  <defs>
+    <filter id="card-shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="16" flood-color="#0F5C63" flood-opacity="0.22"/>
+    </filter>
+
+    <!-- Zeca — the needs-you capybara (verification agent, sign-raiser) -->
+    <g id="zeca">
+      <ellipse cx="57" cy="44" rx="30" ry="16" fill="#8B6239"/>
+      <rect x="33" y="56" width="8" height="18" rx="4" fill="#7A5530"/>
+      <rect x="55" y="56" width="8" height="18" rx="4" fill="#7A5530"/>
+      <rect x="76" y="24" width="34" height="28" rx="12" fill="#8B6239"/>
+      <ellipse cx="84" cy="21" rx="5" ry="5.5" fill="#7A5530"/>
+      <circle cx="94" cy="39" r="2.8" fill="#161616"/>
+      <ellipse cx="108" cy="43" rx="3.2" ry="2.8" fill="#5C4023"/>
+      <rect x="84" y="20" width="36" height="22" rx="4" fill="#FBF7F0" stroke="#F2705A" stroke-width="1.8"/>
+      <text x="102" y="34" font-size="10" font-weight="700" fill="#F2705A" text-anchor="middle">oi!</text>
+      <rect x="100" y="38" width="4" height="10" rx="2" fill="#F2705A"/>
+    </g>
+  </defs>
+
+  <!-- Canvas — sand background -->
+  <rect width="900" height="610" fill="#FBF7F0"/>
+
+  <!-- ========== CARD ========== -->
+  <rect x="60" y="35" width="780" height="540" rx="18" fill="#FFFFFF" filter="url(#card-shadow)"/>
+
+  <!-- Coral left accent bar — indicates "needs you" state -->
+  <rect x="60" y="35" width="6" height="540" rx="3" fill="#F2705A"/>
+
+  <!-- ========== ZECA ========== -->
+  <use href="#zeca" transform="translate(108, 52) scale(0.52)"/>
+
+  <!-- ========== HEADER ========== -->
+  <text x="178" y="78" font-size="12" font-weight="700" fill="#F2705A" letter-spacing="1.3">TUCA NEEDS YOU</text>
+
+  <text x="178" y="114" font-size="20" font-weight="700" fill="#161616">Delete 3 files from Documents?</text>
+
+  <!-- ========== REVERSIBILITY ========== -->
+  <g transform="translate(178, 132)">
+    <rect x="0" y="2" width="7" height="7" rx="1" transform="rotate(45, 3.5, 5.5)" fill="#0F5C63"/>
+    <text x="18" y="11" font-size="15" font-weight="700" fill="#161616">This cannot be undone.</text>
+  </g>
+
+  <!-- ========== REASONS ========== -->
+  <text x="178" y="178" font-size="11" font-weight="700" fill="#0F5C63" letter-spacing="1.0">WHY</text>
+
+  <!-- Reason 1 -->
+  <circle cx="182" cy="207" r="3" fill="#F2705A"/>
+  <text x="198" y="212" font-size="15" fill="#4A4A4A">You asked me to clear out drafts from before June.</text>
+
+  <!-- Reason 2 -->
+  <circle cx="182" cy="237" r="3" fill="#F2705A"/>
+  <text x="198" y="242" font-size="15" fill="#4A4A4A">This would affect 3 files at once.</text>
+
+  <!-- Reason 3 -->
+  <circle cx="182" cy="267" r="3" fill="#F2705A"/>
+  <text x="198" y="272" font-size="15" fill="#4A4A4A">The instruction came from files the agent read, not from you.</text>
+
+  <!-- ========== DIVIDER ========== -->
+  <line x1="100" y1="310" x2="800" y2="310" stroke="#D8D2C6" stroke-width="1"/>
+
+  <!-- ========== BUTTONS ========== -->
+
+  <!-- "Hold on" — default, filled, visual primacy (safe choice) -->
+  <rect x="100" y="334" width="200" height="50" rx="25" fill="#0F5C63"/>
+  <text x="200" y="365" font-size="16" font-weight="700" fill="#FFFFFF" text-anchor="middle">Hold on</text>
+  <text x="200" y="398" font-size="10" fill="#8B8B8B" text-anchor="middle">default - press Enter</text>
+
+  <!-- "Go ahead" — outlined, secondary, requires deliberate click -->
+  <rect x="320" y="334" width="200" height="50" rx="25" fill="none" stroke="#D8D2C6" stroke-width="1.5"/>
+  <text x="420" y="365" font-size="16" font-weight="600" fill="#6B6B6B" text-anchor="middle">Go ahead</text>
+
+  <!-- ========== ALWAYS ALLOW AFFORDANCE ========== -->
+  <g transform="translate(100, 420)">
+    <!-- Disclosure arrow — small, low contrast, collapsed -->
+    <polygon points="4,0 10,5 4,10" fill="#B0B0B0"/>
+    <text x="20" y="8" font-size="13" fill="#8B8B8B" letter-spacing="0.3">Remember this action for 30 days</text>
+
+    <!-- Expanded content (shown only when disclosure is open) — represented as muted helper text -->
+    <text x="20" y="34" font-size="12" fill="#B0B0B0">If you approve, this exact action (delete 3 files from Documents)</text>
+    <text x="20" y="52" font-size="12" fill="#B0B0B0">will skip asking for 30 days. You can revoke it anytime in Settings.</text>
+
+    <!-- "Remember on approve" toggle -->
+    <rect x="20" y="68" width="16" height="16" rx="3" fill="none" stroke="#D8D2C6" stroke-width="1.5"/>
+    <text x="44" y="81" font-size="13" fill="#6B6B6B">Remember on approve</text>
+  </g>
+
+  <!-- ========== BRAND MARKER (bottom-right) ========== -->
+  <text x="780" y="555" font-size="11" fill="#B0B0B0" text-anchor="end" letter-spacing="0.3">Capybaras — the agents that ask first</text>
+</svg>

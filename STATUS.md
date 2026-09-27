@@ -3,10 +3,11 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-27 12:05 EDT
-**Current phase:** Phase 2 ✅ **COMPLETE** — spike 001 PARTIAL (supervision), spike 002 **VALIDATED** (MSIX + bundled Node) → **next: M3, the Tauri shell**
-**Next milestone:** **M3 — the shell runs.** Plan: `docs/plans/M3-shell.md`. Supervise a Node sidecar, anchored by a Windows Job Object with `KILL_ON_JOB_CLOSE`
-**Recently decided:** D14 — Bayesian mathematics stays out of the safety path (see below)
+**Last updated:** 2026-09-27 12:25 EDT
+**Current phase:** **M3 — the shell runs.** Steps 1–6 done and verified; Step 7 (single instance, health, tray) outstanding
+**Next milestone:** M3 complete — then M4, the approval interface, where the Replit gate meets a real UI
+**Plan:** `docs/plans/M3-shell.md` · **Evidence:** `DECISIONS.md` D16
+**Recently decided:** D14 (no Bayesian maths in the safety path) · D15 (state directory) · D16 (supervision verified)
 **Repo:** https://github.com/ThisJefferson/capybaras-desktop (public) · releases cut per milestone
 
 ---
@@ -110,6 +111,29 @@
 **Honest gap:** `app dir writable` read `yes`, but the test used a loose layout (writable by definition), not a real `WindowsApps` install. Re-take that reading when packaging begins.
 
 **Install mechanics:** unsigned MSIX is rejected even in Developer Mode; machine-scope cert trust needs elevation; **loose-layout registration works unsigned and unelevated** and is the dev loop. Store re-signing means end users never touch a certificate.
+
+---
+
+## M3 — the shell: progress (2026-09-27)
+
+`apps/desktop/` — Tauri v2 shell (`src-tauri/`), a Node sidecar (`sidecar/`), and a minimal status frontend (`web/`).
+
+**Steps 1–6 complete, each verified:**
+
+| Step | Result |
+|---|---|
+| 1. Toolchain | Tauri CLI 2.12.0; Rust `x86_64-pc-windows-msvc`; WebView2 153 |
+| 2. Repo layout | `apps/desktop/`, shell imports the classifier rather than duplicating it |
+| 3. Path discipline | `src/paths.rs` owns every lookup; **verified under `cwd = C:\Windows\System32`** |
+| 4. State directory | D15 — explicit, overridable, and surfaced in the UI |
+| 5. Sidecar supervision | Job Object with `KILL_ON_JOB_CLOSE` + graceful-stop handshake |
+| 6. Non-orphaning, measured | **Hard-killed the shell from outside the process tree: zero orphans** |
+
+**Tests:** 6 in the shell crate — 3 path, 3 supervision — all passing. The supervision test that matters asserts a graceful stop **reaches the sidecar's own handler**; on Windows a plain `Child::kill()` runs no handler, so it is a real assertion.
+
+**Reproduce:** `cargo test` in `apps/desktop/src-tauri`; `apps/desktop/scripts/verify-supervision.ps1` for the outside-the-tree measurement.
+
+**Outstanding: Step 7** — single instance, health check, tray icon.
 
 ---
 

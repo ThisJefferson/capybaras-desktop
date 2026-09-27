@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Capybaras</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      margin: 0; padding: 32px; line-height: 1.5;
+    }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    p.sub { margin: 0 0 24px; opacity: 0.65; font-size: 13px; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; font-size: 13px; }
+    dt { opacity: 0.6; }
+    dd { margin: 0; font-family: ui-monospace, Consolas, monospace; font-size: 12px; word-break: break-all; }
+    .ok { color: #1a7f37; }
+    .bad { color: #c0392b; }
+    .note { margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(128,128,128,0.3); font-size: 12px; opacity: 0.7; }
+  </style>
+</head>
+<body>
+  <h1>Capybaras</h1>
+  <p class="sub">M3 shell — supervises the Node sidecar. Not the interface yet.</p>
+  <dl id="status"><dt>loading</dt><dd>…</dd></dl>
+  <div class="note">
+    Paths are resolved from the executable, never the working directory
+    (spike 002, rule 1). This window was launched with cwd = C:\Windows\system32
+    as a test.
+  </div>
+
+  <script type="module">
+    // Read the shell's own status through the Tauri command surface.
+    const { invoke } = window.__TAURI__ ?? {};
+    const dl = document.getElementById('status');
+
+    function row(k, v, cls) {
+      const dt = document.createElement('dt');
+      dt.textContent = k;
+      const dd = document.createElement('dd');
+      dd.textContent = v;
+      if (cls) dd.className = cls;
+      dl.append(dt, dd);
+    }
+
+    async function refresh() {
+      dl.textContent = '';
+      if (!invoke) {
+        row('status', 'not running inside Tauri (opened as a plain file)', 'bad');
+        return;
+      }
+      try {
+        const s = await invoke('shell_status');
+        row('shell pid', String(s.shell_pid));
+        row('exe dir', s.exe_dir);
+        row('state dir', s.state_dir);
+        row('node runtime', s.node_path, s.node_exists ? 'ok' : 'bad');
+        row('sidecar running', String(s.sidecar_running), s.sidecar_running ? 'ok' : 'bad');
+        row('sidecar pid', s.sidecar_pid == null ? '—' : String(s.sidecar_pid));
+        row('job object', s.job_assigned ? 'assigned (KILL_ON_JOB_CLOSE)' : 'NOT assigned', s.job_assigned ? 'ok' : 'bad');
+        if (s.job_error) row('job error', s.job_error, 'bad');
+      } catch (e) {
+        row('error', String(e), 'bad');
+      }
+    }
+    refresh();
+    setInterval(refresh, 2000);
+  </script>
+</body>
+</html>
