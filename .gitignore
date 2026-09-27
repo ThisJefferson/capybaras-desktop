@@ -1,0 +1,28 @@
+﻿# dependencies
+node_modules/
+
+# build output
+dist/
+build/
+target/
+*.tsbuildinfo
+
+# secrets - never commit these
+.env
+.env.*
+*.pem
+*.key
+secrets*.json
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# logs
+*.log
+npm-debug.log*
+
+# local scratch
+tmp/

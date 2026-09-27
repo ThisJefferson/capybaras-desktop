@@ -1,0 +1,106 @@
+# Capybaras
+
+**A calm herd of helpers that ask before they act.**
+
+> Desktop agent that stops and checks with you before doing anything that matters.
+
+**Status: early development.** Nothing is installable yet. This repo is being built in the open.
+
+---
+
+## The problem
+
+AI agents that can actually *do* things — edit your files, send your messages, run commands — are genuinely useful and genuinely dangerous. The failure mode is not science fiction. It is boring and it already happened:
+
+> **23 July 2025.** An AI coding agent deleted a production database *during an explicitly declared code freeze*. It wiped data for more than **1,200 executives and 1,190 companies**, then misreported what it had done.
+
+No attacker. No malicious goal. A wrong assumption, over-broad permissions, and no gate between deciding and doing.
+
+## What Capybaras does about it
+
+**Every consequential action stops and asks.**
+
+Actions are classified into risk tiers before they run:
+
+| Tier | Behaviour |
+|---|---|
+| **Silent** | Reads, searches — logged, not interrupted |
+| **Notify** | Creates something — runs, then tells you |
+| **Confirm** | Deletes, edits, sends — **pauses and asks** |
+| **Hard gate** | Mass deletion, money, credentials — typed confirmation + reason |
+
+Classification is done by the **system, not the model** — an agent that has been manipulated cannot argue its way to a lower tier.
+
+And confirmation always arrives **out-of-band from the untrusted input.** If the agent read a web page that told it to act, the approval prompt cannot be influenced by that page.
+
+The prompt itself follows one rule above all others:
+
+> **Cancel is the default. Enter never approves something destructive.**
+
+## The herd
+
+You don't talk to a faceless process. A small herd of capybaras works for you, and you can *see* what each one is doing — which matters, because a multi-agent system is otherwise completely invisible.
+
+- **Tuca** — the one you talk to, speaks for the herd
+- **Bia** — looks things up
+- **Nina** — writes and edits files
+- **Zeca** — checks the work
+- **Joca** — runs commands
+- **Duda** — tidies and organises
+
+**Zeca is the one who raises the sign.** Verification isn't a gate bolted on at the end — it's a member of the team.
+
+Four states, always visible: **Dozing · Listening · Working · Needs you.**
+
+## What this is NOT
+
+Being honest about limits is more useful than a feature list:
+
+- ❌ **Not a general-purpose autonomous agent.** It asks a lot. That is the point.
+- ❌ **Not free of risk.** Nothing that can act on your behalf can be risk-free. The goal is that failure is **small, visible, and reversible** — not that failure is impossible.
+- ❌ **Not a chatbot.** If you want a chat window, plenty of those exist.
+- ❌ **Not finished.** See status above.
+- ❌ **Not affiliated with the OpenClaw Foundation.** See attribution below.
+
+## The acceptance test
+
+This project has exactly one defining test, and the whole product is judged against it:
+
+> **Reproduce the Replit incident, and confirm Capybaras halts at the approval gate and cannot proceed without a human click.**
+
+If Capybaras would have stopped that database deletion, the product works. If it would not, nothing else about it matters.
+
+## Built on OpenClaw
+
+Capybaras is a desktop application built on [OpenClaw](https://github.com/openclaw/openclaw), which is MIT licensed. Its licence and third-party notices are bundled here:
+
+- [`LICENSES/openclaw-MIT.txt`](./LICENSES/openclaw-MIT.txt) — OpenClaw Foundation, MIT
+- [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)
+
+Capybaras also reuses OpenClaw's control interface and gateway. Those components remain under the Foundation's MIT terms; this repository's own code is licensed separately, below.
+
+"OpenClaw" is the trademark of the OpenClaw Foundation. This project is an independent application and is not endorsed by or affiliated with the Foundation.
+
+## Licence
+
+[Apache-2.0](./LICENSE) for this project's own code — chosen over MIT for the explicit patent grant, which matters for software people are asked to trust with file access.
+
+## Project documents
+
+| File | What it covers |
+|---|---|
+| [`STATUS.md`](./STATUS.md) | Current phase, what's done, what's next |
+| [`DECISIONS.md`](./DECISIONS.md) | Why things are the way they are |
+| [`BUILD-PLAN.md`](./BUILD-PLAN.md) | Packaging, distribution, licensing, UI spec |
+| [`BRAND.md`](./BRAND.md) | The herd, the states, the visual language |
+| [`EXECUTION-PLAN.md`](./EXECUTION-PLAN.md) | Build order, workstreams, handoffs |
+
+## Sponsors
+
+Free, and staying free. Donations cover code-signing and distribution, which is roughly **$20–150 per year**.
+
+*(GitHub Sponsors link to come.)*
+
+---
+
+*It will still break. It will break small, visibly, and you'll be able to undo it.*
