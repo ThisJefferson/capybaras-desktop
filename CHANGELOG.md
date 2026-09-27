@@ -8,11 +8,21 @@ Test counts and notable findings are included deliberately — the acceptance su
 
 ## [Unreleased]
 
+### Spike 001 — sidecar supervision (verdict: PARTIAL)
+
+Throwaway harness in `spikes/001-sidecar-supervision/`. Question: when a supervisor spawns a Node sidecar and the supervisor is killed, does the sidecar orphan?
+
+- **PARTIAL.** Clean shutdown works (the supervisor terminated the sidecar and exited). The orphaning question **could not be measured** — this host anchors descendants with a Windows Job Object, so *"the product would orphan"* and *"the harness killed it"* are indistinguishable. Recorded rather than overstated.
+- **Actionable anyway:** the mechanism that would have answered the spike is the mechanism to build with — a Job Object carrying `KILL_ON_JOB_CLOSE`. It is already a proven pattern in this stack.
+- **`child.kill()` is `TerminateProcess` on Windows** — no `SIGTERM` handler runs. A Gateway owning sessions and sockets needs a graceful-stop handshake before the force.
+- **The first harness was confounded** (standard output piped to the supervisor, so the pipe broke when the parent died) and produced contradictory output. Rebuilt with `stdio: 'ignore'` and file-based logging. Bad instrumentation is not a finding.
+- **MSIX full-trust remains untested** — Developer Mode is off and trusting a test certificate needs elevation. A user action; gates packaging only, not the shell.
+- No production code changed. No test-count change (still 141). Decision recorded as `DECISIONS.md` D12.
+
 ### In progress
-- **Policy layer** — binding the classifier to a grant store (scoped, expiring, human-only) and a dry-run mode. This is what turns a classification into an actual gate.
+- **M2 — the Tauri shell**: supervise the Node sidecar with a Job Object (`KILL_ON_JOB_CLOSE`) plus the graceful-stop handshake, per the spike.
 
 ### Planned
-- Tauri shell + Node sidecar (spike first)
 - Approval interface, the herd, receipts
 - OpenRouter OAuth onboarding
 
