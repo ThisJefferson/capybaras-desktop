@@ -163,6 +163,70 @@ function hasNegativePrice(entry: Record<string, unknown>): boolean {
   });
 }
 
+/**
+ * The suffix OpenRouter gives a BATCH-ONLY endpoint.
+ *
+ * A `:batch` id is a batch endpoint: it is served by a batch adapter and cannot
+ * answer a `chat/completions` request at all. OpenRouter says so plainly when
+ * asked - "cannot be used with the chat/completions endpoint (adapter
+ * AnthropicBatchAdapter)" - and this app only ever makes chat requests, so the
+ * entry cannot serve here however healthy it is as a model.
+ *
+ * THIS IS A RULE RATHER THAN A LIST, AND THAT IS THE POINT. Measured live on
+ * 2026-09-28 (see `UNAVAILABLE_MODEL_IDS`): all 72 `:batch` entries in the
+ * catalogue refused, and no entry without the suffix refused that way. The
+ * suffix is the catalogue's own vocabulary, so the rule survives the catalogue
+ * churning, where a hand-typed list of 72 ids would rot within a week.
+ */
+export const BATCH_ONLY_SUFFIX = ':batch';
+
+/** Whether an id names a batch-only endpoint - see `BATCH_ONLY_SUFFIX`. */
+export function isBatchOnly(id: string): boolean {
+  return (
+    typeof id === 'string' &&
+    id.length > BATCH_ONLY_SUFFIX.length &&
+    id.slice(-BATCH_ONLY_SUFFIX.length).toLowerCase() === BATCH_ONLY_SUFFIX
+  );
+}
+
+/**
+ * Entries a live sweep PROVED cannot serve, that no rule covers yet.
+ *
+ * DATED 2026-09-28, AND REGENERABLE. How to refresh it: run the maintenance
+ * sweep beside the shell's copy of this module (`apps/desktop/src-tauri`),
+ * which calls every catalogue entry with a one-token prompt and writes its raw
+ * result outside this repository -
+ *
+ * ```text
+ * cd apps/desktop/src-tauri
+ * cargo test --test catalog_sweep -- --ignored --nocapture
+ * ```
+ *
+ * Take its `unavailable_ids`, drop the `:batch` entries (the rule above already
+ * covers those), and put what is left here. Re-run it rather than trusting this
+ * list: an entry can be repaired as easily as it broke.
+ *
+ * WHY A LIST EXISTS AT ALL, WHEN A RULE IS PREFERRED. Because two entries
+ * refused in a way no field in the catalogue predicts, and neither was flaky:
+ *
+ * - `amazon/nova-premier-v1` answers 404, "Provider returned error": no
+ *   endpoint will serve it. This is the Amazon failure a user reported.
+ * - `openai/gpt-5.2-chat` answers 404 because every candidate endpoint was
+ *   removed as BYOK-only. This module scopes the catalogue to models reachable
+ *   through the OpenRouter OAuth key, with nowhere to paste another provider's
+ *   key, so this entry can never serve here.
+ *
+ * Both are properties of an endpoint rather than of a moment, which is the test
+ * for putting an id on this list. A rate limit or a 5xx is NOT: those are kept
+ * and reported, because dropping a model for being busy one afternoon would
+ * shrink the catalogue invisibly - the most destructive kind of drift, since
+ * nobody sees the entry that quietly disappeared.
+ */
+export const UNAVAILABLE_MODEL_IDS: readonly string[] = Object.freeze([
+  'amazon/nova-premier-v1',
+  'openai/gpt-5.2-chat',
+]);
+
 /** Turn one raw entry into a display-safe one, or reject it. */
 function parseEntry(raw: unknown): CatalogEntry | undefined {
   if (raw === null || typeof raw !== 'object') return undefined;
@@ -173,6 +237,11 @@ function parseEntry(raw: unknown): CatalogEntry | undefined {
 
   // A router or meta entry cannot serve a completion. Drop it, narrowly.
   if (hasNegativePrice(entry)) return undefined;
+
+  // An entry the live sweep proved cannot serve, by rule or by dated list. Kept
+  // apart from the pricing rule because the reason is different: these are
+  // callable shapes the API refuses, not entries that are not models at all.
+  if (isBatchOnly(id) || UNAVAILABLE_MODEL_IDS.includes(id)) return undefined;
 
   const contextRaw = entry.context_length ?? entry.contextLength;
   const contextLength =

@@ -243,6 +243,48 @@ fn a_router_with_negative_pricing_is_dropped_and_a_free_model_is_kept() {
     assert_eq!(kept.len(), 3, "free, missing and unreadable pricing all stay");
 }
 
+/// Excluding the entries a LIVE SWEEP proved cannot serve a completion.
+///
+/// Two mechanisms, and the split matters. A RULE covers what the catalogue
+/// itself tells us: a `:batch` id is a batch endpoint, and a batch endpoint
+/// cannot answer `chat/completions` at all. A short DATED list covers the rest.
+/// See `catalog::is_batch_only` and `catalog::UNAVAILABLE_MODEL_IDS` for the
+/// provenance of both, and for how to refresh them.
+#[test]
+fn a_batch_only_endpoint_is_dropped_by_rule() {
+    let entries = catalog::parse_catalog(&serde_json::from_str(&catalog_body(serde_json::json!([
+        { "id": "openai/gpt-5.2:batch", "name": "Batch" },
+        { "id": "anthropic/claude-opus-4.1:batch", "name": "Batch" },
+        { "id": "google/gemini-2.5-pro", "name": "Fine" },
+        { "id": "meta-llama/llama-3.1-8b-instruct:free", "name": "Free" }
+    ])))
+    .expect("parse"));
+    let ids: Vec<&str> = entries.iter().map(|entry| entry.id.as_str()).collect();
+    assert_eq!(ids, ["google/gemini-2.5-pro", "meta-llama/llama-3.1-8b-instruct:free"]);
+
+    assert!(catalog::is_batch_only("openai/gpt-5.2:batch"));
+    assert!(catalog::is_batch_only("OPENAI/GPT-5.2:BATCH"), "the suffix is not case-bound");
+    assert!(!catalog::is_batch_only("openai/gpt-5.2"), "a plain id is not a batch id");
+    assert!(!catalog::is_batch_only(":batch"), "a bare suffix is not a model");
+}
+
+#[test]
+fn the_dated_unavailable_list_drops_exactly_what_it_names() {
+    let entries: Vec<serde_json::Value> = catalog::UNAVAILABLE_MODEL_IDS
+        .iter()
+        .map(|id| serde_json::json!({ "id": id, "name": id }))
+        .collect();
+    let dropped = catalog::parse_catalog(&serde_json::from_str(&catalog_body(serde_json::json!(entries))).expect("parse"));
+    assert!(dropped.is_empty(), "every listed id is dropped, and the list names only ids");
+
+    let survivors = catalog::parse_catalog(&serde_json::from_str(&catalog_body(serde_json::json!([
+        { "id": "amazon/nova-lite-v1", "name": "a different Amazon model" },
+        { "id": "openai/gpt-5.2", "name": "the non-BYOK sibling" }
+    ])))
+    .expect("parse"));
+    assert_eq!(survivors.len(), 2, "a list of ids must not become a prefix ban");
+}
+
 #[test]
 fn a_negative_figure_disqualifies_whether_it_arrives_as_a_string_or_a_number() {
     for pricing in [

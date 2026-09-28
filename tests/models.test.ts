@@ -4,7 +4,9 @@ import {
   CURATED,
   MODELS_ENDPOINT,
   MODEL_LINK_PREFIX,
+  UNAVAILABLE_MODEL_IDS,
   fetchCatalog,
+  isBatchOnly,
   modelLink,
   parseCatalog,
   providerOf,
@@ -195,6 +197,49 @@ describe('excluding entries that cannot serve a completion', () => {
   it('keeps an entry whose price cannot be read as a number', () => {
     const models = parseCatalog({ data: [{ id: 'v/m', pricing: { prompt: 'free', completion: null } }] });
     expect(models).toHaveLength(1);
+  });
+});
+
+/**
+ * Excluding entries a LIVE SWEEP proved cannot serve a completion.
+ *
+ * Two mechanisms, and the split matters. A RULE covers what the catalogue
+ * itself tells us: a `:batch` id is a batch endpoint, and a batch endpoint
+ * cannot answer `chat/completions` at all. A short DATED list covers the rest.
+ * See `isBatchOnly` and `UNAVAILABLE_MODEL_IDS` in models.ts for provenance.
+ */
+describe('excluding the entries a live sweep proved unusable', () => {
+  it('drops a batch-only endpoint by rule, and keeps everything around it', () => {
+    const models = parseCatalog({
+      data: [
+        { id: 'openai/gpt-5.2:batch', name: 'Batch' },
+        { id: 'anthropic/claude-opus-4.1:batch', name: 'Batch' },
+        { id: 'google/gemini-2.5-pro', name: 'Fine' },
+        { id: 'meta-llama/llama-3.1-8b-instruct:free', name: 'Free' },
+      ],
+    });
+    expect(models.map((m) => m.id)).toEqual([
+      'google/gemini-2.5-pro',
+      'meta-llama/llama-3.1-8b-instruct:free',
+    ]);
+  });
+
+  it('recognises the batch suffix case-insensitively, and only with a model before it', () => {
+    expect(isBatchOnly('openai/gpt-5.2:batch')).toBe(true);
+    expect(isBatchOnly('OPENAI/GPT-5.2:BATCH')).toBe(true);
+    expect(isBatchOnly('openai/gpt-5.2')).toBe(false);
+    expect(isBatchOnly(':batch')).toBe(false);
+  });
+
+  it('drops exactly the ids the dated list names, and none besides', () => {
+    expect(parseCatalog({ data: UNAVAILABLE_MODEL_IDS.map((id) => ({ id, name: id })) })).toEqual([]);
+    const survivors = parseCatalog({
+      data: [
+        { id: 'amazon/nova-lite-v1', name: 'a different Amazon model' },
+        { id: 'openai/gpt-5.2', name: 'the non-BYOK sibling' },
+      ],
+    });
+    expect(survivors).toHaveLength(2);
   });
 });
 
