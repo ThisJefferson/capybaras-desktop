@@ -10,7 +10,7 @@
 //! None of that is arithmetic. All of it is the kind of mistake that renders as
 //! "the meter is stuck" on a screen nobody can debug.
 
-use capybaras_shell::meter::{USAGE_EVENT, UsageMeter, record_and_notify};
+use capybaras_shell::meter::{USAGE_EVENT, UsageMeter, apply_credit, record_and_notify};
 use capybaras_shell::usage::{Credit, CreditScope, CreditSnapshot, Snapshot, Tokens};
 
 fn tokens(prompt: u64, completion: u64, total: u64) -> Tokens {
@@ -113,6 +113,61 @@ fn a_credit_figure_travels_with_the_next_report() {
     let credit = notified.expect("a report").credit.expect("credit attached");
     assert!((credit.remaining_usd - 5.95).abs() < 1e-9);
     assert_eq!(credit.remaining_display, "$5.95");
+}
+
+// ---------------------------------------------------------------------------
+// Attaching a fetched balance, and what happens when the read fails
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_fetched_balance_is_attached_and_handed_to_the_interface() {
+    let meter = UsageMeter::new();
+    let mut notified: Vec<Snapshot> = Vec::new();
+
+    let snapshot = apply_credit(
+        &meter,
+        Some(CreditSnapshot::from_credit(
+            Credit {
+                total_credits: 95.0,
+                total_usage: 89.05,
+            },
+            CreditScope::Account,
+        )),
+        |s| notified.push(s.clone()),
+    );
+
+    assert_eq!(notified.len(), 1, "the interface is told the new figure");
+    let credit = snapshot.credit.expect("the balance is attached");
+    assert!((credit.remaining_usd - 5.95).abs() < 1e-9);
+}
+
+#[test]
+fn a_read_that_failed_leaves_the_last_known_figure_standing() {
+    // THE INVARIANT THIS FUNCTION EXISTS FOR. A balance is money on a screen; a
+    // failed read must not blank a good number and must never invent one. `None`
+    // means "nothing new was read", so the previous figure stays exactly as it was.
+    let meter = UsageMeter::new();
+    meter.set_credit(CreditSnapshot::from_credit(
+        Credit {
+            total_credits: 95.0,
+            total_usage: 89.05,
+        },
+        CreditScope::Account,
+    ));
+
+    let snapshot = apply_credit(&meter, None, |_| {});
+
+    let credit = snapshot.credit.expect("the last known figure stands");
+    assert!((credit.remaining_usd - 5.95).abs() < 1e-9);
+}
+
+#[test]
+fn a_failed_read_before_any_figure_leaves_no_row_rather_than_a_zero() {
+    // "Nothing could be read" must render as nothing at all, never as a balance of
+    // zero, which would read as "you are out of credit" when nobody knows that.
+    let meter = UsageMeter::new();
+    let snapshot = apply_credit(&meter, None, |_| {});
+    assert!(snapshot.credit.is_none(), "no figure is not a zero balance");
 }
 
 #[test]
