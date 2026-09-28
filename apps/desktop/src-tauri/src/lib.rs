@@ -16,6 +16,7 @@ pub mod catalog;
 pub mod chat;
 pub mod connect;
 pub mod credential;
+pub mod credits;
 pub mod exchange;
 pub mod http;
 pub mod integrity;
@@ -246,6 +247,36 @@ fn stored_key() -> Result<String, String> {
     }
 }
 
+/// Read the account balance and put it on the meter, then tell the interface.
+///
+/// **WHERE THIS IS CALLED, AND WHY BOTH MOMENTS.** The balance is display only: it
+/// is never consulted by a call, never enforced, and never a limit (D26). It
+/// changes for exactly two reasons, so it is read at the two moments those happen.
+///
+/// 1. **After the model list is fetched.** That is the first point at which the
+///    shell knows it holds a usable key and is filling the interface in, so the
+///    "left" figure arrives with the rest of the panel rather than turning up only
+///    after the user has already paid for something.
+/// 2. **After a call completes.** This is the moment the number actually moves: a
+///    completed call is spend, and spend is the only thing this app does that
+///    changes the balance. Reading it here keeps the figure current rather than
+///    frozen at launch.
+///
+/// A read that fails attaches nothing — `meter::apply_credit` leaves the last known
+/// figure standing, or the row absent (show nothing rather than something wrong).
+/// The key is already in hand at both call sites, so it is passed in rather than
+/// read from the OS store a second time.
+fn refresh_credits(app: &tauri::AppHandle, transport: &dyn http::Transport, key: &str) {
+    let fetched = credits::fetch_credits(transport, key);
+    let meter = app.state::<meter::UsageMeter>();
+    meter::apply_credit(meter.inner(), fetched, |snapshot| {
+        // The same event the meter already pushes on (D22), so the interface needs
+        // no new listener: `renderUsage` draws the "left" row whenever a credit is
+        // present, and simply leaves it out when one is not.
+        let _ = app.emit(meter::USAGE_EVENT, snapshot);
+    });
+}
+
 /// Load the model list with the stored key.
 ///
 /// The answer arrives as an event rather than a return value, for the same reason
@@ -288,6 +319,12 @@ fn fetch_models(app: tauri::AppHandle) {
                 let _ = app.emit(MODELS_FAILED_EVENT, serde_json::json!({ "message": detail }));
             }
         }
+
+        // The catalogue is in hand and the key is proven readable, so this is the
+        // moment to read the balance as well: the panel is filled in once, and the
+        // "left" figure is part of that rather than pending a first paid call.
+        refresh_credits(&app, &transport, &key);
+
         drop(key);
     });
 }
@@ -353,6 +390,12 @@ fn send_message(app: tauri::AppHandle, prompt: String, model: String) -> Result<
                 }
             },
         );
+
+        // The call is finished and paid for, so the balance has moved. Refresh it
+        // here — this is the moment the number changes — and push it on the same
+        // usage event the call itself already reported on, so the "left" figure
+        // catches up with the call that just changed it.
+        refresh_credits(&app, &transport, &key);
 
         // The key's in-memory copy is released here. Not scrubbed — the same known
         // limit `connect.rs` records for the exchange step.

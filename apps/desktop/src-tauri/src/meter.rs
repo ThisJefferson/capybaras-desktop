@@ -62,6 +62,31 @@ impl UsageMeter {
     }
 }
 
+/// Attach a freshly fetched balance to the meter, then hand a snapshot to `notify`.
+///
+/// **A READ THAT FAILED CHANGES NOTHING.** `fetched` is `None` when the balance
+/// could not be read — unreachable, an unexpected status, a shape we do not
+/// understand — and in that case the last known figure stands, or the row stays
+/// absent. The number on screen is either a figure the provider actually sent or
+/// nothing at all; it is never blanked by a failed read and never guessed. The
+/// snapshot is still returned and notified so there is one code path, and a
+/// failure is not silent to the caller even though it changes no number.
+pub fn apply_credit<N>(
+    meter: &UsageMeter,
+    fetched: Option<CreditSnapshot>,
+    mut notify: N,
+) -> Snapshot
+where
+    N: FnMut(&Snapshot),
+{
+    if let Some(credit) = fetched {
+        meter.set_credit(credit);
+    }
+    let snapshot = meter.snapshot();
+    notify(&snapshot);
+    snapshot
+}
+
 /// Record a finished model call, then hand the **new** snapshot to `notify`.
 ///
 /// The snapshot handed over is taken *after* recording, so what the interface
