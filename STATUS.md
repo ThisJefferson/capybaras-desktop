@@ -3,9 +3,9 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-27 15:34 EDT
-**Current phase:** **M4 — the approval interface.** M4.1–M4.7 built; manual walkthrough pending → **next: M5, onboarding**
-**Next milestone:** M4 complete — the Replit gate run through a real UI by a real person
+**Last updated:** 2026-09-28 01:15 EDT
+**Current phase:** **M5 — onboarding.** M4.1–M4.7 are built; M4.5 now covers interface-level revocation, and the session meter reaches the interface (D22). What remains in M4 is human-verified: a look at the running window, and the Replit scenario clicked through by a real person.
+**Next milestone:** M5 — a non-technical tester reaches a first reply unaided
 **Spec:** `docs/protocol.md` · **Plan:** `docs/plans/next-steps.md` · **Design:** `docs/plans/M4-visual-design.md`
 **Recently decided:** D15 (state directory) · D18 (one character, six names) · D19 (grants fail closed) · D20 (skills must declare themselves)
 **Repo:** https://github.com/ThisJefferson/capybaras-desktop (public) · releases cut per milestone
@@ -17,6 +17,22 @@
 - **Building:** Capybaras — a one-install, safe-by-default desktop agent that asks before it acts. A herd of capybaras, Rio de Janeiro flavour.
 - **Ideal customer:** genuinely non-technical. Cloud API keys via OpenRouter OAuth. Free, donations, GitHub recognition.
 - **The promise:** *it will still break, just small, visibly, and undoably.*
+
+---
+
+## 2026-09-28 — the meter reaches the interface, and grants become revocable
+
+Two pieces of wiring, both previously "exists but unreachable".
+
+- **M5 — `usage.rs` is now read.** `UsageMeter` holds the session; `usage_status` reads it; `record_model_call` is the single seam a finished model call reports through, and it emits `capybaras://usage` for **every** call — not only the ones that move a total, because a request that fails after the provider began generating returns no usage, and that standstill *is* the signal (D22). The interface reads the meter once on load and follows the event after that. `usage.rs`'s public API is unchanged: the arithmetic was fine, the wiring was missing.
+- **M4.5 — remembered choices are revocable from the interface.** Persistence already landed (`48e5633`, D19); what was missing was a caller. Added `list_grants` / `revoke_grant`, plus a plain list with a one-click *Forget*. The proof is behavioural, not declarative: `tests/protocol.rs::a_revoked_grant_asks_again` revokes a grant and then makes the same action **ask again**.
+
+**Tests:** 364 TypeScript across 14 files; 118 Rust, with 4 live-network probes ignored. `npm run verify` green.
+
+**Honest gaps, stated rather than implied:**
+
+- There are **no model calls in the app yet**, so nothing exercises the meter at runtime. The seam and its tests exist ahead of the first caller, deliberately, so the first model call cannot be written without one.
+- The new panels are covered by typecheck, the DOM smoke test and `check-tokens` — **not** by a screenshot. M4.4's "look at it in a real window" item is still open, and it is now the oldest open item in M4.
 
 ---
 
@@ -60,27 +76,28 @@
 
 ## In flight
 
-- Nothing blocked. Starting Phase 1.
+- **M5 — onboarding.** The credential store, the OAuth PKCE flow, the model catalog, the loopback listener, the token exchange and the session meter are all in the tree and tested. Remaining: reach a first reply, with a spend cap and a free-model mode.
+- **M4's human steps.** A screenshot of the running app with the card visible (M4.4), and the Replit scenario clicked through by a real person (M4.7 — the milestone gate).
 
 ## Blocked
 
 | Item | Blocked on |
 |---|---|
-| CI workflow (`.github/workflows/ci.yml`) | `gh` token lacks the **`workflow`** scope. File is on disk, excluded via `.git/info/exclude`. Fix: `gh auth refresh -s workflow` (device code — phone-friendly, 30 seconds) |
+| Nothing | — — the CI-workflow `workflow`-scope block is resolved; `.github/workflows/ci.yml` is tracked and running |
 
 ## Not started
 
-- Phase 1 — **the risk classifier** (critical path; next up)
-- Phase 2 — Tauri + sidecar spike
-- Parallel streams C (brand assets), D (docs/CI), E (packaging/signing prep)
+- **M6 — packaging** (MSIX, bundled Node runtime, clean install *and* uninstall). Carries spike-002's open readings: re-take `app dir writable` against a real `WindowsApps` install, and answer the MSIX state-path question (D15).
+- **M7 — signing and distribution**; **M8 — hardening and audit.**
+- **Design stream:** typography, adopting Lucide, the motion spec, and the mascot model sheet — one character, four poses, one sign (D18).
 
 ---
 
 ## Next three actions
 
-1. **M4.4–M4.7 — the card, durable grants, the herd, and the acceptance test.** M4.1–M4.3 are done: protocol v1 is live (`docs/protocol.md`), the gate runs inside the sidecar, and a hard gate provably cannot proceed without an answer. Remaining: render the reviewed card (**M4.4**), persist grants — where D15's MSIX state-path question stops being theoretical (**M4.5**), the herd in four states driven by real sidecar state (**M4.6**), and the Replit scenario through the real UI (**M4.7**, the milestone gate).
-2. **The design system runs in parallel** — `docs/plans/M4-visual-design.md`. Tokens first (including the neutral ramp the card review flagged), typography, Lucide instead of hand-drawn icons, component kit, motion spec. Then the mascot model sheet: **one character, four poses, one sign** (D18).
-3. Keep cutting a release per milestone with test results (Jeff's standing request).
+1. **Reach a first reply (M5).** The pieces are in the tree; the milestone is a non-technical tester getting an answer without help — spend cap on, provider menu hidden behind Advanced.
+2. **Look at the window (M4.4), then click through the gate (M4.7).** A screenshot of the running app with the card visible, defects fixed; then the Replit scenario by hand, which is the milestone gate.
+3. **Keep cutting a release per milestone with test results** (Jeff's standing request).
 
 ---
 

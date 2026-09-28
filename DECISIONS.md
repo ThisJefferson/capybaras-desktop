@@ -311,6 +311,8 @@ Grants now survive a restart. `grants.json` lives beside the other state in `<st
 
 **5. The store stays pure.** `grants.ts` holds no filesystem code; `grant-file.ts` is the only module that touches disk, and the sidecar wires the two together. This kept all 42 existing policy tests untouched and made the persistence layer testable in isolation.
 
+**6. Revocation is reachable from the interface, not only from the file.** `grants.revoke` was a protocol message with no caller until the shell grew `revoke_grant` and the interface grew a list with one-click *Forget* (2026-09-28). Deleting `grants.json` still works and is deliberately supported — but a permission whose only withdrawal route is editing a JSON file is not really in the user's hands. The proof is behavioural, not declarative: `tests/protocol.rs` revokes a grant and then makes the same action **ask again**, rather than trusting the reply that said it was removed.
+
 **Verified end to end, not just in unit tests:** a Rust integration test runs the sidecar **twice against the same state directory**. Session one approves a file write and asks for it to be remembered; session two is a fresh process and proceeds **without asking**, citing the earlier approval. The same test then confirms a hard gate still asks — with a grants file sitting on disk.
 
 **Still open from D15:** whether the state directory survives MSIX virtualisation. That question is unchanged, and this file now sits wherever the rest of the state does.
@@ -369,6 +371,23 @@ recorded reason they will be right to. The reasoning is the durable part, not th
 **Explicitly NOT decided here:** whether *some* friction is worth adding -- a stated
 intent step, an age gate. That is a values call, it is Jeff's, and it is reversible. This
 entry records the scope of the *current* design, not a verdict on anyone else's.
+
+## D22 — The meter reports every call, and pushes rather than being polled
+**2026-09-28**
+
+`usage.rs` (M5) knew how to count, format and hold a session. Nothing read it: `lib.rs` declared the module and nothing else. The shell now holds the meter, exposes it to the interface, and emits `capybaras://usage`.
+
+**1. Every finished call is reported, not only the calls that move a total.** The natural optimisation — diff the snapshot, emit on change — is wrong here, and `usage.rs` already says why: a request that fails after the provider has begun generating may return **no usage at all**. That call changes nothing, and *standing still is the evidence of the failure*. Suppressing "nothing changed" would suppress exactly the message a person needs to see. The price is one small JSON message per call, on a channel the app already owns, against a call that just crossed the network.
+
+**2. The return value and the emitted snapshot are the same read.** `record_model_call` records, takes one snapshot, returns it and notifies with it. Two separate reads would let the caller and the interface disagree about the same call.
+
+**3. The seam is one function, and it is named as the only one.** Anything that completes a model request reports through it. A path that forgot to would make the meter silently wrong rather than visibly broken — the failure mode `usage.rs` warns about in its own header.
+
+**4. Push, not poll.** The interface reads `usage_status` once on load and is kept current by the event. The status panel keeps polling, because a sidecar can die without telling anyone; a spent figure cannot drift that way.
+
+**What this does not do.** There are no model calls in the app yet, so nothing exercises the seam at runtime. It exists and is tested *ahead* of its first caller, deliberately, so that the first model call cannot be written without one.
+
+---
 
 ## Standing constraints
 
