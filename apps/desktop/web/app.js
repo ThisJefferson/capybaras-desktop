@@ -66,12 +66,21 @@ function log(line) {
 /* Status                                                             */
 /* ------------------------------------------------------------------ */
 
-function row(label, value, className) {
+function row(label, value, className, chipKind) {
   const dt = document.createElement('dt');
   dt.textContent = label;
   const dd = document.createElement('dd');
-  dd.textContent = value;
-  if (className) dd.className = className;
+  if (chipKind) {
+    // A chip carries colour AND a word AND a shape, so the state survives being
+    // read in greyscale or by a screen reader (brief section 7).
+    const chip = document.createElement('span');
+    chip.className = `chip chip--${chipKind}`;
+    chip.textContent = value;
+    dd.append(chip);
+  } else {
+    dd.textContent = value;
+  }
+  if (className) dd.classList.add(className);
   return [dt, dd];
 }
 
@@ -87,14 +96,16 @@ async function refreshStatus() {
       ...row(
         'sidecar',
         s.sidecar_running ? `running (pid ${s.sidecar_pid})` : 'not running',
-        s.sidecar_running ? 'ok' : 'bad',
+        null,
+        s.sidecar_running ? 'success' : 'danger',
       ),
     );
     dl.append(
       ...row(
         'job object',
-        s.job_assigned ? 'anchored — no orphans' : 'NOT assigned',
-        s.job_assigned ? 'ok' : 'bad',
+        s.job_assigned ? 'anchored — no orphans' : 'not assigned',
+        null,
+        s.job_assigned ? 'success' : 'danger',
       ),
     );
   } catch (error) {
@@ -186,6 +197,14 @@ if (connectButton) {
 function showCard(id, request) {
   current = { id, request };
   $('card').hidden = false;
+  // The page behind the card must not scroll while it is up.
+  document.body.classList.add('is-locked');
+
+  // Focus goes INTO the dialog, and comes back when it closes. Without this the
+  // single most important moment in the product was unreachable by keyboard
+  // without tabbing through the entire page behind it.
+  focusRestore =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
   $('card-headline').textContent = request.headline;
 
@@ -203,8 +222,13 @@ function showCard(id, request) {
   const warn = $('card-warn');
   if (request.tier === 'hard_gate') {
     warn.hidden = false;
-    warn.textContent =
-      'This is a hard gate. Capybaras will not remember it, and no number of past approvals will let it through on its own.';
+    warn.textContent = '';
+    const tag = document.createElement('span');
+    tag.className = 'chip chip--caution';
+    tag.textContent = 'Hard gate';
+    warn.append(tag, document.createTextNode(
+      ' Capybaras will not remember it, and no number of past approvals will let it through on its own.',
+    ));
   } else {
     warn.hidden = true;
   }
@@ -229,12 +253,25 @@ function showCard(id, request) {
   $('card-remember').hidden = !request.canRemember;
   $('card-remember-box').checked = false;
 
+  // Land on the task: the phrase field when one is required, otherwise the safe
+  // action. Enter still holds on from anywhere in the card, including here.
+  const landing = request.requiresTypedConfirmation && request.confirmationPhrase
+    ? $('card-phrase-input')
+    : $('btn-hold');
+  if (landing) landing.focus();
+
   log(`approval required: ${request.headline} [${request.tier}]`);
 }
+
+/** Where focus was before the card opened, so it can go back after. */
+let focusRestore = null;
 
 function hideCard() {
   $('card').hidden = true;
   current = null;
+  document.body.classList.remove('is-locked');
+  if (focusRestore && document.contains(focusRestore)) focusRestore.focus();
+  focusRestore = null;
 }
 
 async function answer(decision) {
@@ -255,11 +292,32 @@ $('btn-go').addEventListener('click', () =>
 );
 
 // Enter is the safe action, everywhere in the card — including inside the
-// confirmation field. The reflex cannot approve; it can only stop.
+// confirmation field. Escape is the same answer. The reflex cannot approve; it
+// can only stop. Tab is held inside the dialog while it is open.
+const CARD_FOCUSABLE = 'button:not(:disabled), input, summary, [href]';
+
 document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Enter' || $('card').hidden) return;
-  event.preventDefault();
-  answer('deny');
+  const card = $('card');
+  if (card.hidden) return;
+
+  if (event.key === 'Escape' || event.key === 'Enter') {
+    event.preventDefault();
+    answer('deny');
+    return;
+  }
+
+  if (event.key !== 'Tab') return;
+  const items = [...card.querySelectorAll(CARD_FOCUSABLE)].filter((el) => el.offsetParent !== null);
+  if (items.length === 0) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 });
 
 /* ------------------------------------------------------------------ */
@@ -307,8 +365,7 @@ function buildAgent(agent) {
 
   // The sign belongs to the STATE, not to a character (BRAND.md section 4):
   // whoever needs you raises it, and it is drawn identically every time so the
-  // single most important moment is recognised rather than re-read. It is drawn
-  // here only, and shown by CSS for the one state that raises it.
+  // single most important moment is recognised rather than re-read.
   const sign = document.createElementNS(SVG_NS, 'svg');
   sign.setAttribute('viewBox', '0 0 24 24');
   sign.setAttribute('class', 'agent__sign');
@@ -333,10 +390,15 @@ function buildAgent(agent) {
   name.className = 'agent__name';
   name.textContent = agent.label;
 
+  // The state word lives in its own element so it can be updated in place
+  // without erasing the sign glyph beside it.
   const state = document.createElement('span');
   state.className = 'agent__state';
+  const stateText = document.createElement('span');
+  stateText.className = 'agent__state-text';
+  state.append(sign, stateText);
 
-  el.append(sign, svg, name, state);
+  el.append(svg, name, state);
   return el;
 }
 
@@ -358,7 +420,7 @@ function renderHerd(agents) {
     if (!el) continue;
     const label = STATE_LABEL[agent.state] ?? agent.state;
     el.dataset.state = agent.state;
-    el.querySelector('.agent__state').textContent = label;
+    el.querySelector('.agent__state-text').textContent = label;
     el.setAttribute('aria-label', `${agent.label}, ${agent.job}: ${label}`);
     if (agent.state === 'needs-you') needing.push(agent.label);
     if (agent.state === 'working') working.push(agent.label);
@@ -404,7 +466,7 @@ function renderUsage(snapshot) {
   dl.textContent = '';
   dl.append(...row('model calls', String(snapshot.calls)));
   dl.append(...row('tokens', String(snapshot.total_tokens)));
-  dl.append(...row('spent', snapshot.cost_display));
+  dl.append(...row('spent', snapshot.cost_display, 'readout__figure'));
 
   if (snapshot.credit) {
     const scope = snapshot.credit.scope === 'key' ? 'this key' : 'whole account';
@@ -412,7 +474,8 @@ function renderUsage(snapshot) {
       ...row(
         `left (${scope})`,
         snapshot.credit.remaining_display,
-        snapshot.credit.remaining_usd <= 0 ? 'bad' : 'ok',
+        null,
+        snapshot.credit.remaining_usd <= 0 ? 'danger' : null,
       ),
     );
   }
@@ -803,3 +866,58 @@ const refreshGrantsButton = $('btn-refresh-grants');
 if (refreshGrantsButton) {
   refreshGrantsButton.addEventListener('click', () => refreshGrants());
 }
+
+/* ------------------------------------------------------------------ */
+/* Navigation: where you are                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Which section the reader is in.
+ *
+ * Deliberately position-based rather than an IntersectionObserver: the herd
+ * lives in a sticky rail, and a sticky element never stops intersecting the
+ * viewport, so an observer would report it as current for the whole page. The
+ * rail's own sections are therefore handled separately -- "Herd" is current when
+ * no workspace section has been reached yet, which is exactly when it is true.
+ *
+ * It is progressive enhancement: without it the links still work, there is just
+ * no highlighted one.
+ */
+(function markCurrentSection() {
+  const links = [...document.querySelectorAll('.nav__link')];
+  if (links.length === 0) return;
+
+  const pairs = links
+    .map((link) => ({ link, target: document.querySelector(link.getAttribute('href')) }))
+    .filter((pair) => pair.target);
+  if (pairs.length === 0) return;
+
+  const inWorkspace = pairs.filter((pair) => !pair.target.closest('.rail'));
+  const fallback = pairs.find((pair) => pair.target.closest('.rail')) ?? pairs[0];
+
+  let queued = 0;
+  function update() {
+    queued = 0;
+    // Anything whose top has passed under the sticky header counts as reached.
+    // The last one reached in document order is where the reader is.
+    let active = null;
+    for (const pair of inWorkspace) {
+      if (pair.target.getBoundingClientRect().top <= 104) active = pair;
+    }
+    if (!active) active = fallback;
+    for (const { link } of pairs) link.removeAttribute('aria-current');
+    active.link.setAttribute('aria-current', 'true');
+  }
+
+  const schedule = () => {
+    if (queued) return;
+    queued =
+      typeof requestAnimationFrame === 'function'
+        ? requestAnimationFrame(update)
+        : setTimeout(update, 100);
+  };
+
+  window.addEventListener('scroll', schedule, { passive: true });
+  window.addEventListener('resize', schedule);
+  update();
+})();

@@ -71,15 +71,6 @@
           <li class="legend__item" data-state="needs-you"><span class="legend__swatch"></span>needs you — waiting on your answer</li>
         </ul>
       </section>
-
-      <!-- The meter. Read from the shell once on load, then pushed for every
-           finished model call - no polling, and nothing here is an estimate. -->
-      <section class="card-surface meter" id="usage" aria-labelledby="usage-heading">
-        <div class="section-head">
-          <h2 class="section-title" id="usage-heading">This session</h2>
-        </div>
-        <dl class="readout" id="usage-figures"><dt>loading</dt><dd>-</dd></dl>
-      </section>
     </aside>
 
     <main class="workspace" id="workspace">
@@ -135,6 +126,16 @@
 
         <div class="reply" id="ask-reply" role="status" aria-live="polite" hidden></div>
         <p class="inline-error" id="ask-error" role="alert" hidden></p>
+      </section>
+
+      <!-- The meter. Read from the shell once on load, then pushed for every
+           finished model call - no polling, and nothing here is an estimate. -->
+      <section class="card-surface panel" id="usage" aria-labelledby="usage-heading">
+        <div class="section-head">
+          <h2 class="section-title" id="usage-heading">This session</h2>
+          <p class="section-note">Every figure is the shell's own count of real responses. The balance is the one number that is not this app's own spend, so it says which it is.</p>
+        </div>
+        <dl class="readout" id="usage-figures" aria-live="polite"><dt>loading</dt><dd>-</dd></dl>
       </section>
 
       <!-- Remembered choices. They live in the state directory, so they survive a

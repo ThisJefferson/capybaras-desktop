@@ -36,6 +36,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* While the approval card is up the page behind it must not scroll: a modal you
+   can scroll past is a modal you can lose track of. */
+body.is-locked { overflow: hidden; }
+
 h1, h2, h3 {
   margin: 0;
   font-weight: var(--typography-weight-semibold);
@@ -46,11 +50,12 @@ p { margin: 0; }
 
 a { color: var(--color-semantic-state-primary); }
 
-/* One focus treatment for the whole interface, rather than seven local ones. */
+/* One focus treatment for the whole interface, rather than seven local ones.
+   Deliberately does NOT set border-radius: this rule would otherwise reshape a
+   button or an input for as long as it held focus. */
 :focus-visible {
   outline: var(--focus-width) solid var(--color-semantic-border-focus);
   outline-offset: var(--focus-offset);
-  border-radius: var(--radius-sm);
 }
 
 /* The first thing a keyboard user meets. Off-screen until focused. */
@@ -267,7 +272,9 @@ a { color: var(--color-semantic-state-primary); }
 
 .readout {
   display: grid;
-  grid-template-columns: minmax(0, 11rem) minmax(0, 1fr);
+  /* `max-content` for the label column, so the value sits a fixed 16px after its
+     label instead of floating at the left edge of a stretched second column. */
+  grid-template-columns: max-content minmax(0, 1fr);
   gap: var(--space-2) var(--space-4);
   margin: 0;
   font-size: var(--typography-size-sm);
@@ -282,6 +289,21 @@ a { color: var(--color-semantic-state-primary); }
      separator rather than mid-token, which is what caused layout jitter. */
   overflow-wrap: anywhere;
 }
+
+/* The one figure on the meter that is the point of the panel. */
+.readout dd.readout__figure {
+  font-family: var(--typography-family-ui);
+  font-size: var(--typography-size-lg);
+  font-weight: var(--typography-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Status as words, not only as a colour. Scoped to the two places they are
+   used, because a bare `.bad` loses to `.hint` and `.readout dd` on order. */
+.readout dd.ok,
+.hint.ok { color: var(--color-semantic-text-success); }
+.readout dd.bad,
+.hint.bad { color: var(--color-semantic-text-danger); font-weight: var(--typography-weight-medium); }
 
 /* ------------------------------------------------------------------ */
 /* Fields                                                              */
@@ -302,7 +324,7 @@ a { color: var(--color-semantic-state-primary); }
   display: flex;
   gap: var(--space-2);
   flex-wrap: wrap;
-  align-items: center;
+  align-items: stretch;
 }
 
 .input {
@@ -310,6 +332,9 @@ a { color: var(--color-semantic-state-primary); }
   font-size: var(--typography-size-md);
   width: 100%;
   min-width: 0;
+  /* One control height across every input and button, so a select and the
+     button beside it stop disagreeing by two pixels. */
+  min-height: var(--layout-tap);
   padding: var(--space-2) var(--space-3);
   color: var(--color-semantic-text-primary);
   background: var(--color-semantic-surface-raised);
@@ -318,6 +343,10 @@ a { color: var(--color-semantic-state-primary); }
 }
 .field__row .input { flex: 1 1 12rem; width: auto; }
 textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug); }
+.input--error {
+  border-color: var(--color-semantic-border-danger);
+  background: var(--color-status-danger-surface);
+}
 
 /* ------------------------------------------------------------------ */
 /* Buttons                                                             */
@@ -360,7 +389,59 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
 }
 .btn--secondary:hover:not(:disabled) { background: var(--color-semantic-surface-sunken); }
 
-.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+/* A tertiary action: reads as a link, still a button, still focusable. */
+.btn--ghost {
+  background: transparent;
+  color: var(--color-semantic-state-primary);
+  border-color: transparent;
+}
+.btn--ghost:hover:not(:disabled) { background: var(--color-semantic-surface-accent); }
+
+/* Reserved for a destructive choice that is the ONLY way forward. The approval
+   card never uses it: there "Go ahead" is secondary by design. */
+.btn--danger {
+  background: var(--color-status-danger);
+  color: var(--color-semantic-text-onAccent);
+}
+.btn--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-status-danger) 84%, var(--color-brand-ink));
+}
+
+.btn--icon { padding: var(--space-2); width: var(--layout-tap); }
+
+/* Disabled is a STATE, not a fade: a faded button still reads as available.
+   Each variant gets a flat, unmistakably inert treatment instead. */
+.btn:disabled { cursor: not-allowed; }
+.btn--primary:disabled {
+  background: var(--color-neutral-300);
+  color: var(--color-neutral-0);
+}
+.btn--secondary:disabled {
+  background: var(--color-semantic-surface-sunken);
+  border-color: var(--color-semantic-border-subtle);
+  /* Still readable: the flat fill and the cursor carry "inert", not the fading. */
+  color: var(--color-semantic-text-secondary);
+}
+.btn--quiet:disabled { color: var(--color-semantic-text-muted); }
+
+/* Busy: the label is replaced by a spinner, the width is held, and the click
+   is already refused by `disabled`. */
+.btn[aria-busy='true'] {
+  position: relative;
+  color: transparent;
+}
+.btn[aria-busy='true']::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 15px;
+  height: 15px;
+  margin: -8px 0 0 -8px;
+  border-radius: var(--radius-pill);
+  border: var(--focus-width) solid var(--color-semantic-surface-raised);
+  border-top-color: transparent;
+}
 
 /* The test harness. Present, reachable, visually subordinate. */
 .btn--quiet {
@@ -378,6 +459,57 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
 }
 
 /* ------------------------------------------------------------------ */
+/* Status and risk: ONE chip family for every state the product shows   */
+/* ------------------------------------------------------------------ */
+
+/* Colour + a word + a shape, never colour alone. Coral appears exactly once
+   here — as the fill of the one meaning it is reserved for. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-status-info-surface);
+  color: var(--color-status-info);
+  font-family: var(--typography-family-ui);
+  font-size: var(--typography-size-2xs);
+  font-weight: var(--typography-weight-semibold);
+  letter-spacing: var(--typography-tracking-caps);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.chip::before {
+  content: '';
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+.chip--success {
+  background: color-mix(in srgb, var(--color-brand-leaf) 18%, var(--color-neutral-0));
+  color: var(--color-semantic-text-success);
+}
+.chip--caution {
+  background: var(--color-status-caution-surface);
+  color: var(--color-semantic-text-caution);
+}
+/* An error chip is a diamond, so it is distinguishable with no colour at all. */
+.chip--danger {
+  background: var(--color-status-danger-surface);
+  color: var(--color-semantic-text-danger);
+}
+.chip--danger::before { border-radius: 1px; }
+.chip--needs-you {
+  background: var(--color-semantic-state-needsYou);
+  color: var(--color-semantic-text-primary);
+}
+.chip--needs-you::before { background: var(--color-semantic-text-primary); }
+.chip--info { background: var(--color-status-info-surface); color: var(--color-status-info); }
+
+/* ------------------------------------------------------------------ */
 /* Helper text, replies, inline errors                                 */
 /* ------------------------------------------------------------------ */
 
@@ -386,7 +518,9 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
   max-width: var(--layout-measure);
   font-size: var(--typography-size-xs);
   line-height: var(--typography-lineHeight-snug);
-  color: var(--color-semantic-text-muted);
+  /* `secondary`, not `muted`: muted grey is 3.7:1 on white and a hint is still
+     text a person has to read. Muted is kept for genuinely decorative marks. */
+  color: var(--color-semantic-text-secondary);
 }
 .hint--tight { margin-top: var(--space-1); }
 
@@ -477,7 +611,6 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
 }
 
 .agent {
-  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -531,9 +664,16 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
   overflow-wrap: anywhere;
 }
 
-/* The label is the non-colour cue. It is never hidden, and never smaller than
-   the ramp's floor, because "never rely on colour alone" is a requirement. */
+/* The state label is the non-colour cue. It is never hidden, and never smaller
+   than the ramp's floor, because "never rely on colour alone" is a requirement.
+   The word is held in its own element so the state can be updated without
+   wiping the sign glyph that lives beside it. */
 .agent__state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 1px var(--space-1);
+  border-radius: var(--radius-sm);
   font-size: var(--typography-size-2xs);
   font-weight: var(--typography-weight-medium);
   letter-spacing: var(--typography-tracking-caps);
@@ -541,18 +681,25 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
   color: var(--color-semantic-text-secondary);
 }
 
-/* The sign belongs to the state, not to a character: whoever needs you raises
-   it, and it is drawn identically every time so it is recognised, not re-read. */
-.agent__sign {
-  display: none;
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 16px;
-  height: 16px;
+/* The sign belongs to the STATE, not to a character: whoever needs you raises
+   it, and it is drawn identically every time so the single most important
+   moment is recognised rather than re-read. It is part of the state label
+   rather than a badge floating on the tile, so it stays aligned. */
+.agent__sign { display: none; }
+.agent[data-state='needs-you'] .agent__sign {
+  display: inline-block;
+  flex: none;
+  width: 12px;
+  height: 12px;
   color: var(--color-semantic-text-primary);
 }
-.agent[data-state='needs-you'] .agent__sign { display: block; }
+.agent[data-state='needs-you'] .agent__state {
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-semantic-state-needsYou);
+  color: var(--color-semantic-text-primary);
+  font-weight: var(--typography-weight-bold);
+}
 
 /* ---- the four states ---- */
 
@@ -577,10 +724,6 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
               0 6px 16px rgba(242, 112, 90, 0.32);
 }
 .agent[data-state='needs-you'] .agent__mark .wave { stroke: var(--color-semantic-text-primary); }
-.agent[data-state='needs-you'] .agent__state {
-  color: var(--color-semantic-text-primary);
-  font-weight: var(--typography-weight-bold);
-}
 
 .legend {
   list-style: none;
