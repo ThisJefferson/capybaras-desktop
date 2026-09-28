@@ -189,6 +189,17 @@ const CATALOG = [
 const DEFAULT_MODEL = 'anthropic/claude-sonnet-4.5';
 const REPLY_TEXT = 'Ready when you are.';
 
+/* A LONG answer. The shell asks for the model's OWN ceiling now, so this is a
+   shape the interface has to genuinely handle rather than a hypothetical: about
+   five thousand words, with paragraph breaks. Written here so the size is
+   explicit and the content is plainly text -- nothing that looks like markup,
+   and nothing the "machine artifact" scan below would catch by accident. */
+const LONG_MARKER = 'tell me everything';
+const LONG_REPLY = Array.from({ length: 200 }, (_, i) =>
+  `Section ${i + 1}. ` +
+  Array.from({ length: 25 }, (_, j) => `sentence${i * 25 + j + 1}`).join(' '),
+).join('\n\n');
+
 const SIGN_IN_FAILURE = {
   reason: 'timed-out',
   detail: 'the sign-in was not finished in time; start again',
@@ -332,7 +343,10 @@ function invoke(cmd, args) {
       }
       meterTokens += 12;
       setTimeout(() => emit('capybaras://usage', usageSnapshot()), 40);
-      setTimeout(() => emit('capybaras://reply', { text: REPLY_TEXT, model: args.model }), 80);
+      // A long answer is a real answer: the same path, the same event, just more
+      // of it. Nothing about how it is delivered differs.
+      const replyText = String(args.prompt ?? '').includes(LONG_MARKER) ? LONG_REPLY : REPLY_TEXT;
+      setTimeout(() => emit('capybaras://reply', { text: replyText, model: args.model }), 80);
       return null;
     }
 
@@ -532,6 +546,7 @@ const PANEL = `JSON.stringify({
   // The herd's ask phase, as the interface set it from the real call.
   herdAsk: document.getElementById('herd').getAttribute('data-ask'),
   reply: document.getElementById('ask-reply').textContent,
+  replyScrollShown: document.getElementById('ask-reply-scroll').hidden === false,
   errorShown: document.getElementById('ask-error').hidden === false,
   error: document.getElementById('ask-error').textContent,
   usage: document.getElementById('usage-figures').textContent.replace(/\\s+/g, ' ').trim(),
@@ -727,6 +742,10 @@ try {
   panel = await readPanel();
 
   check('a reply appears', panel.replyShown === true && panel.reply === REPLY_TEXT, panel.reply);
+  check(
+    'a reply that fits says nothing about scrolling -- the signpost is for more, not for every answer',
+    panel.replyScrollShown === false,
+  );
   check('no error is shown alongside it', panel.errorShown === false, panel.error);
   check(
     'the message was sent with the chosen model, over the product path',
@@ -803,6 +822,59 @@ try {
     panel.usageLabels.includes('left (whole account)') &&
       panel.usageRows[panel.usageLabels.indexOf('left (whole account)')] === '$5.26',
     `${panel.usageLabels.join(' / ')} = ${panel.usageRows.join(' / ')}`,
+  );
+
+  /* ---- a LONG reply: the operator asked to see the whole thing ----- */
+  // The shell now requests the model's own ceiling, so a reply can be a whole
+  // paper. The interface's half of that promise is that the answer arrives
+  // COMPLETE and stays readable -- bounded and scrollable, never clipped and
+  // never truncated on this side.
+  await evaluate(`(() => {
+    const box = document.getElementById('ask-prompt');
+    box.value = '${LONG_MARKER} -- the full report please.';
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  })()`);
+  await evaluate("document.getElementById('btn-send').click(); true");
+  await waitUntil(
+    `document.getElementById('ask-reply').textContent.length >= ${LONG_REPLY.length}`,
+    (v) => v === true,
+    'the long reply to appear',
+  );
+  panel = await readPanel();
+  const longBox = await evaluate(`(() => {
+    const box = document.getElementById('ask-reply');
+    const note = document.getElementById('ask-reply-scroll');
+    const style = getComputedStyle(box);
+    return {
+      scrollHeight: box.scrollHeight,
+      clientHeight: box.clientHeight,
+      maxHeight: style.maxHeight,
+      overflowY: style.overflowY,
+      focusable: box.tabIndex === 0,
+      noteShown: note.hidden === false,
+    };
+  })()`);
+
+  check(
+    'a long reply arrives in FULL -- the interface truncates nothing',
+    panel.reply === LONG_REPLY,
+    `${panel.reply.length} of ${LONG_REPLY.length} character(s), ends "${panel.reply.slice(-12)}"`,
+  );
+  check(
+    'a long reply scrolls inside its own box instead of growing the page',
+    longBox.overflowY === 'auto' &&
+      longBox.maxHeight !== 'none' &&
+      longBox.scrollHeight > longBox.clientHeight,
+    `overflow-y ${longBox.overflowY}, max-height ${longBox.maxHeight}, ${longBox.scrollHeight}px of text in a ${longBox.clientHeight}px box`,
+  );
+  check(
+    'the box can be reached and scrolled by keyboard, not only by mouse',
+    longBox.focusable === true,
+  );
+  check(
+    'the signpost appears when, and only when, there is more answer than box',
+    longBox.noteShown === true,
   );
 
   /* ---- nothing on screen is a machine artifact -------------------- */

@@ -879,6 +879,27 @@ async function loadModels() {
 }
 
 /** The reply, or a plain-words failure. Never both on screen at once. */
+/**
+ * A long answer gets a signpost.
+ *
+ * The reply box scrolls, so a 5,000-word answer is readable in full -- bounded
+ * on screen, never clipped, never truncated. This only tells the reader there
+ * is more to see when there actually is: it is measured from the RENDERED box
+ * (`scrollHeight` against `clientHeight`), not guessed from the text length,
+ * because the same words wrap to different heights at different widths.
+ *
+ * It carries no content of its own. Turning it off hides the signpost, never
+ * any part of the reply.
+ */
+function noteReplyOverflow() {
+  const box = $('ask-reply');
+  const note = $('ask-reply-scroll');
+  if (!note) return;
+  const overflowing =
+    Boolean(box) && box.hidden === false && box.scrollHeight > box.clientHeight + 1;
+  note.hidden = !overflowing;
+}
+
 function showReply(text, model) {
   const box = $('ask-reply');
   const error = $('ask-error');
@@ -892,6 +913,8 @@ function showReply(text, model) {
     // Model output: text only, always. The one place that rule is most tempting
     // to break is the one place it matters most.
     box.textContent = String(text ?? '');
+    // All of it is in the DOM. Say so when it is taller than the box.
+    noteReplyOverflow();
   }
   if (button) {
     button.disabled = false;
@@ -908,6 +931,8 @@ function showMessageError(message) {
   if (box) {
     box.hidden = true;
     box.textContent = '';
+    // Nothing to scroll when there is no answer.
+    noteReplyOverflow();
   }
   if (error) {
     error.hidden = false;
@@ -941,6 +966,8 @@ if (sendButton) {
     if (box) {
       box.hidden = true;
       box.textContent = '';
+      // The signpost goes with it; a new answer measures itself on arrival.
+      noteReplyOverflow();
     }
 
     // Disabled while in flight: a second click would be a second billed call.
@@ -970,6 +997,12 @@ if (modelsButton) {
 const modelChoice = $('model-choice');
 if (modelChoice) {
   modelChoice.addEventListener('change', renderModelDetail);
+}
+
+// A window that grows or shrinks re-wraps the answer, so whether it still
+// overflows is re-decided from the rendered box rather than remembered.
+if (typeof window !== 'undefined') {
+  window.addEventListener('resize', noteReplyOverflow);
 }
 
 /* ------------------------------------------------------------------ */

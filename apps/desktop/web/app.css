@@ -567,10 +567,22 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
 
 /* Model output. `pre-wrap` keeps the reply's own line breaks without ever
    interpreting it as markup; `anywhere` stops one long token from widening
-   the window. Rendered with textContent, so it is text and stays text (T3/T4). */
+   the window. Rendered with textContent, so it is text and stays text (T3/T4).
+
+   The answer no longer has to fit two paragraphs. The shell asks for the
+   model's OWN ceiling now, so a reply can be a whole research paper, and this
+   block must show all of it: it is bounded and scrolls INSIDE itself, so the
+   full text is readable while the rail (and the page) keep their shape. There
+   is no line clamp and no slice here -- the box is a window onto the whole
+   answer, never a crop of it. `vh` keeps it honest in a short window. */
 .reply {
   margin-top: var(--space-4);
   max-width: var(--layout-measure);
+  max-height: min(72vh, 40rem);
+  overflow-y: auto;
+  /* Reaching the end of a long answer must not then scroll the page --
+     the lesson the log below already learned the hard way. */
+  overscroll-behavior: contain;
   padding: var(--space-4);
   background: var(--color-semantic-surface-inset);
   border: 1px solid var(--color-semantic-border-subtle);
@@ -580,6 +592,11 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
   line-height: var(--typography-lineHeight-loose);
 }
 .reply[hidden] { display: none; }
+/* A box that scrolls has to be reachable without a mouse. */
+.reply:focus-visible {
+  outline: var(--focus-width) solid var(--color-semantic-border-focus);
+  outline-offset: var(--focus-offset);
+}
 
 .inline-error {
   margin-top: var(--space-4);

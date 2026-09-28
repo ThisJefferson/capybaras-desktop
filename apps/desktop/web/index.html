@@ -94,7 +94,18 @@
           </div>
           <p class="hint" id="ask-hold">Nothing is sent until you press Send.</p>
 
-          <div class="reply" id="ask-reply" role="status" aria-live="polite" hidden></div>
+          <!-- The answer, whole. The shell asks for the model's own ceiling now,
+               so a reply can be a full research paper. The block is bounded and
+               scrolls inside itself rather than growing the rail without limit,
+               and it is focusable so a keyboard can scroll it too. Nothing on
+               this side truncates: the text is written whole, with textContent. -->
+          <div class="reply" id="ask-reply" role="status" aria-live="polite" tabindex="0" hidden></div>
+          <!-- Said only when there is more answer than box. It is a signpost, not
+               a substitute for any of the reply: it never carries content, and it
+               is cleared whenever the box is. -->
+          <p class="hint hint--tight" id="ask-reply-scroll" hidden>
+            This answer is longer than the box — scroll inside it to read the rest.
+          </p>
           <p class="inline-error" id="ask-error" role="alert" hidden></p>
         </div>
       </section>
