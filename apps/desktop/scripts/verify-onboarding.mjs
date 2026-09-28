@@ -529,6 +529,8 @@ const PANEL = `JSON.stringify({
   selectedLabel: (document.getElementById('model-choice').selectedOptions[0] || {}).textContent || '',
   askDisabled: document.getElementById('btn-send').disabled,
   replyShown: document.getElementById('ask-reply').hidden === false,
+  // The herd's ask phase, as the interface set it from the real call.
+  herdAsk: document.getElementById('herd').getAttribute('data-ask'),
   reply: document.getElementById('ask-reply').textContent,
   errorShown: document.getElementById('ask-error').hidden === false,
   error: document.getElementById('ask-error').textContent,
@@ -701,8 +703,21 @@ try {
     box.dispatchEvent(new Event('input', { bubbles: true }));
     return true;
   })()`);
-  await evaluate("document.getElementById('btn-send').click(); true");
-  check('Send is disabled while the call is in flight', (await readPanel()).askDisabled === true);
+  // One evaluate, so both facts are read in the tick the click is handled in: the
+  // button going busy and the herd taking the pending state are the same event.
+  const inFlight = await evaluate(`(() => {
+    document.getElementById('btn-send').click();
+    return {
+      sendDisabled: document.getElementById('btn-send').disabled,
+      herdAsk: document.getElementById('herd').getAttribute('data-ask'),
+    };
+  })()`);
+  check('Send is disabled while the call is in flight', inFlight.sendDisabled === true);
+  check(
+    'the herd shows the ask in flight while the question is out -- driven by the call, not a timer',
+    inFlight.herdAsk === 'pending',
+    String(inFlight.herdAsk),
+  );
 
   await waitUntil(
     "document.getElementById('ask-reply').hidden === false",
@@ -729,6 +744,11 @@ try {
   check(
     'Send comes back once the reply has arrived',
     panel.askDisabled === false,
+  );
+  check(
+    'the herd leaves the pending state once the answer has arrived',
+    panel.herdAsk !== 'pending',
+    String(panel.herdAsk),
   );
   check(
     'the balance the shell read appears as what is left, labelled as the whole account',
@@ -773,6 +793,11 @@ try {
     panel.replyShown === false && panel.reply === '',
   );
   check('Send comes back after a refusal, so the person can try again', panel.askDisabled === false);
+  check(
+    'a failed call does not leave the herd pending',
+    panel.herdAsk !== 'pending',
+    String(panel.herdAsk),
+  );
   check(
     'a failed call does not blank the balance -- the last known figure stands',
     panel.usageLabels.includes('left (whole account)') &&

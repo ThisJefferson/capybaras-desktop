@@ -516,6 +516,100 @@ function buildAgent(agent) {
   return el;
 }
 
+/**
+ * The four states the herd shows for a question of ours.
+ *
+ * WHICH SIGNAL THIS IS, and why it is not the sidecar's. The obvious source would
+ * be the herd's `working` state behind the header wave. It is a real signal, but
+ * it is produced in exactly ONE place -- the sidecar's gate, when a gated tool
+ * action starts (`herd.beginWork`) -- and a chat call never touches the herd: the
+ * shell's `send_message` emits `capybaras://reply` / `capybaras://message-failed`
+ * and no agents update at all. So `working` is silent for the one call this
+ * screen makes, and the header wave never ran for it either.
+ *
+ * The real signal for the ask is the ask itself: the shell has accepted a
+ * `send_message` and neither a reply nor a failure has come back. The interface
+ * is the only component that knows it -- it is the same condition the Send button
+ * already shows by going busy, and it cannot be entered without a real call.
+ * There is no timer deciding it: the two terminal events end it. A short timer
+ * only limits how long the acknowledgement (the settle, the quiet after a
+ * failure) is kept; the meaning lives in the words, which do not need it.
+ */
+const ASK_PENDING = 'pending';
+const ASK_ANSWERED = 'answered';
+const ASK_FAILED = 'failed';
+const ASK_SETTLE_MS = 700;
+const ASK_QUIET_MS = 1200;
+
+/** The ask's current phase: 'idle' | 'pending' | 'answered' | 'failed'. */
+let askPhase = 'idle';
+/** The timer that ends a transient phase, if one is running. */
+let askRelease = null;
+
+/**
+ * Put the herd into one ask phase. `holdMs` is the acknowledgement window for the
+ * two transient phases; the pending phase has none -- only the call ends it.
+ */
+function setAskPhase(phase, holdMs) {
+  if (askRelease) {
+    clearTimeout(askRelease);
+    askRelease = null;
+  }
+  askPhase = phase;
+  const herd = $('herd');
+  if (herd) {
+    if (phase === 'idle') herd.removeAttribute('data-ask');
+    else herd.setAttribute('data-ask', phase);
+  }
+  updateHerdReflection();
+  if (holdMs) askRelease = setTimeout(() => setAskPhase('idle'), holdMs);
+}
+
+/** The answer landed: one settle, then calm. */
+function askAnswered() {
+  if (askPhase === ASK_PENDING) setAskPhase(ASK_ANSWERED, ASK_SETTLE_MS);
+}
+
+/** The call failed: a quiet acknowledgement. The plain sentence is the meaning. */
+function askFailed() {
+  if (askPhase === ASK_PENDING) setAskPhase(ASK_FAILED, ASK_QUIET_MS);
+}
+
+/** The herd as the sidecar last reported it, so the summary can be recomputed
+ * when the ask changes rather than only when the herd does. */
+let lastAgents = [];
+
+/**
+ * The herd in words, and the header wave.
+ *
+ * Recomputed from BOTH facts that decide them: what the sidecar reported about
+ * each capybara, and whether a question of ours is in flight. "needs you" is the
+ * loudest thing in the interface, so it outranks the ask -- a raised sign is
+ * never overwritten by a question being answered.
+ */
+function updateHerdReflection() {
+  const summary = $('herd-summary');
+  if (summary) {
+    const needing = lastAgents.filter((a) => a.state === 'needs-you').map((a) => a.label);
+    const working = lastAgents.filter((a) => a.state === 'working').map((a) => a.label);
+    if (needing.length === 1) summary.textContent = `${needing[0]} needs you.`;
+    else if (needing.length > 1) summary.textContent = `${needing.length} capybaras need you.`;
+    else if (askPhase === ASK_PENDING) summary.textContent = 'The herd is answering your question.';
+    else if (working.length === 1) summary.textContent = `${working[0]} is working.`;
+    else if (working.length > 1) summary.textContent = `${working.length} capybaras are working.`;
+    else summary.textContent = 'All quiet. The capybaras are dozing.';
+  }
+
+  // The wave under the header runs while real work is happening. That now
+  // includes a question of ours: the sidecar's working state is only ever set
+  // for gated tool actions, so without this the one call this screen makes would
+  // have no progress shown where it is always in view.
+  const busy = $('busy-line');
+  if (busy) {
+    busy.hidden = !(lastAgents.some((a) => a.state === 'working') || askPhase === ASK_PENDING);
+  }
+}
+
 function renderHerd(agents) {
   const host = $('herd');
   if (!host || !Array.isArray(agents)) return;
@@ -527,8 +621,7 @@ function renderHerd(agents) {
     for (const agent of agents) host.append(buildAgent(agent));
   }
 
-  const needing = [];
-  const working = [];
+  lastAgents = agents;
   for (const agent of agents) {
     const el = host.querySelector(`[data-agent="${agent.id}"]`);
     if (!el) continue;
@@ -536,25 +629,9 @@ function renderHerd(agents) {
     el.dataset.state = agent.state;
     el.querySelector('.agent__state-text').textContent = label;
     el.setAttribute('aria-label', `${agent.label}, ${agent.job}: ${label}`);
-    if (agent.state === 'needs-you') needing.push(agent.label);
-    if (agent.state === 'working') working.push(agent.label);
   }
 
-  // The same state in words, so the rail never depends on decoding a colour.
-  // Every line here describes a state the sidecar actually reported.
-  const summary = $('herd-summary');
-  if (summary) {
-    if (needing.length === 1) summary.textContent = `${needing[0]} needs you.`;
-    else if (needing.length > 1) summary.textContent = `${needing.length} capybaras need you.`;
-    else if (working.length === 1) summary.textContent = `${working[0]} is working.`;
-    else if (working.length > 1) summary.textContent = `${working.length} capybaras are working.`;
-    else summary.textContent = 'All quiet. The capybaras are dozing.';
-  }
-
-  // The wave under the header runs only while real work is happening — the
-  // same fact as the working capybaras, shown where it is always in view.
-  const busy = $('busy-line');
-  if (busy) busy.hidden = working.length === 0;
+  updateHerdReflection();
 }
 
 /* ------------------------------------------------------------------ */
@@ -820,6 +897,7 @@ function showReply(text, model) {
     button.disabled = false;
     button.removeAttribute('aria-busy');
   }
+  askAnswered();
   log(`reply from ${model}`);
 }
 
@@ -868,10 +946,16 @@ if (sendButton) {
     // Disabled while in flight: a second click would be a second billed call.
     sendButton.disabled = true;
     sendButton.setAttribute('aria-busy', 'true');
+    // The question is out from here. The herd shows it, and keeps showing it
+    // until the answer or the failure arrives -- the same fact as the busy
+    // button, said where the capybaras are.
+    setAskPhase(ASK_PENDING);
     try {
       await invoke('send_message', { prompt, model });
     } catch (reason) {
       // A refusal made before anything was sent — not connected, nothing typed.
+      // Nothing left the app, so it was never a question in flight.
+      setAskPhase('idle');
       showMessageError(String(reason));
     }
   });
@@ -928,7 +1012,10 @@ if (listen) {
   listen('capybaras://models', (e) => renderModels(e.payload));
   listen('capybaras://models-failed', (e) => showModelsError(e.payload.message));
   listen('capybaras://reply', (e) => showReply(e.payload.text, e.payload.model));
-  listen('capybaras://message-failed', (e) => showMessageError(e.payload.message));
+  listen('capybaras://message-failed', (e) => {
+    showMessageError(e.payload.message);
+    askFailed();
+  });
   // The remembered choices are revocable here, because a permission you cannot
   // withdraw is not one you really gave.
   listen('capybaras://grants', (e) => renderGrants(e.payload.grants));

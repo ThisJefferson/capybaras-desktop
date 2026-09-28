@@ -830,6 +830,42 @@ above is the visual form of a state the sidecar actually reported. */
 }
 .agent[data-state='needs-you'] .agent__mark .wave { stroke: var(--color-semantic-text-primary); }
 
+/* ---- the ask in flight ----
+
+   One honest signal, not a loop for its own sake. While a question is out and no
+   answer has come back, the herd leans in as a single wave -- the calçadão motif,
+   doing here what it already does as the header's progress. `data-ask` is set in
+   app.js from the ask's own in-flight window and cleared by the reply, by the
+   failure, and by a refusal that never sent anything.
+
+   "needs you" is excluded on purpose: a raised sign is the loudest thing in the
+   interface, and a question being answered may never mute it. */
+.herd[data-ask='pending'] .agent:not([data-state='needs-you']) .agent__mark {
+  opacity: 1;
+  animation: answer-wave 1.6s var(--motion-easing-standard) infinite;
+}
+
+/* The wave travels the row rather than six capybaras moving in unison -- the same
+   syncopation rule the rest of the herd follows. */
+.herd[data-ask='pending'] .agent:nth-child(1) .agent__mark { animation-delay: 0s; }
+.herd[data-ask='pending'] .agent:nth-child(2) .agent__mark { animation-delay: -0.27s; }
+.herd[data-ask='pending'] .agent:nth-child(3) .agent__mark { animation-delay: -0.54s; }
+.herd[data-ask='pending'] .agent:nth-child(4) .agent__mark { animation-delay: -0.81s; }
+.herd[data-ask='pending'] .agent:nth-child(5) .agent__mark { animation-delay: -1.08s; }
+.herd[data-ask='pending'] .agent:nth-child(6) .agent__mark { animation-delay: -1.35s; }
+
+/* Answered: the same satisfied nod the herd already gives a resolved approval,
+   once, and then nothing. No loop. */
+.herd[data-ask='answered'] .agent:not([data-state='needs-you']) .agent__mark {
+  animation: confirm-nod var(--motion-duration-panel) var(--motion-easing-settle) both;
+}
+
+/* Failed: the herd stops and goes quiet, with no red on it -- the plain sentence
+   and the "Not sent" chip beside the box already carry the meaning. */
+.herd[data-ask='failed'] .agent:not([data-state='needs-you']) .agent__mark {
+  opacity: 0.55;
+}
+
 .legend {
   list-style: none;
   margin: var(--space-4) 0 0;
@@ -1186,6 +1222,13 @@ above is the visual form of a state the sidecar actually reported. */
   60%  { transform: translateY(1px) scale(1.01); }
   100% { transform: none; }
 }
+/* The answer round trip as one gesture: the herd rises into a wave while a
+   question is out. It is the visual form of a real in-flight ask, and it stops
+   the moment the reply or the failure arrives. */
+@keyframes answer-wave {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.72; }
+  45%      { transform: translateY(-4px) scale(1.045); opacity: 1; }
+}
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -1423,4 +1466,13 @@ above is the visual form of a state the sidecar actually reported. */
   .btn[aria-busy='true'] { color: inherit; }
   .btn[aria-busy='true']::after { display: none; }
   .progress::after { transform: none; width: 100%; }
+
+  /* Motion is gone; the ask is not. The herd comes fully forward and takes a ring
+     that stays still, and the summary above says the same thing in words -- so the
+     state is never carried by movement alone. */
+  .herd[data-ask='pending'] .agent:not([data-state='needs-you']) .agent__mark {
+    animation: none !important;
+    opacity: 1;
+    box-shadow: 0 0 0 2px var(--color-semantic-state-primary);
+  }
 }
