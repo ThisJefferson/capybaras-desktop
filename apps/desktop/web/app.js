@@ -1061,6 +1061,9 @@ if (refreshGrantsButton) {
  * viewport, so an observer would report it as current for the whole page. The
  * rail's own sections are therefore handled separately -- "Herd" is current when
  * no workspace section has been reached yet, which is exactly when it is true.
+ * Both "Herd" and "Ask" now point into the rail (the ask lives in the herd's
+ * card), so "Herd" is the rail fallback and "Ask" is a plain jump to the box,
+ * never a current section: a sticky target cannot be tracked by position.
  *
  * It is progressive enhancement: without it the links still work, there is just
  * no highlighted one.

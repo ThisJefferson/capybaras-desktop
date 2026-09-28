@@ -8,9 +8,12 @@
   <link rel="stylesheet" href="app.css" />
 </head>
 <body>
-  <!-- Keyboard users should not have to walk the header and the herd to reach
-       the workspace. Visible only when focused. -->
-  <a class="skip" href="#workspace">Skip to the workspace</a>
+  <!-- Keyboard users should not have to walk the header to reach the question
+       box. The herd is where asking happens now, so the skip link lands on the
+       ask itself rather than on the workspace below it -- the workspace panels
+       are still one nav link (or one Tab past the ask) away. Visible only when
+       focused. -->
+  <a class="skip" href="#ask">Skip to the question box</a>
 
   <!-- ---------------- the shell header ----------------
        Sticky on desktop: the wordmark, where you are, and the one number
@@ -58,7 +61,7 @@
          until the commissioned model sheet exists (one character, four poses,
          one sign, D18). Swapping the art must not require touching this layout. -->
     <aside class="rail">
-      <section class="card-surface herd-card" aria-labelledby="herd-heading">
+      <section class="card-surface herd-card" id="herd-card" aria-labelledby="herd-heading">
         <div class="section-head">
           <h2 class="section-title" id="herd-heading">The herd</h2>
           <p class="section-note" id="herd-summary" aria-live="polite">All quiet. The capybaras are dozing.</p>
@@ -70,6 +73,30 @@
           <li class="legend__item" data-state="working"><span class="legend__swatch"></span>working — a job is running</li>
           <li class="legend__item" data-state="needs-you"><span class="legend__swatch"></span>needs you — waiting on your answer</li>
         </ul>
+
+        <!-- THE ASK. The herd is where the question is asked, so the box lives
+             here rather than in a section of its own further down the page: a
+             person types where the capybaras are, and watches them while the
+             answer is on its way. The input keeps its own label, its own control
+             and its own place in the tab order, so the move changed nothing
+             about how it is reached -- and the primary action is still the
+             filled button it always was. -->
+        <div class="herd-ask" id="ask">
+          <h3 class="herd-ask__title">Ask the herd</h3>
+
+          <div class="field">
+            <label class="field__label" for="ask-prompt">Your message</label>
+            <textarea class="input" id="ask-prompt" rows="3" placeholder="Say something"></textarea>
+          </div>
+
+          <div class="panel__actions">
+            <button class="btn btn--primary" id="btn-send">Send</button>
+          </div>
+          <p class="hint" id="ask-hold">Nothing is sent until you press Send.</p>
+
+          <div class="reply" id="ask-reply" role="status" aria-live="polite" hidden></div>
+          <p class="inline-error" id="ask-error" role="alert" hidden></p>
+        </div>
       </section>
     </aside>
 
@@ -110,13 +137,14 @@
         </p>
       </section>
 
-      <!-- The first reply. ONE message, ONE answer: this is the milestone, not a chat
-           product. Every model name here comes from OpenRouter and is rendered as
-           text only (T3/T4) -- it is attacker-influenced text in a trusted position,
-           the same shape as the approval card. -->
-      <section class="card-surface panel" id="ask" aria-labelledby="ask-heading">
+      <!-- Which model answers. The question itself is asked up in the herd; what
+           is left here is the choice the answer comes from. Every model name comes
+           from OpenRouter and is rendered as text only (T3/T4) -- it is
+           attacker-influenced text in a trusted position, the same shape as the
+           approval card. -->
+      <section class="card-surface panel" id="model-panel" aria-labelledby="model-panel-heading">
         <div class="section-head">
-          <h2 class="section-title" id="ask-heading">Ask Capybaras</h2>
+          <h2 class="section-title" id="model-panel-heading">Which model answers</h2>
           <p class="section-note" id="models-state">The model list has not been loaded yet.</p>
         </div>
 
@@ -141,18 +169,6 @@
           </button>
         </div>
 
-        <div class="field">
-          <label class="field__label" for="ask-prompt">Your message</label>
-          <textarea class="input" id="ask-prompt" rows="3" placeholder="Say something"></textarea>
-        </div>
-
-        <div class="panel__actions">
-          <button class="btn btn--primary" id="btn-send">Send</button>
-        </div>
-        <p class="hint" id="ask-hold">Nothing is sent until you press Send.</p>
-
-        <div class="reply" id="ask-reply" role="status" aria-live="polite" hidden></div>
-        <p class="inline-error" id="ask-error" role="alert" hidden></p>
       </section>
 
       <!-- The meter. Read from the shell once on load, then pushed for every

@@ -856,6 +856,25 @@ above is the visual form of a state the sidecar actually reported. */
 .legend__item[data-state='working'] .legend__swatch { background: var(--color-brand-leaf); }
 .legend__item[data-state='needs-you'] .legend__swatch { background: var(--color-semantic-state-needsYou); }
 
+/* ---- the ask ----
+
+   The herd is where the question is asked, so the box sits inside the herd's own
+   card rather than in a section of its own further down the page. A rule sets it
+   apart from the legend, so it reads as the action the herd performs rather than
+   as one more list item. The field and the button keep the treatment they had
+   before the move: the primary action did not become less primary by moving. */
+.herd-ask {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-semantic-border-subtle);
+}
+.herd-ask__title {
+  margin-bottom: var(--space-3);
+  font-size: var(--typography-size-lg);
+  font-weight: var(--typography-weight-semibold);
+  line-height: var(--typography-lineHeight-snug);
+}
+
 /* ------------------------------------------------------------------ */
 /* The approval card                                                   */
 /* ------------------------------------------------------------------ */

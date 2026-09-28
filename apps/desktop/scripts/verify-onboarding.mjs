@@ -537,7 +537,10 @@ const PANEL = `JSON.stringify({
   usageLabels: Array.from(document.querySelectorAll('#usage-figures dt')).map((dt) => dt.textContent.trim()),
   keyFields: Array.from(document.querySelectorAll('input')).filter((el) =>
     el.type === 'password' || /key|token|secret/i.test(el.id + ' ' + el.name)).length,
-  blankButtons: Array.from(document.querySelectorAll('#connect button, #ask button'))
+  // The ask moved into the herd's card (its own container is still #ask), and
+  // the model choice is its own panel now (#model-panel). Both are named here so
+  // this check keeps covering the same controls it covered before the move.
+  blankButtons: Array.from(document.querySelectorAll('#connect button, #ask button, #model-panel button'))
     .filter((el) => el.textContent.trim().length === 0).length,
   hostileRendered: document.querySelectorAll('#model-choice img, #model-choice *:not(option)').length
 })`;
