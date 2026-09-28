@@ -3,11 +3,11 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-28 01:15 EDT
-**Current phase:** **M5 — onboarding.** M4.1–M4.7 are built; M4.5 now covers interface-level revocation, and the session meter reaches the interface (D22). What remains in M4 is human-verified: a look at the running window, and the Replit scenario clicked through by a real person.
+**Last updated:** 2026-09-28 02:47 EDT
+**Current phase:** **M5 — onboarding.** M4.1–M4.7 are built, and M4 is now proven at the interface: the card renders and was reviewed, and the Replit scenario halts and waits for a click when driven through the real frontend. What remains in M4 is the one thing this machine cannot do — a human looking at the real Tauri window.
 **Next milestone:** M5 — a non-technical tester reaches a first reply unaided
 **Spec:** `docs/protocol.md` · **Plan:** `docs/plans/next-steps.md` · **Design:** `docs/plans/M4-visual-design.md`
-**Recently decided:** D15 (state directory) · D18 (one character, six names) · D19 (grants fail closed) · D20 (skills must declare themselves)
+**Recently decided:** D19 (grants fail closed) · D20 (skills must declare) · D21 (the gate governs actions, not speech) · D22 (the meter pushes) · D23 (the card states each hazard once) · D24 (only a human's answer lowers the sign)
 **Repo:** https://github.com/ThisJefferson/capybaras-desktop (public) · releases cut per milestone
 
 ---
@@ -20,6 +20,47 @@
 
 ---
 
+## 2026-09-28 — the interface is looked at, and the gate is driven through it
+
+Three milestone items. Two were already built; the audit found two real defects.
+
+- **M4.4 — the interface renders, and was reviewed.** `npm run verify:ui` passes
+  (six agents, card present, tokens resolved) and its frame was reviewed with a
+  vision model: the headline, all three reasons, the hard-gate callout, the typed
+  confirmation, and "Go ahead" disabled. The reviewed frame is
+  `assets/design/interface-rendered.png`.
+- **M4.7 — the acceptance test, through the interface.** `npm run verify:acceptance`
+  drives the documented scenario through the real frontend — real `index.html`,
+  `app.js`, `app.css`, `tokens.css`, and the real sidecar — with headless Chrome
+  over CDP. 22 assertions, green, including: the card halts and states what it
+  intends; "Go ahead" is disabled until the phrase is typed; nothing runs across
+  2.5 s of waiting; an explicit click does proceed; and **Enter holds on rather
+  than approving**. The reviewed frame is `assets/design/acceptance-halt.png`.
+- **M4.6 — the herd was already built and tested** (`508b53f`). The audit found
+  the state machine could produce the WRONG visible state: a pending approval's
+  sign was lowered by that same agent's own background work. Fixed, with both new
+  assertions written first and watched to fail.
+
+**Two defects found by doing M4.4 and M4.7, both on the milestone card:**
+
+- the card stated the same hazard twice — five reasons, two of them restatements.
+  It now shows exactly the three `docs/acceptance-test.md` documents.
+- the herd could contradict the card (the sign defect above).
+
+**Honest limit, recorded in `docs/DEBUGGING.md` rather than implied:** a screenshot
+of the real Tauri window is **not possible on this host**. The console session is not
+compositing — `CopyFromScreen` returns a uniform black frame, a magenta canary
+window was present in the window list yet contributed zero pixels, and the centre
+pixel read pure black. A black capture is indistinguishable from a blank window, so
+it proves nothing. The offscreen render is the check that can be made, and the one
+thing still unproven is the **Rust shell plus WebView2 window** — not the interface
+and not the gate.
+
+**Tests:** 366 TypeScript across 14 files; 119 Rust, with 4 live-network probes
+ignored. `npm run verify` green.
+
+---
+
 ## 2026-09-28 — the meter reaches the interface, and grants become revocable
 
 Two pieces of wiring, both previously "exists but unreachable".
@@ -27,7 +68,7 @@ Two pieces of wiring, both previously "exists but unreachable".
 - **M5 — `usage.rs` is now read.** `UsageMeter` holds the session; `usage_status` reads it; `record_model_call` is the single seam a finished model call reports through, and it emits `capybaras://usage` for **every** call — not only the ones that move a total, because a request that fails after the provider began generating returns no usage, and that standstill *is* the signal (D22). The interface reads the meter once on load and follows the event after that. `usage.rs`'s public API is unchanged: the arithmetic was fine, the wiring was missing.
 - **M4.5 — remembered choices are revocable from the interface.** Persistence already landed (`48e5633`, D19); what was missing was a caller. Added `list_grants` / `revoke_grant`, plus a plain list with a one-click *Forget*. The proof is behavioural, not declarative: `tests/protocol.rs::a_revoked_grant_asks_again` revokes a grant and then makes the same action **ask again**.
 
-**Tests:** 364 TypeScript across 14 files; 118 Rust, with 4 live-network probes ignored. `npm run verify` green.
+**Tests at that point:** 364 TypeScript across 14 files; 118 Rust, with 4 live-network probes ignored. `npm run verify` green.
 
 **Honest gaps, stated rather than implied:**
 
@@ -77,13 +118,14 @@ Two pieces of wiring, both previously "exists but unreachable".
 ## In flight
 
 - **M5 — onboarding.** The credential store, the OAuth PKCE flow, the model catalog, the loopback listener, the token exchange and the session meter are all in the tree and tested. Remaining: reach a first reply, with a spend cap and a free-model mode.
-- **M4's human steps.** A screenshot of the running app with the card visible (M4.4), and the Replit scenario clicked through by a real person (M4.7 — the milestone gate).
+- **M4's human step — the only one left.** A person looking at the running app in a real window. Rendering and the scenario are proven offscreen now (`npm run verify:ui`, `npm run verify:acceptance`); what this host cannot do is display a window at all.
 
 ## Blocked
 
 | Item | Blocked on |
 |---|---|
 | Nothing | — — the CI-workflow `workflow`-scope block is resolved; `.github/workflows/ci.yml` is tracked and running |
+| A screenshot of the **real app window** | This host's console session is not compositing — `CopyFromScreen` returns black. Not a code problem: it needs an unlocked, interactive desktop. |
 
 ## Not started
 
@@ -96,7 +138,7 @@ Two pieces of wiring, both previously "exists but unreachable".
 ## Next three actions
 
 1. **Reach a first reply (M5).** The pieces are in the tree; the milestone is a non-technical tester getting an answer without help — spend cap on, provider menu hidden behind Advanced.
-2. **Look at the window (M4.4), then click through the gate (M4.7).** A screenshot of the running app with the card visible, defects fixed; then the Replit scenario by hand, which is the milestone gate.
+2. **Look at the real window, and click the scenario by hand.** The offscreen checks pass and the defects they found are fixed; what remains is a person on an unlocked desktop running `run.cmd` and clicking through the gate — which is the milestone gate itself.
 3. **Keep cutting a release per milestone with test results** (Jeff's standing request).
 
 ---
