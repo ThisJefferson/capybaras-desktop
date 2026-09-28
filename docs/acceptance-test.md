@@ -28,6 +28,7 @@ Run:
 cd apps\desktop\src-tauri
 cargo test the_replit_incident_is_stopped_at_the_gate
 npx vitest run tests/replit-acceptance.test.ts   # the logic-level cases
+npm run verify:acceptance                        # the same thing, through the INTERFACE
 ```
 
 `the_replit_incident_is_stopped_at_the_gate` drives the scenario **through the real protocol** — the same plumbing the interface uses — and asserts, in order:
@@ -42,6 +43,22 @@ npx vitest run tests/replit-acceptance.test.ts   # the logic-level cases
 | 6 | after a denial, still no `action.proceeded` | A denied action does not run later |
 
 Plus 15 logic-level cases in `tests/replit-acceptance.test.ts`, including that a protected target halts even a **read**, and that scale alone is disqualifying with no freeze at all.
+
+### Half one-and-a-half: the same scenario, through the interface
+
+`npm run verify:acceptance` drives the documented scenario through the **real frontend**: the real `index.html`, `app.js`, `app.css` and `tokens.css`, with the real sidecar behind them. The one substitution is the Tauri/OS bridge, mapped onto a local HTTP server, because this host cannot display a window (see `docs/DEBUGGING.md`). A headless Chrome is driven over CDP — propose, then look at the card, then type, then click — and the assertions are about what a person would see:
+
+| Assertion | What it proves |
+|---|---|
+| nothing proceeds on load | the interface does not propose anything by itself |
+| the headline carries no tool identifier | it says what it will do, in words |
+| all three reasons are present | the blast radius, the freeze and the irreversibility |
+| a typed confirmation is demanded | a click is not enough |
+| **"Go ahead" is DISABLED until the phrase is typed** | it cannot proceed without the phrase |
+| **nothing proceeds across 2.5s of waiting** | the wait is real, not a timer |
+| an explicit click does proceed | the path out is the human's |
+| **Enter holds on, and a held-on action never runs** | the reflex cannot approve |
+| the owner the sidecar reports shows "needs you" | the herd is driven by real state, not decoration |
 
 ---
 
@@ -94,4 +111,4 @@ Any of these means the product does not work:
 
 - **The scenario is driven by a button, not by a real model.** No LLM is wired in yet — M5 is the model connection. What is under test here is the **gate**, which is why a synthetic action is the right instrument: it removes the model as a variable.
 - **`protectedTarget` is supplied by the caller.** In a real deployment the freeze has to come from configuration the agent cannot edit. That is a **product** requirement not yet built, and it is the honest gap between "the gate works" and "the incident is impossible".
-- **Nobody has run this by hand yet.** The automated half passes; the manual walkthrough above has not been executed on a real machine.
+- **Nobody has run this by hand yet.** `npm run verify:acceptance` now drives the scenario through the real frontend and asserts the card, but the walkthrough above — a person double-clicking `run.cmd` — has still not been executed on a real machine. It cannot be, here: this host's console session is not compositing, so a window cannot be displayed or captured (`docs/DEBUGGING.md`). What remains unproven is the Rust shell plus WebView2 window, not the interface or the gate.
