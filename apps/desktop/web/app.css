@@ -510,6 +510,32 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
 .chip--info { background: var(--color-status-info-surface); color: var(--color-status-info); }
 
 /* ------------------------------------------------------------------ */
+/* Loading, empty and error states                                     */
+/* ------------------------------------------------------------------ */
+
+/* A skeleton reserves the space the real value will take, so nothing shifts
+   when the data lands. It is the shape of the answer, not a spinner. */
+.skeleton {
+  display: inline-block;
+  width: 100%;
+  height: 0.85em;
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-100);
+}
+.skeleton--label { max-width: 7rem; }
+.skeleton--value { max-width: 11rem; }
+
+/* The log's empty state. Replaced by the first line, never beside it. */
+.console__empty {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed var(--color-semantic-border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-semantic-text-secondary);
+}
+.console__empty[hidden] { display: none; }
+
+/* ------------------------------------------------------------------ */
 /* Helper text, replies, inline errors                                 */
 /* ------------------------------------------------------------------ */
 
@@ -766,6 +792,9 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
   justify-content: center;
   padding: var(--space-6);
   overflow: auto;
+  /* The overlay owns its own scrolling; the page behind it does not move. */
+  overscroll-behavior: contain;
+  contain: paint;
 }
 .card[hidden] { display: none; }
 
@@ -931,6 +960,9 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
   padding: var(--space-3);
   max-height: 180px;
   overflow: auto;
+  /* A log that scrolls to its end must not then scroll the page. */
+  overscroll-behavior: contain;
+  contain: content;
   border-radius: var(--radius-md);
   background: var(--color-semantic-surface-inset);
   font-family: var(--typography-family-mono);

@@ -58,8 +58,12 @@ let current = null;
 
 function log(line) {
   const el = $('log');
+  if (!el) return;
   const time = new Date().toLocaleTimeString();
   el.textContent = `[${time}] ${line}\n${el.textContent}`;
+  // The log had no empty state, so a quiet start looked like a broken panel.
+  const empty = $('log-empty');
+  if (empty) empty.hidden = true;
 }
 
 /* ------------------------------------------------------------------ */
@@ -84,12 +88,23 @@ function row(label, value, className, chipKind) {
   return [dt, dd];
 }
 
+/** The last status the shell reported, so an unchanged read leaves the DOM alone. */
+let lastStatusKey = null;
+
 async function refreshStatus() {
   if (!invoke) return;
   const dl = $('status');
+  if (!dl) return;
   try {
     const s = await invoke('shell_status');
+    // This runs every five seconds. Rebuilding four rows produces no change and
+    // can reflow the monospace path text, so compare first and render only when
+    // something is actually different.
+    const key = [s.shell_pid, s.state_dir, s.sidecar_running, s.sidecar_pid, s.job_assigned].join('\u0000');
+    if (key === lastStatusKey) return;
+    lastStatusKey = key;
     dl.textContent = '';
+    dl.setAttribute('aria-busy', 'false');
     dl.append(...row('shell pid', String(s.shell_pid)));
     dl.append(...row('state dir', s.state_dir));
     dl.append(
@@ -109,7 +124,11 @@ async function refreshStatus() {
       ),
     );
   } catch (error) {
+    // A failed read must not be swallowed by the change check: clear it, so the
+    // next success renders even if the figures happen to match the last good ones.
+    lastStatusKey = null;
     dl.textContent = '';
+    dl.setAttribute('aria-busy', 'false');
     dl.append(...row('error', String(error), 'bad'));
   }
 }
@@ -133,6 +152,9 @@ async function refreshConnect() {
   const state = $('connect-state');
   const button = $('btn-connect');
   if (!state || !button) return;
+  // Any settled answer clears the busy spinner; the button's own disabled and
+  // hidden state then says whether there is anything left to do.
+  button.removeAttribute('aria-busy');
 
   try {
     const status = await invoke('connect_status');
@@ -180,12 +202,14 @@ if (connectButton) {
     // Disabled immediately: a second click would start a second sign-in, and the
     // user would have no way to tell which browser tab belonged to which.
     connectButton.disabled = true;
+    connectButton.setAttribute('aria-busy', 'true');
     try {
       const port = await invoke('start_connect');
       log(`sign-in started — finish it in your browser (port ${port})`);
     } catch (error) {
       log(`could not start the sign-in: ${error}`);
       connectButton.disabled = false;
+      connectButton.removeAttribute('aria-busy');
     }
   });
 }
@@ -483,6 +507,9 @@ function renderUsage(snapshot) {
   // The header figure is the same number, not a second opinion about it.
   const mini = $('meter-mini-value');
   if (mini) mini.textContent = String(snapshot.cost_display ?? '—');
+
+  // The skeleton has been replaced by the real thing.
+  dl.setAttribute('aria-busy', 'false');
 }
 
 async function refreshUsage() {
@@ -677,7 +704,10 @@ function showReply(text, model) {
     // to break is the one place it matters most.
     box.textContent = String(text ?? '');
   }
-  if (button) button.disabled = false;
+  if (button) {
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
+  }
   log(`reply from ${model}`);
 }
 
@@ -691,9 +721,19 @@ function showMessageError(message) {
   }
   if (error) {
     error.hidden = false;
-    error.textContent = String(message ?? 'something went wrong');
+    error.textContent = '';
+    // A calm, specific, readable failure -- never a raw technical string as the
+    // primary experience. The chip says what happened; the sentence says what to
+    // do about it.
+    const tag = document.createElement('span');
+    tag.className = 'chip chip--danger';
+    tag.textContent = 'Not sent';
+    error.append(tag, document.createTextNode(` ${String(message ?? 'something went wrong')}`));
   }
-  if (button) button.disabled = false;
+  if (button) {
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
+  }
   log(`message failed: ${message}`);
 }
 
@@ -715,6 +755,7 @@ if (sendButton) {
 
     // Disabled while in flight: a second click would be a second billed call.
     sendButton.disabled = true;
+    sendButton.setAttribute('aria-busy', 'true');
     try {
       await invoke('send_message', { prompt, model });
     } catch (reason) {
@@ -857,7 +898,14 @@ for (const button of document.querySelectorAll('.dev button[data-tool]')) {
 }
 
 refreshStatus();
-setInterval(refreshStatus, 5000);
+// Poll only while the window is visible: a hidden window has nothing to update,
+// and looking again the moment it comes back is what keeps it honest.
+setInterval(() => {
+  if (document.visibilityState === 'visible') refreshStatus();
+}, 5000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshStatus();
+});
 refreshConnect();
 refreshUsage();
 refreshGrants();

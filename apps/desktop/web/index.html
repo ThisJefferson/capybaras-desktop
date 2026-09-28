@@ -135,7 +135,11 @@
           <h2 class="section-title" id="usage-heading">This session</h2>
           <p class="section-note">Every figure is the shell's own count of real responses. The balance is the one number that is not this app's own spend, so it says which it is.</p>
         </div>
-        <dl class="readout" id="usage-figures" aria-live="polite"><dt>loading</dt><dd>-</dd></dl>
+        <dl class="readout" id="usage-figures" aria-live="polite" aria-busy="true">
+          <dt><span class="skeleton skeleton--label"></span></dt><dd><span class="skeleton skeleton--value"></span></dd>
+          <dt><span class="skeleton skeleton--label"></span></dt><dd><span class="skeleton skeleton--value"></span></dd>
+          <dt><span class="skeleton skeleton--label"></span></dt><dd><span class="skeleton skeleton--value"></span></dd>
+        </dl>
       </section>
 
       <!-- Remembered choices. They live in the state directory, so they survive a
@@ -159,7 +163,14 @@
            install gets diagnosed -- but demoted, because it is not the product. -->
       <details class="card-surface panel panel--quiet" id="machine">
         <summary class="section-title section-title--summary">This machine</summary>
-        <dl class="readout" id="status"><dt>loading</dt><dd>…</dd></dl>
+        <!-- A skeleton, not the word "loading": the space is reserved so nothing
+             shifts when the real figures arrive. aria-busy is cleared on the
+             first real read. -->
+        <dl class="readout" id="status" aria-busy="true">
+          <dt><span class="skeleton skeleton--label"></span></dt><dd><span class="skeleton skeleton--value"></span></dd>
+          <dt><span class="skeleton skeleton--label"></span></dt><dd><span class="skeleton skeleton--value"></span></dd>
+          <dt><span class="skeleton skeleton--label"></span></dt><dd><span class="skeleton skeleton--value"></span></dd>
+        </dl>
       </details>
 
       <!-- Test harness (not product UI) -->
@@ -176,6 +187,7 @@
           <button class="btn btn--quiet" data-tool="payment.send">payment.send (hard gate)</button>
         </div>
         <div class="log" id="log"></div>
+        <p class="console__empty" id="log-empty">Nothing has been logged yet. Run the acceptance test above, or press Send, and the trail will appear here.</p>
       </section>
     </main>
   </div>
