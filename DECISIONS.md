@@ -336,6 +336,40 @@ A skill suite is a **tool surface**, and the tool surface is the security bounda
 7. **The combination matters more than any single skill.** Read untrusted content + hold file access + send externally is an exfiltration path; any two are survivable. `readsUntrusted` is declared per skill and must taint the process. **How far to take taint tracking across a session is NOT YET DECIDED** — flagged rather than guessed, because a weak mechanism in a load-bearing place is worse than an acknowledged gap.
 
 **First suite: the PDF family** (`docs/skills.md` §3), classified read-silent, create-notify, mutate-confirm, and attach/decrypt at hard gate.
+## D21 - The gate governs actions, not speech (recorded from Jeff's conversation, 2026-09-27)
+
+**Where this came from.** Jeff talked with someone at a pharmacy about whether an AI
+should explain how to make things like thermite and napalm, when the same material sits
+in library books. His position: if it is on a shelf, restricting it is theatre. He asked
+me to keep it in mind for this product.
+
+**The architectural fact, which settles most of it.** Capybaras' gate is about
+*actions*: it interrupts `db.delete`, `fs.delete`, `payment.send`. It has never claimed
+to police what the agent will **explain**. So the honest scope statement is that this
+product does not filter content, and adding a filter would not strengthen the promised
+guarantee -- it would blur it. A local agent that can read your files has no business
+being a censor.
+
+**The line we do hold: explain versus build.** Describing chemistry is speech. Producing
+a working procedure tailored to what the user has to hand, plus target selection or
+evasion advice, is capability amplification -- and that is where a line is defensible.
+That line is about *facilitation*, not about knowledge.
+
+**The strongest argument against Jeff's position, recorded because it is not obvious:**
+the information is not the variable, the *friction* is. A library requires knowing what
+to look for, going there, and synthesising it. A model collapses all of that **and
+iterates** -- "mine did not ignite, why?" That is a tutor rather than a book: a
+difference in degree large enough to matter, not a difference in kind. It is worth
+knowing before arguing that nothing has changed.
+
+**Why this is written down rather than left implicit.** This is exactly where a product
+drifts. The next person handed a hard question will reach for a blocklist, and without a
+recorded reason they will be right to. The reasoning is the durable part, not the rule.
+
+**Explicitly NOT decided here:** whether *some* friction is worth adding -- a stated
+intent step, an age gate. That is a values call, it is Jeff's, and it is reversible. This
+entry records the scope of the *current* design, not a verdict on anyone else's.
+
 ## Standing constraints
 
 - **Never restart the Gateway** — owner-only.
