@@ -3,11 +3,11 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-28 08:05 EDT
-**Current phase:** **M5 — onboarding.** The PKCE flow, the credential store, the loopback listener, the session meter and now **the first model call** are all in the tree and tested. What remains in M5 is the spend cap, a free-model mode, and the one thing no test can do — a non-technical person reaching a real reply against their own account.
-**Next milestone:** M5 — a non-technical tester reaches a first reply unaided (the path exists now; a live key is the missing piece)
-**Spec:** `docs/protocol.md` · **Plan:** `docs/plans/next-steps.md` · **Design:** `docs/plans/M4-visual-design.md`
-**Recently decided:** D19 (grants fail closed) · D20 (skills must declare) · D21 (the gate governs actions, not speech) · D22 (the meter pushes) · D23 (the card states each hazard once) · D24 (only a human's answer lowers the sign)
+**Last updated:** 2026-09-28 08:40 EDT
+**Current phase:** **M5 — onboarding.** The PKCE flow, the credential store, the loopback listener, the session meter, the first model call, and now **the onboarding path walked end to end through the interface** are all in the tree and tested. What remains in M5 is a free-model mode, a decision about the spend cap (**D26** — there is no enforced cap, and even the display is not wired), and the one thing no test can do — a real reply against the user's own account.
+**Next milestone:** M5 — a non-technical tester reaches a first reply unaided (the path exists and is walked offline; a live key is the missing piece)
+**Spec:** `docs/protocol.md` · **Plan:** `docs/plans/next-steps.md` · **Design:** `docs/plans/M4-visual-design.md` · **Onboarding test:** `docs/onboarding-test.md`
+**Recently decided:** D19 (grants fail closed) · D20 (skills must declare) · D21 (the gate governs actions, not speech) · D22 (the meter pushes) · D23 (the card states each hazard once) · D24 (only a human's answer lowers the sign) · D25 (the model call lives in the shell) · D26 (the spend cap is display only — open)
 **Repo:** https://github.com/ThisJefferson/capybaras-desktop (public) · releases cut per milestone
 
 ---
@@ -17,6 +17,60 @@
 - **Building:** Capybaras — a one-install, safe-by-default desktop agent that asks before it acts. A herd of capybaras, Rio de Janeiro flavour.
 - **Ideal customer:** genuinely non-technical. Cloud API keys via OpenRouter OAuth. Free, donations, GitHub recognition.
 - **The promise:** *it will still break, just small, visibly, and undoably.*
+
+---
+
+## 2026-09-28 — the onboarding path is walked, and the cap question is settled
+
+Two items. The first proves M5's exit as far as this host can; the second answers
+the spend-cap question and records it rather than guessing.
+
+- **M5's exit, through the interface.** `npm run verify:onboarding` drives the real
+  `index.html`, `app.js`, `app.css` and `tokens.css` in headless Chrome over CDP,
+  with the real sidecar behind them, and the Tauri/OS bridge as the only
+  substitution — the pattern M4.7 set for the gate. 24 assertions, green. The
+  bridge is now shared by both harnesses (`harness-bridge.js`); it only moves bytes.
+  The scenario is documented in `docs/onboarding-test.md`.
+- **Two real defects, found by asserting what a person needs and watching the
+  assertion fail.** (1) A failed sign-in wrote its reason only to the developer
+  log, so the panel still read "Not connected yet." — a button that appeared to do
+  nothing. The reason now reaches the panel, in the shell's own words. (2) While
+  the sign-in ran, nothing on the panel said so; it now says a browser window has
+  opened and to come back. Both fixed in `app.js`, not in the test.
+- **The seam is asserted, not assumed.** The check reads the frontend and the
+  shell's Rust source and fails if the page listens for an event the shell never
+  mentions, or invokes a command the shell does not register (16 events, 10
+  commands). Copy-pasted names can no longer drift silently.
+- **No billable call.** Both OpenRouter calls the flow needs are answered from
+  fixtures; the live probe stays `#[ignore]`d.
+
+**The spend cap: display only — and not even that is wired.** No file enforces a
+limit: `chat::call` sends with no budget check (`apps/desktop/src-tauri/src/chat.rs:84`),
+`usage.rs` only accumulates and formats, and the `app.js` references are display.
+The one refusal that exists is the provider's own 402, relayed as a plain sentence.
+Worse, the display is unreachable: `set_credit` (`meter.rs:54`) has **no caller**, so
+`Snapshot.credit` is always `None` and the "left" row never renders. Nothing was
+implemented, because M5 §4 specifies a *provider-side* limit and there is no spec
+for the rest — recorded as **D26** with the evidence and what a decision must cover.
+
+**Tests:** 366 TypeScript across 14 files (unchanged); 140 Rust, with 5 live-network
+probes ignored (unchanged). `npm run verify` green — it now includes
+`verify:onboarding`; `verify:ui` and `verify:acceptance` green.
+
+**Honestly still unproven:**
+
+- **A first reply against the real OpenRouter account.** Unchanged, and not done by
+  instruction — it spends money. Connect → sign in → Send on an unlocked desktop, or
+  the ignored `live_api.rs` probe.
+- **The window.** No human has looked at the running Tauri window. This host cannot
+  display one (`docs/DEBUGGING.md`).
+- **The seam is asserted structurally, not executed.** The onboarding harness proves
+  the interface and asserts the command/event names against the shell; it does not
+  run the Rust path, and the payload field names (`models`/`default`, `text`/`model`)
+  are the one join neither side re-derives from the other. Closing it properly needs
+  the window this host cannot show.
+- **The spend cap.** Nothing enforces one, and the app does not show the one that
+  exists. See D26.
 
 ---
 
@@ -162,6 +216,9 @@ write without one. **Superseded later the same day: see "the first model call" a
 
 ## Done
 
+- **M5's onboarding path — verified through the interface.** `npm run verify:onboarding`
+  (24 assertions, green), the two defects it found fixed, and the scenario documented
+  in `docs/onboarding-test.md`. The spend cap answered honestly as D26.
 - `BUILD-PLAN.md` — packaging decision (Tauri + Node sidecar), phases, distribution, licensing, UI spec
 - `BRAND.md` — name, the herd, the four states, Rio visual language, copy deck
 - `mockup-main.svg` / `mockup-main.png` — interface mockup
@@ -184,7 +241,7 @@ write without one. **Superseded later the same day: see "the first model call" a
 
 ## In flight
 
-- **M5 — onboarding.** The credential store, the OAuth PKCE flow, the model catalog (fetched, sanitised and rendered), the loopback listener, the token exchange, the session meter, **and the first model call** are all in the tree and tested. Remaining: the spend cap, a free-model mode, and a live first reply.
+- **M5 — onboarding.** The credential store, the OAuth PKCE flow, the model catalog (fetched, sanitised and rendered), the loopback listener, the token exchange, the session meter, the first model call, **and the onboarding path verified end to end through the interface** (`npm run verify:onboarding`) are all in the tree and tested. Remaining: a free-model mode, a decision on the spend cap (D26), and a live first reply.
 - **M4's human step — the only one left.** A person looking at the running app in a real window. Rendering and the scenario are proven offscreen now (`npm run verify:ui`, `npm run verify:acceptance`); what this host cannot do is display a window at all.
 
 ## Blocked
@@ -204,9 +261,10 @@ write without one. **Superseded later the same day: see "the first model call" a
 
 ## Next three actions
 
-1. **A live first reply (M5).** The path is built and tested offline; what is missing
-   is one real key and one real call — Connect, Load models, Send. Then the spend cap
-   and a free-model mode, which is what a non-technical tester actually needs.
+1. **A live first reply (M5).** The path is built, walked offline and verified
+   through the interface; what is missing is one real key and one real call —
+   Connect, sign in, Send. Then a free-model mode, and a decision on the spend cap
+   (D26: nothing enforces one today, and the app does not show the one that exists).
 2. **Look at the real window, and click the scenario by hand.** The offscreen checks pass and the defects they found are fixed; what remains is a person on an unlocked desktop running `run.cmd` and clicking through the gate — which is the milestone gate itself.
 3. **Keep cutting a release per milestone with test results** (Jeff's standing request).
 
