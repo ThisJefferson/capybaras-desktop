@@ -440,6 +440,55 @@ async function refreshGrants() {
 /* The first reply                                                     */
 /* ------------------------------------------------------------------ */
 
+/** The model list as the shell last sent it, so a change can update the detail. */
+let catalogModels = [];
+
+/**
+ * The detail link, but only if it is the link this product builds.
+ *
+ * The shell already builds `https://openrouter.ai/<id>` locally, never from the
+ * API's `links.details`. This is the second check: the interface refuses to put
+ * an href in the document unless it points at that fixed host. Belt and braces on
+ * the one field that becomes an attribute rather than text.
+ */
+function safeModelLink(value) {
+  const link = typeof value === 'string' ? value : '';
+  return link.startsWith('https://openrouter.ai/') ? link : '';
+}
+
+/**
+ * Which API serves the chosen model, and where to read about it.
+ *
+ * Both are remote-derived -- the provider from the id prefix, the link from the
+ * id -- and both are rendered as text, never as markup (T3/T4). The link's href
+ * is the single attribute set from that data, and it is checked first.
+ */
+function renderModelDetail() {
+  const select = $('model-choice');
+  const detail = $('model-detail');
+  if (!select || !detail) return;
+
+  const chosen = catalogModels.find((model) => String(model.id ?? '') === select.value);
+  detail.textContent = '';
+  if (!chosen) return;
+
+  const provider = String(chosen.provider ?? '');
+  if (provider.length > 0) {
+    detail.append(document.createTextNode(`API: ${provider}`));
+  }
+
+  const href = safeModelLink(chosen.link);
+  if (href) {
+    if (detail.textContent.length > 0) detail.append(document.createTextNode(' \u00b7 '));
+    const link = document.createElement('a');
+    link.href = href;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = 'Open on OpenRouter';
+    detail.append(link);
+  }
+}
+
 /**
  * The model list, as the shell fetched it.
  *
@@ -453,6 +502,7 @@ function renderModels(payload) {
   const state = $('models-state');
   if (!select || !payload || !Array.isArray(payload.models)) return;
 
+  catalogModels = payload.models;
   select.textContent = '';
   for (const model of payload.models) {
     const option = document.createElement('option');
@@ -464,6 +514,8 @@ function renderModels(payload) {
   // guess which model is the sensible first pick.
   if (payload.default) select.value = payload.default;
   modelsLoaded = true;
+  // The API and a link for the chosen model, so picking one is informed.
+  renderModelDetail();
 
   if (state) {
     const count = payload.models.length;
@@ -557,6 +609,12 @@ if (sendButton) {
 const modelsButton = $('btn-models');
 if (modelsButton) {
   modelsButton.addEventListener('click', loadModels);
+}
+
+// Picking a different model updates the API and the detail link beside the list.
+const modelChoice = $('model-choice');
+if (modelChoice) {
+  modelChoice.addEventListener('change', renderModelDetail);
 }
 
 /* ------------------------------------------------------------------ */

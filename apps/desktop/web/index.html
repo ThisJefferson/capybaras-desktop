@@ -37,6 +37,11 @@
       <select id="model-choice"></select>
       <button class="btn btn--secondary" id="btn-models">Load models</button>
     </div>
+    <!-- Which API serves the chosen model, and where to read about it. Both come
+         from the shell: the provider is derived from the id prefix and the link is
+         built locally, and both are written as text (the one attribute, the href,
+         is checked against a fixed host) -- remote data never becomes markup. -->
+    <p class="hint" id="model-detail"></p>
     <label for="ask-prompt">Your message</label>
     <textarea id="ask-prompt" rows="3" placeholder="Say something"></textarea>
     <button class="btn btn--primary" id="btn-send">Send</button>
