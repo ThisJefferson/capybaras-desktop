@@ -56,6 +56,61 @@ dd {
   margin: 0 0 var(--space-2);
 }
 
+/* ---------------- the first reply ---------------- */
+
+/* One message, one answer. The same panel shape as the readouts above, so it
+   reads as one more part of the app rather than a different product. */
+.ask {
+  margin-top: var(--space-6);
+}
+.ask h2 {
+  font-size: var(--typography-size-lg);
+  margin: 0 0 var(--space-2);
+}
+.ask__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.ask label {
+  display: block;
+  margin-top: var(--space-2);
+  color: var(--color-semantic-text-secondary);
+  font-size: var(--typography-size-sm);
+}
+.ask select,
+.ask textarea {
+  width: 100%;
+  font-family: var(--typography-family-ui);
+  font-size: var(--typography-size-sm);
+  color: var(--color-semantic-text-primary);
+  background: var(--color-semantic-surface-raised);
+  border: 1px solid var(--color-semantic-border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+}
+.ask textarea {
+  margin-top: var(--space-1);
+  resize: vertical;
+}
+.ask .btn {
+  margin-top: var(--space-2);
+}
+
+/* Model output. `pre-wrap` keeps the reply's own line breaks without ever
+   interpreting it as markup; `anywhere` stops one long token from widening the
+   window. Rendered with textContent, so it is text and stays text (T3/T4). */
+.reply {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-semantic-surface-sunken);
+  border: 1px solid var(--color-semantic-border-subtle);
+  border-radius: var(--radius-md);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* ---------------- remembered choices ---------------- */
 
 /* A permission that is easy to withdraw is one people are willing to give, so

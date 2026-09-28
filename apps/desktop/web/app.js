@@ -130,6 +130,10 @@ async function refreshConnect() {
     state.className = status.connected ? 'hint ok' : 'hint';
     button.hidden = status.connected;
     button.disabled = status.connected;
+
+    // A user who connected in an earlier session should not have to know that a
+    // "Load models" button exists before they can get an answer.
+    if (status.connected && !modelsLoaded) loadModels();
   } catch (error) {
     state.textContent = `Could not check the connection: ${error}`;
     state.className = 'hint bad';
@@ -417,6 +421,129 @@ async function refreshGrants() {
 }
 
 /* ------------------------------------------------------------------ */
+/* The first reply                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The model list, as the shell fetched it.
+ *
+ * THE NAME IS REMOTE TEXT. It comes from OpenRouter and is rendered here, which
+ * makes it attacker-influenced content in a trusted position — the same shape as
+ * the approval card (docs/threat-model.md, T4). So every option is written with
+ * `textContent` and never as markup. The id is opaque and is sent back verbatim.
+ */
+function renderModels(payload) {
+  const select = $('model-choice');
+  const state = $('models-state');
+  if (!select || !payload || !Array.isArray(payload.models)) return;
+
+  select.textContent = '';
+  for (const model of payload.models) {
+    const option = document.createElement('option');
+    option.value = String(model.id ?? '');
+    option.textContent = String(model.name ?? model.id ?? '');
+    select.append(option);
+  }
+  // The shell chose the default over the real list, so the interface never has to
+  // guess which model is the sensible first pick.
+  if (payload.default) select.value = payload.default;
+  modelsLoaded = true;
+
+  if (state) {
+    const count = payload.models.length;
+    state.textContent = count === 1 ? '1 model available.' : `${count} models available.`;
+    state.className = 'hint';
+  }
+  log(`models loaded: ${payload.models.length}`);
+}
+
+function showModelsError(message) {
+  const state = $('models-state');
+  if (state) {
+    state.textContent = String(message ?? 'the model list could not be loaded');
+    state.className = 'hint bad';
+  }
+  log(`model list failed: ${message}`);
+}
+
+async function loadModels() {
+  if (!invoke) return;
+  try {
+    // The list arrives as an event; only the dispatch is awaited.
+    await invoke('fetch_models');
+  } catch (error) {
+    showModelsError(String(error));
+  }
+}
+
+/** The reply, or a plain-words failure. Never both on screen at once. */
+function showReply(text, model) {
+  const box = $('ask-reply');
+  const error = $('ask-error');
+  const button = $('btn-send');
+  if (error) {
+    error.hidden = true;
+    error.textContent = '';
+  }
+  if (box) {
+    box.hidden = false;
+    // Model output: text only, always. The one place that rule is most tempting
+    // to break is the one place it matters most.
+    box.textContent = String(text ?? '');
+  }
+  if (button) button.disabled = false;
+  log(`reply from ${model}`);
+}
+
+function showMessageError(message) {
+  const box = $('ask-reply');
+  const error = $('ask-error');
+  const button = $('btn-send');
+  if (box) {
+    box.hidden = true;
+    box.textContent = '';
+  }
+  if (error) {
+    error.hidden = false;
+    error.textContent = String(message ?? 'something went wrong');
+  }
+  if (button) button.disabled = false;
+  log(`message failed: ${message}`);
+}
+
+const sendButton = $('btn-send');
+if (sendButton) {
+  sendButton.addEventListener('click', async () => {
+    const prompt = $('ask-prompt').value;
+    const model = $('model-choice').value;
+    const error = $('ask-error');
+    const box = $('ask-reply');
+    if (error) {
+      error.hidden = true;
+      error.textContent = '';
+    }
+    if (box) {
+      box.hidden = true;
+      box.textContent = '';
+    }
+
+    // Disabled while in flight: a second click would be a second billed call.
+    sendButton.disabled = true;
+    try {
+      await invoke('send_message', { prompt, model });
+    } catch (reason) {
+      // A refusal made before anything was sent — not connected, nothing typed.
+      showMessageError(String(reason));
+    }
+  });
+}
+
+const modelsButton = $('btn-models');
+if (modelsButton) {
+  modelsButton.addEventListener('click', loadModels);
+}
+
+/* ------------------------------------------------------------------ */
 /* Events pushed from the shell                                       */
 /* ------------------------------------------------------------------ */
 
@@ -430,6 +557,11 @@ if (listen) {
   listen('capybaras://agents', (e) => renderHerd(e.payload.agents));
   // Every model call reports itself, so the meter is pushed rather than polled.
   listen('capybaras://usage', (e) => renderUsage(e.payload));
+  // The first reply: the model list as fetched, and the one answer it produces.
+  listen('capybaras://models', (e) => renderModels(e.payload));
+  listen('capybaras://models-failed', (e) => showModelsError(e.payload.message));
+  listen('capybaras://reply', (e) => showReply(e.payload.text, e.payload.model));
+  listen('capybaras://message-failed', (e) => showMessageError(e.payload.message));
   // The remembered choices are revocable here, because a permission you cannot
   // withdraw is not one you really gave.
   listen('capybaras://grants', (e) => renderGrants(e.payload.grants));
@@ -441,6 +573,9 @@ if (listen) {
   listen('capybaras://connect-connected', (e) => {
     log(`connected — a key is stored as "${e.payload.credentialName}" in Windows`);
     refreshConnect();
+    // Straight on to the model list: reaching a first reply must not depend on
+    // knowing that a "Load models" button exists.
+    loadModels();
   });
   listen('capybaras://connect-failed', (e) => {
     log(`sign-in failed (${e.payload.reason}): ${e.payload.detail}`);
@@ -453,6 +588,9 @@ if (listen) {
 /* ------------------------------------------------------------------ */
 /* Test harness — no agent is wired up yet, so propose by hand        */
 /* ------------------------------------------------------------------ */
+
+/** Whether the model list has been fetched once already. */
+let modelsLoaded = false;
 
 /* ------------------------------------------------------------------ */
 /* Acceptance test harness                                            */

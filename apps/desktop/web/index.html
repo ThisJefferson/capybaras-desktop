@@ -25,6 +25,26 @@
     </p>
   </section>
 
+  <!-- The first reply. ONE message, ONE answer: this is the milestone, not a chat
+       product. Every model name here comes from OpenRouter and is rendered as
+       text only (T3/T4) -- it is attacker-influenced text in a trusted position,
+       the same shape as the approval card. -->
+  <section class="ask" id="ask" aria-label="Ask Capybaras">
+    <h2>Ask Capybaras</h2>
+    <p class="hint" id="models-state">The model list has not been loaded yet.</p>
+    <div class="ask__row">
+      <label for="model-choice">Model</label>
+      <select id="model-choice"></select>
+      <button class="btn btn--secondary" id="btn-models">Load models</button>
+    </div>
+    <label for="ask-prompt">Your message</label>
+    <textarea id="ask-prompt" rows="3" placeholder="Say something"></textarea>
+    <button class="btn btn--primary" id="btn-send">Send</button>
+    <p class="hint" id="ask-hold">Nothing is sent until you press Send.</p>
+    <div class="reply" id="ask-reply" hidden></div>
+    <p class="hint bad" id="ask-error" hidden></p>
+  </section>
+
   <!-- The meter. Read from the shell once on load, then pushed for every
        finished model call - no polling, and nothing here is an estimate. -->
   <section class="usage" id="usage" aria-label="What this session has spent">
