@@ -18,6 +18,7 @@ pub mod exchange;
 pub mod integrity;
 pub mod loopback;
 pub mod oauth;
+pub mod usage;
 
 pub struct AppState {
     sidecar: Mutex<Option<Sidecar>>,
