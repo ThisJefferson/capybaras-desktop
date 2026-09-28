@@ -439,6 +439,59 @@ the reason written beside it, so the change is visible rather than silent.
 
 ---
 
+## D25 — The first model call lives in the shell, and the catalog is mirrored rather than shared
+**2026-09-28**
+
+There are now model calls in the app. This records where they sit, and pays for the
+one real cost of putting them there.
+
+**Decision: the SHELL (Rust) makes the provider calls.** Not the sidecar, not the
+webview.
+
+The key is authority, and M5-onboarding.md §3 settles where it may go: the shell
+holds it, and the token is never to reach the protocol stream — a token on the wire
+is a token the sidecar can then keep. The sidecar is the component that runs
+alongside untrusted content; the webview is the component an XSS reaches (T3). So
+the call is made by the smallest trusted surface available, using the same OS-TLS
+`reqwest` client the token exchange already uses.
+
+**The reporting seam is `chat::perform`, and it is structural.** It makes the
+request, then reports through one closure — on success and on failure alike — with
+`record_model_call` as the destination. D22 requires a failed call to be reported,
+because a call that consumed nothing is itself the signal; making the report part of
+the only path through the function is how that stops being something a later caller
+can forget. A test drives the whole composition (`report_of` → `record_and_notify`)
+against a stub, so "the meter moves even when the call failed" is proven with no
+network and no money.
+
+**The catalog is parsed twice, deliberately, and that is a real cost.**
+
+- `src/onboarding/models.ts` is the catalog's display contract and it is pure: it
+takes a `fetch`, so it can be tested with no network. It has no notion of a key.
+- The fetch needs the key, and the key cannot leave the shell, so the parsing that
+  consumes the response has to exist on the Rust side: `src/catalog.rs`.
+- The mirror is faithful on purpose — the same bounds (80 / 240), the same
+  control-character flattening, the same display-fields-only guarantee, the same
+  "an empty catalog is an error, not an empty menu" rule. The structural half is
+  asserted in **both** languages (`the_catalog_exposes_display_fields_only` in Rust,
+  "exposes display fields only" in TypeScript), so the property that matters cannot
+  drift silently.
+
+**Rejected: the sidecar making the call** — it would need the key, which is the
+whole threat T12 names. **Rejected: the frontend making the call** — it would need
+the key, from the origin T3 calls the likeliest foothold. **Rejected: shell fetches,
+sidecar parses** — that puts the key or the raw provider body on the protocol
+stream, which §3 forbids. **Rejected: a curated shortlist that lives only in
+TypeScript** — the shell must choose a default from the live list, so the four
+preferred ids travel with it, in the same order.
+
+**Honest limit.** Two implementations of one convention can drift. The constants
+and the structural test are duplicated so drift fails loudly rather than silently,
+but a single source would be better and is not available while the key lives on the
+Rust side. If the call ever moves, `catalog.rs` should be deleted, not kept.
+
+---
+
 ## Standing constraints
 
 - **Never restart the Gateway** — owner-only.
