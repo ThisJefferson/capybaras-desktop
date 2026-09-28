@@ -193,3 +193,26 @@ their OpenRouter account and is the one control the agent cannot route around.
    `400 invalid code_challenge_method` (the two steps disagree),
    `403 invalid code or code_verifier`, `403 code expired` (restart the flow),
    `405` (must be POST over HTTPS).
+
+---
+
+## 9. Recorded 2026-09-28 — NOT built, deliberately
+
+**The user must understand the API before they use it.** Jeff's words: the OpenRouter
+link has to be *"accessible and easy"* — the user needs to know **how to get to the API,
+how to connect it, what the API does, what it means, how much it costs, why it costs
+money, and basically how it works**, via something clickable or an available FAQ, *"and
+that way they are aware of what they are doing."*
+
+**Explicitly deferred**, in the same breath: *"but don't do anything to that yet just
+keep that in mind."* Recorded here because the file is the memory.
+
+**What exists today is not this.** Each model row shows its API (the provider) and a link
+to that model's page on OpenRouter. That is a *link*. It is not an *explanation*, and the
+gap between those two is the whole item.
+
+**Open when it is picked up:** whether this is an FAQ panel, a first-run explainer, an
+inline disclosure on the model picker, or a help page — and where the cost figures come
+from. Note that "how much does it cost" can be partly **live** rather than prose: the
+account balance is already fetched and rendered, so the explanation can show the real
+number beside its own explanation.
