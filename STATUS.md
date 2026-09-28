@@ -3,7 +3,7 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-28 08:43 EDT
+**Last updated:** 2026-09-28 10:55 EDT
 **Current phase:** **M5 — onboarding.** The PKCE flow, the credential store, the loopback listener, the session meter, the first model call, and now **the onboarding path walked end to end through the interface** are all in the tree and tested. What remains in M5 is a free-model mode, a decision about the spend cap (**D26** — there is no enforced cap; the account-balance readout is now wired, the cap itself is open), and the one thing no test can do — a real reply against the user's own account.
 **Next milestone:** M5 — a non-technical tester reaches a first reply unaided (the path exists and is walked offline; a live key is the missing piece)
 **Spec:** `docs/protocol.md` · **Plan:** `docs/plans/next-steps.md` · **Design:** `docs/plans/M4-visual-design.md` · **Onboarding test:** `docs/onboarding-test.md`
@@ -17,6 +17,72 @@
 - **Building:** Capybaras — a one-install, safe-by-default desktop agent that asks before it acts. A herd of capybaras, Rio de Janeiro flavour.
 - **Ideal customer:** genuinely non-technical. Cloud API keys via OpenRouter OAuth. Free, donations, GitHub recognition.
 - **The promise:** *it will still break, just small, visibly, and undoably.*
+
+---
+
+## 2026-09-28 — the catalogue says which API, and where to read about it
+
+One bounded change to the model catalogue. Measured live against the account
+first: the list returns **458 entries**, and the characterisation set the scope.
+
+- **Six entries cannot serve a completion, and are now excluded.** Every one of
+the six with `prompt`/`completion` = `-1` is an OpenRouter router or meta entry
+(`openrouter/auto`, `openrouter/fusion`, `typesafe/jev-router`, …) — a dispatch
+alias, not a model. The rule is deliberately narrow and commented as such: **only
+a negative price disqualifies.** The 21 genuinely-free entries price at 0 and
+stay; a missing or unreadable price is not evidence either way. This is not
+quality filtering.
+- **The provider is derived, not passed through.** `top_provider` has no name
+field, so it cannot be shown. The API now comes from the id prefix — the common
+prefixes mapped (`google` → Google, `x-ai` → xAI, `meta-llama` → Meta, …) and
+anything unmapped shown raw but capitalised. 63 prefixes exist; hand-mapping all
+of them would be a list to maintain against a catalogue that churns.
+- **The link is built locally, never taken from the response.** `links.details`
+is a relative API path, so it was never usable as a link anyway. The href is
+`https://openrouter.ai/<id>`, and the id is remote data: it is charset-restricted
+to what an OpenRouter id uses (`A-Za-z0-9._~:@/-`) and length-bounded before it
+becomes part of a URL, then dropped entirely if nothing safe is left. A remote
+value can never choose the host or the scheme.
+- **Both render in the model list.** A detail line under the picker names the
+chosen model's API and links to its OpenRouter page; it updates on selection. The
+provider is written as text, the href is checked against the fixed host a second
+time in the interface, and nothing becomes markup.
+- **No key field was added — deliberately.** `models.ts` states the decision: the
+only models listed are those reachable through the OpenRouter OAuth key, *and
+therefore no pasted API keys anywhere in the product*. A per-provider connect
+flow would reopen a closed decision (it is a settings menu that writes someone
+else's credential to disk), so it was not built. If it is ever wanted, it is a
+decision to take first, not a field to add.
+
+**The catalogue output is still display-only.** The two new fields are the same
+kind of thing as the others — what a model *is*, and where to read about it — and
+the structural test was updated rather than relaxed: it now pins the exact key set
+(`contextLength, description, id, link, name, provider`) in **both** languages, so
+no policy field can appear without failing loudly.
+
+**A live first reply was NOT made.** The shipped default may now differ from a
+router the catalogue used to list, but nothing here spent money: every test runs
+against a stub, and the ignored live probes were not run.
+
+**Tests:** **382 TypeScript across 14 files** (was 366 — 16 new: five for the
+filter, five for the provider, six for the link); **156 Rust** (was 140 last
+entry, 151 at this session's start; **five new tests and one relaxed assertion**),
+with the same **5 live-network probes ignored**. `npm run verify` green — the
+onboarding harness still passes (24 assertions) with the detail line in place.
+The filter was watched to fail before it passed: with the exclusion removed, the
+new "drops a router whose pricing is negative" test fails and the free-model test
+still passes.
+
+**Honestly still unproven:**
+
+- **The link in a running window.** Tauri v2 is configured with no opener plugin,
+so an external `target="_blank"` may be blocked inside the real webview. The link
+and its href are asserted under the browser harness; opening it externally from
+the Tauri window needs an opener path (a plugin, or a shell command) and that was
+**deliberately not added** here — a new shell command widens the capability
+surface, which is a decision of its own, not part of this change.
+- **A live first reply against the real account.** Unchanged and not done — it
+spends money.
 
 ---
 
