@@ -3,8 +3,8 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-28 11:06 EDT
-**Current phase:** **M5 — onboarding.** The PKCE flow, the credential store, the loopback listener, the session meter, the first model call, and now **the onboarding path walked end to end through the interface** are all in the tree and tested. What remains in M5 is a free-model mode, a decision about the spend cap (**D26** — there is no enforced cap; the account-balance readout is now wired, the cap itself is open), and the one thing no test can do — a real reply against the user's own account.
+**Last updated:** 2026-09-28 11:16 EDT
+**Current phase:** **M5 — onboarding.** The PKCE flow, the credential store, the loopback listener, the session meter, the first model call, **the onboarding path walked end to end through the interface**, and now **the explanation a non-technical person meets before they connect** are all in the tree and tested. What remains in M5 is a free-model mode, a decision about the spend cap (**D26** — there is no enforced cap; the account-balance readout is now wired, the cap itself is open), and the one thing no test can do — a real reply against the user's own account.
 **Next milestone:** M5 — a non-technical tester reaches a first reply unaided (the path exists and is walked offline; a live key is the missing piece)
 **Spec:** `docs/protocol.md` · **Plan:** `docs/plans/next-steps.md` · **Design:** `docs/plans/M4-visual-design.md` · **Onboarding test:** `docs/onboarding-test.md`
 **Recently decided:** D19 (grants fail closed) · D20 (skills must declare) · D21 (the gate governs actions, not speech) · D22 (the meter pushes) · D23 (the card states each hazard once) · D24 (only a human's answer lowers the sign) · D25 (the model call lives in the shell) · D26 (the spend cap is display only — open; the balance readout is now wired)
@@ -17,6 +17,44 @@
 - **Building:** Capybaras — a one-install, safe-by-default desktop agent that asks before it acts. A herd of capybaras, Rio de Janeiro flavour.
 - **Ideal customer:** genuinely non-technical. Cloud API keys via OpenRouter OAuth. Free, donations, GitHub recognition.
 - **The promise:** *it will still break, just small, visibly, and undoably.*
+
+---
+
+## 2026-09-28 — the explanation lands before the Connect button
+
+M5 section 9 asked for the person about to hand this app a paid account to
+understand what that means *first*. It was deferred; it is now built, frontend
+only, inside the conventions the polish pass had just set. No backend, no agent
+logic, no new fetching.
+
+**Where it lives.** One overlay (`#help`) with the approval card's own
+conventions — `role="dialog"`, `aria-modal`, focus moved in and returned to the
+control that opened it, Escape to close, a CSS-driven sibling scrim, and a bottom
+sheet on a phone. Reached from a first-run card inside the connect panel (offered
+only while no key is connected) and from a button beside the model picker. **It
+opens on demand and never on its own**: there is no honest way to tell a real
+first run from a harness run, and an auto-opening modal would cover the window on
+launch and sit in every review frame.
+
+**What it says.** Six short sections, one per question — what OpenRouter is; what
+happens when you send; how to connect; how much it costs; why it costs money; and
+why the balance is the whole account's. Plain, warm, short sentences, per
+`BRAND.md` section 6.
+
+**Cost is partly live.** "How much it costs" carries one real figure — the same
+balance the meter shows — filled from the same `usage_status` snapshot, with
+`textContent` only. With no balance read, the line is hidden rather than guessed
+at. The free-model count is deliberately **not** quoted: prices never reach the
+frontend, so the app has no measured figure and says only "some models are free".
+
+**Nothing was reopened.** No new command, no new event (the seam check passes
+unchanged), no input of any kind (so "nowhere to paste a key" still holds), and
+one link, to OpenRouter's own page — no third-party signup and no key-creation
+path.
+
+**The gates.** `npm run verify` (382 tests, typecheck, tokens, sidecar,
+onboarding) green; `verify:ui` and `verify:acceptance` PASSED. No test was deleted
+or weakened, and no harness assertion was loosened.
 
 ---
 
