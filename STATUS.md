@@ -3,9 +3,9 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-28 02:47 EDT
-**Current phase:** **M5 — onboarding.** M4.1–M4.7 are built, and M4 is now proven at the interface: the card renders and was reviewed, and the Replit scenario halts and waits for a click when driven through the real frontend. What remains in M4 is the one thing this machine cannot do — a human looking at the real Tauri window.
-**Next milestone:** M5 — a non-technical tester reaches a first reply unaided
+**Last updated:** 2026-09-28 08:05 EDT
+**Current phase:** **M5 — onboarding.** The PKCE flow, the credential store, the loopback listener, the session meter and now **the first model call** are all in the tree and tested. What remains in M5 is the spend cap, a free-model mode, and the one thing no test can do — a non-technical person reaching a real reply against their own account.
+**Next milestone:** M5 — a non-technical tester reaches a first reply unaided (the path exists now; a live key is the missing piece)
 **Spec:** `docs/protocol.md` · **Plan:** `docs/plans/next-steps.md` · **Design:** `docs/plans/M4-visual-design.md`
 **Recently decided:** D19 (grants fail closed) · D20 (skills must declare) · D21 (the gate governs actions, not speech) · D22 (the meter pushes) · D23 (the card states each hazard once) · D24 (only a human's answer lowers the sign)
 **Repo:** https://github.com/ThisJefferson/capybaras-desktop (public) · releases cut per milestone
@@ -17,6 +17,71 @@
 - **Building:** Capybaras — a one-install, safe-by-default desktop agent that asks before it acts. A herd of capybaras, Rio de Janeiro flavour.
 - **Ideal customer:** genuinely non-technical. Cloud API keys via OpenRouter OAuth. Free, donations, GitHub recognition.
 - **The promise:** *it will still break, just small, visibly, and undoably.*
+
+---
+
+## 2026-09-28 — the first model call, and a reply can be reached
+
+The gap this file named at 02:47 — *"there are no model calls in the app yet"* — is
+closed. One bounded item: the smallest honest path from a connected key to a first
+reply.
+
+- **The shell makes the call.** `src/http.rs` (the transport seam), `src/catalog.rs`
+  (the model list), `src/chat.rs` (one completion). Rust — not the sidecar and not
+  the frontend — because the key is authority and must not cross the protocol
+  stream (T12, M5-onboarding.md §3). Recorded as D25.
+- **The catalog follows `models.ts` rather than inventing a convention.** The same
+  bounds (80 / 240), the same control-character flattening, the same
+  display-fields-only guarantee, the same "an empty catalog is an error, not an
+  empty menu". The structural half is asserted in **both** languages, so the
+  property that keeps model choice off the gate cannot drift silently.
+- **One completion, bounded.** One request, one reply, `max_tokens` 256, prompt
+  capped at 4,000 characters. No history. No streaming — and absent on purpose:
+  `usage.rs` names the trap where a stream without a usage block reads as zero.
+- **The meter's seam is now exercised by a real caller.** `chat::perform` reports
+  every finished call through one closure, and that closure is
+  `record_model_call`. A **failed** call reports zeros rather than nothing (D22) —
+  asserted rather than assumed, by driving `report_of` → `record_and_notify` against
+  a stub.
+- **Errors are plain sentences.** No status code, no provider body, no interpolated
+  transport error reaches the screen — swept across thirteen refusal statuses and a
+  transport failure. The out-of-credit sentence gained a next step because the test
+  demanded one (it originally stated the cause and left the reader there).
+- **The interface renders the list and the reply with `textContent` only**, and the
+  model list is loaded automatically once a key is present, so reaching a reply does
+  not depend on discovering that a "Load models" button exists.
+
+**Tests:** 366 TypeScript across 14 files (unchanged); **140 Rust, with 5 live-network
+probes ignored** (was 119 with 4). `npm run verify` green; `npm run verify:ui` passed
+(6 agents, card present, tokens resolved); `npm run verify:acceptance` green — the
+card, the herd, the wait, the click, and Enter-is-safe all unchanged by the new
+panels.
+
+**What this proves, and how — without spending anything.**
+
+- A first reply is now **reachable in the code path**: connect → the shell loads
+  `/models` with the stored key → the interface shows the list → Send runs one
+  completion → the reply is shown and the meter moves.
+- **It was NOT proven by a live billable call.** Every model-call test runs offline
+  against a stub. The one live probe
+  (`live_api.rs::probe_the_first_reply_through_the_apps_own_path`) is `#[ignore]`d and
+  **was not run**. So what is proven is the request that gets built, the parsing of a
+  realistic reply, the plain handling of every failure, and the meter moving — not
+  that OpenRouter accepts a real key today.
+
+**Honestly still unproven:**
+
+- **A first reply against the real OpenRouter account.** It needs a connected key and
+  spends a small amount; not done here, by instruction. Either run
+  `cargo test --test live_api -- --ignored --nocapture` in `apps/desktop/src-tauri`,
+  or click Connect → Load models → Send in the app.
+- **The window.** `verify:ui` and `verify:acceptance` are green with the new panels in
+  place, but no human has looked at the running Tauri window. That is M4's oldest open
+  item and it is unchanged.
+- **"One call at a time" is the interface's guard, not the shell's.** The Send button
+  is disabled while a call is in flight; the shell holds no lock, so a hostile page
+  able to invoke twice could start two billed calls. Cheap to close when the Tauri
+  capability scoping in T3 is done.
 
 ---
 
@@ -72,7 +137,9 @@ Two pieces of wiring, both previously "exists but unreachable".
 
 **Honest gaps, stated rather than implied:**
 
-- There are **no model calls in the app yet**, so nothing exercises the meter at runtime. The seam and its tests exist ahead of the first caller, deliberately, so the first model call cannot be written without one.
+- There were **no model calls in the app yet** at that point, so the seam and its tests
+existed ahead of the first caller — which is what made the first model call impossible to
+write without one. **Superseded later the same day: see "the first model call" above.**
 - The new panels are covered by typecheck, the DOM smoke test and `check-tokens` — **not** by a screenshot. M4.4's "look at it in a real window" item is still open, and it is now the oldest open item in M4.
 
 ---
@@ -117,7 +184,7 @@ Two pieces of wiring, both previously "exists but unreachable".
 
 ## In flight
 
-- **M5 — onboarding.** The credential store, the OAuth PKCE flow, the model catalog, the loopback listener, the token exchange and the session meter are all in the tree and tested. Remaining: reach a first reply, with a spend cap and a free-model mode.
+- **M5 — onboarding.** The credential store, the OAuth PKCE flow, the model catalog (fetched, sanitised and rendered), the loopback listener, the token exchange, the session meter, **and the first model call** are all in the tree and tested. Remaining: the spend cap, a free-model mode, and a live first reply.
 - **M4's human step — the only one left.** A person looking at the running app in a real window. Rendering and the scenario are proven offscreen now (`npm run verify:ui`, `npm run verify:acceptance`); what this host cannot do is display a window at all.
 
 ## Blocked
@@ -137,7 +204,9 @@ Two pieces of wiring, both previously "exists but unreachable".
 
 ## Next three actions
 
-1. **Reach a first reply (M5).** The pieces are in the tree; the milestone is a non-technical tester getting an answer without help — spend cap on, provider menu hidden behind Advanced.
+1. **A live first reply (M5).** The path is built and tested offline; what is missing
+   is one real key and one real call — Connect, Load models, Send. Then the spend cap
+   and a free-model mode, which is what a non-technical tester actually needs.
 2. **Look at the real window, and click the scenario by hand.** The offscreen checks pass and the defects they found are fixed; what remains is a person on an unlocked desktop running `run.cmd` and clicking through the gate — which is the milestone gate itself.
 3. **Keep cutting a release per milestone with test results** (Jeff's standing request).
 
