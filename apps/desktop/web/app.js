@@ -151,6 +151,7 @@ async function refreshConnect() {
   if (!invoke) return;
   const state = $('connect-state');
   const button = $('btn-connect');
+  const intro = $('before-connect');
   if (!state || !button) return;
   // Any settled answer clears the busy spinner; the button's own disabled and
   // hidden state then says whether there is anything left to do.
@@ -164,12 +165,16 @@ async function refreshConnect() {
         'It will not store one anywhere else.';
       state.className = 'hint bad';
       button.hidden = true;
+      if (intro) intro.hidden = true;
       return;
     }
     state.textContent = status.connected ? 'Connected.' : 'Not connected yet.';
     state.className = status.connected ? 'hint ok' : 'hint';
     button.hidden = status.connected;
     button.disabled = status.connected;
+    // The first-run explanation is offered while there is still something to
+    // decide, and withdrawn once a key is connected (M5 section 9).
+    if (intro) intro.hidden = status.connected;
 
     // A user who connected in an earlier session should not have to know that a
     // "Load models" button exists before they can get an answer.
@@ -345,6 +350,91 @@ document.addEventListener('keydown', (event) => {
 });
 
 /* ------------------------------------------------------------------ */
+/* The explanation overlay                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * M5 section 9: the person is about to hand this app access to a paid account,
+ * and they should understand that before they connect rather than after.
+ *
+ * The overlay follows the card's conventions exactly — focus moves in, Escape
+ * closes it, focus returns, and the page behind it holds still — but it is
+ * opened on demand only. It is never opened on its own, so it can never appear
+ * between someone and the thing they were doing.
+ */
+const HELP_FOCUSABLE = 'button:not(:disabled), a[href], summary, [href]';
+
+/** Where focus was before the overlay opened, so it can go back after. */
+let helpFocusRestore = null;
+
+function openHelp(trigger) {
+  const help = $('help');
+  if (!help || !help.hidden) return;
+  // Prefer the control that opened it, so focus always comes back to where the
+  // person was — whether they used the mouse, the keyboard, or an assistive
+  // device. Falling back to whatever was focused covers any other caller.
+  helpFocusRestore =
+    trigger instanceof HTMLElement
+      ? trigger
+      : document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+  help.hidden = false;
+  document.body.classList.add('is-locked');
+  // Land on the one action, so the overlay is usable from the keyboard the
+  // moment it appears.
+  const close = $('btn-help-close');
+  if (close) close.focus();
+  log('opened the OpenRouter explanation');
+}
+
+function closeHelp() {
+  const help = $('help');
+  if (!help || help.hidden) return;
+  help.hidden = true;
+  // Only unlock the page if the approval card is not also up.
+  const card = $('card');
+  if (!card || card.hidden) document.body.classList.remove('is-locked');
+  if (helpFocusRestore && document.contains(helpFocusRestore)) helpFocusRestore.focus();
+  helpFocusRestore = null;
+}
+
+for (const id of ['btn-help-connect', 'btn-help-models']) {
+  const trigger = $(id);
+  if (trigger) trigger.addEventListener('click', () => openHelp(trigger));
+}
+const helpCloseButton = $('btn-help-close');
+if (helpCloseButton) helpCloseButton.addEventListener('click', closeHelp);
+
+// Escape closes it, and Tab is held inside while it is open. The card owns the
+// keyboard while a decision is pending, so this stands down then.
+document.addEventListener('keydown', (event) => {
+  const help = $('help');
+  if (!help || help.hidden) return;
+  const card = $('card');
+  if (card && !card.hidden) return;
+
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeHelp();
+    return;
+  }
+
+  if (event.key !== 'Tab') return;
+  const items = [...help.querySelectorAll(HELP_FOCUSABLE)].filter((el) => el.offsetParent !== null);
+  if (items.length === 0) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+});
+
+/* ------------------------------------------------------------------ */
 /* The herd                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -502,6 +592,28 @@ function renderUsage(snapshot) {
         snapshot.credit.remaining_usd <= 0 ? 'danger' : null,
       ),
     );
+  }
+
+  // The explanation says the same figure the meter says, and it says NOTHING at
+  // all until the shell has read a real balance. A guessed number in an
+  // explanation about money is worse than no number, so an unknown balance hides
+  // the line rather than filling it in.
+  const live = $('help-live');
+  const liveBalance = $('help-live-balance');
+  if (live && liveBalance) {
+    const credit = snapshot.credit;
+    const display =
+      credit && typeof credit.remaining_display === 'string' ? credit.remaining_display : '';
+    if (display.length > 0) {
+      liveBalance.textContent = display;
+      const liveScope = $('help-live-scope');
+      if (liveScope) {
+        liveScope.textContent = credit.scope === 'key' ? 'this key' : 'your OpenRouter account';
+      }
+      live.hidden = false;
+    } else {
+      live.hidden = true;
+    }
   }
 
   // The header figure is the same number, not a second opinion about it.

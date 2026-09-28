@@ -593,6 +593,33 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
 .inline-error[hidden] { display: none; }
 
 /* ------------------------------------------------------------------ */
+/* The first-run explanation                                            */
+/* ------------------------------------------------------------------ */
+
+/* Offered inside the connect panel while there is still a decision to make, and
+   withdrawn once a key is connected. It summarises; the overlay explains. */
+.before-connect {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  background: var(--color-semantic-surface-inset);
+  border: 1px solid var(--color-semantic-border-subtle);
+  border-left: 3px solid var(--color-semantic-state-primary);
+  border-radius: var(--radius-md);
+}
+.before-connect[hidden] { display: none; }
+.before-connect__title {
+  font-size: var(--typography-size-md);
+  font-weight: var(--typography-weight-semibold);
+}
+.before-connect__note {
+  margin-top: var(--space-2);
+  max-width: var(--layout-measure);
+  font-size: var(--typography-size-sm);
+  line-height: var(--typography-lineHeight-snug);
+  color: var(--color-semantic-text-secondary);
+}
+
+/* ------------------------------------------------------------------ */
 /* Remembered choices                                                  */
 /* ------------------------------------------------------------------ */
 
@@ -970,6 +997,104 @@ above is the visual form of a state the sidecar actually reported. */
 .card:not([hidden]) + .scrim { display: block; }
 
 /* ------------------------------------------------------------------ */
+/* The explanation overlay                                             */
+/* ------------------------------------------------------------------ */
+
+/* Opened on demand from the connect panel and from the model picker (M5 section
+   9), never on its own. Same conventions as the approval card: it takes the
+   foreground and the focus, Escape closes it, and the page behind it holds
+   still while it is up. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layers-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  overflow: auto;
+  overscroll-behavior: contain;
+  contain: paint;
+}
+.overlay[hidden] { display: none; }
+
+.overlay__panel {
+  width: min(100%, 40rem);
+  margin: auto;
+  padding: var(--space-6);
+  background: var(--color-semantic-surface-raised);
+  border: 1px solid var(--color-semantic-border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--elevation-3);
+}
+
+.overlay__flag { margin-bottom: var(--space-4); }
+
+.overlay__headline {
+  font-family: var(--typography-family-display);
+  font-size: var(--typography-size-2xl);
+  font-weight: var(--typography-weight-bold);
+  letter-spacing: var(--typography-tracking-display);
+  line-height: var(--typography-lineHeight-tight);
+  margin-bottom: var(--space-2);
+}
+
+.overlay__actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: var(--space-6);
+}
+
+/* One short answer per question, so the whole thing can be skimmed. */
+.help__section {
+  margin-top: var(--space-5);
+  max-width: var(--layout-measure);
+}
+.help__title {
+  font-size: var(--typography-size-md);
+  font-weight: var(--typography-weight-semibold);
+}
+.help__text {
+  margin-top: var(--space-2);
+  font-size: var(--typography-size-md);
+  line-height: var(--typography-lineHeight-normal);
+  color: var(--color-semantic-text-secondary);
+}
+.help__text strong { color: var(--color-semantic-text-primary); }
+
+/* The one figure that is live rather than prose. It says nothing until the shell
+   has read a real balance, because a guessed number about money is worse than no
+   number at all. */
+.help__live {
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-semantic-surface-inset);
+  border-left: 3px solid var(--color-semantic-state-primary);
+  border-radius: var(--radius-sm);
+  font-size: var(--typography-size-md);
+}
+.help__live[hidden] { display: none; }
+.help__live strong { font-variant-numeric: tabular-nums; }
+
+.help__more {
+  margin-top: var(--space-5);
+  max-width: var(--layout-measure);
+  font-size: var(--typography-size-sm);
+  color: var(--color-semantic-text-secondary);
+}
+
+/* The same entrance as the card: the scrim fades, the panel settles. */
+.overlay:not([hidden]) .overlay__panel {
+  animation: settle-in var(--motion-duration-settle) var(--motion-easing-settle) both;
+}
+.overlay:not([hidden]) + .scrim {
+  display: block;
+  animation: fade-in var(--motion-duration-standard) var(--motion-easing-standard) both;
+}
+
+/* ------------------------------------------------------------------ */
 /* Failure banner                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -1209,6 +1334,27 @@ above is the visual form of a state the sidecar actually reported. */
     background: var(--color-semantic-surface-raised);
   }
   .card__actions .btn { flex: 1 1 auto; }
+
+  /* The explanation becomes the same bottom sheet, for the same reason: a dialog
+     centred in a phone viewport fights the keyboard and the thumb. */
+  .overlay { align-items: flex-end; padding: 0; }
+  .overlay__panel {
+    width: 100%;
+    max-width: none;
+    max-height: 92vh;
+    overflow: auto;
+    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+    box-shadow: var(--elevation-4);
+    padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+  }
+  .overlay__actions {
+    position: sticky;
+    bottom: 0;
+    margin-top: var(--space-3);
+    padding: var(--space-3) 0 0;
+    background: var(--color-semantic-surface-raised);
+  }
+  .overlay__actions .btn { flex: 1 1 auto; }
 
   /* The console is a developer surface. It stays reachable, and stops taking
      the last half of the page. */

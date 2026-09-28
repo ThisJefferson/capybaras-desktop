@@ -81,6 +81,25 @@
           <h2 class="section-title" id="connect-heading">Your model</h2>
           <p class="section-note" id="connect-state">Checking…</p>
         </div>
+        <!-- FIRST RUN. Someone who has never heard the phrase "API key" should be
+             able to read what they are about to agree to BEFORE they press Connect,
+             not discover it afterwards (M5 section 9). It is a plain card in the
+             connect panel, not a pop-up: the explanation is met without stealing
+             focus or covering the window on launch. -->
+        <div class="before-connect" id="before-connect" hidden>
+          <p class="before-connect__title">New here? Read this before you connect.</p>
+          <p class="before-connect__note">
+            OpenRouter is one account and one key that reaches models from many different
+            companies, so you do not sign up to each of them separately. You pay for what
+            you use — most replies cost a fraction of a cent, and some models are free.
+          </p>
+          <div class="panel__actions">
+            <button class="btn btn--secondary" id="btn-help-connect" type="button">
+              How connecting works and what it costs
+            </button>
+          </div>
+        </div>
+
         <div class="panel__actions">
           <button class="btn btn--primary" id="btn-connect">Connect to OpenRouter</button>
         </div>
@@ -113,6 +132,14 @@
              built locally, and both are written as text (the one attribute, the href,
              is checked against a fixed host) -- remote data never becomes markup. -->
         <p class="hint hint--tight" id="model-detail"></p>
+
+        <!-- The same explanation, reachable from the picker: the choice of model is
+             where the question about cost actually gets asked. -->
+        <div class="panel__actions">
+          <button class="btn btn--ghost" id="btn-help-models" type="button">
+            How models, keys and costs work
+          </button>
+        </div>
 
         <div class="field">
           <label class="field__label" for="ask-prompt">Your message</label>
@@ -191,6 +218,95 @@
       </section>
     </main>
   </div>
+
+  <!-- ---------------- the explanation overlay ----------------
+       M5 section 9: the person about to hand this app a paid account should
+       understand what that means first. It follows the card's conventions exactly
+       — it takes the foreground and focus, Escape closes it, the page behind it
+       holds still, and the scrim is a sibling driven by CSS from the panel's own
+       `hidden` attribute. Unlike the card it is opened on demand, never on its
+       own, so it can never cover the window while someone is working. -->
+  <div class="overlay" id="help" role="dialog" aria-modal="true" aria-labelledby="help-headline" hidden>
+    <div class="overlay__panel">
+      <p class="overlay__flag"><span class="chip chip--info">About OpenRouter</span></p>
+      <h2 class="overlay__headline" id="help-headline">How OpenRouter works, and what it costs</h2>
+
+      <div class="help__section">
+        <h3 class="help__title">One account and one key, not a dozen</h3>
+        <p class="help__text">
+          OpenRouter is one account and one key that reaches models from many different
+          companies. Without it, you would sign up to each company separately. You do not
+          have to go and create a key yourself — pressing Connect is how you get one.
+        </p>
+      </div>
+
+      <div class="help__section">
+        <h3 class="help__title">What happens when you send a message</h3>
+        <p class="help__text">
+          Your message goes to the model you chose, through OpenRouter, and the answer
+          comes back to this window. Capybaras never sees your password: you sign in on
+          OpenRouter’s own page, in your own browser.
+        </p>
+      </div>
+
+      <div class="help__section">
+        <h3 class="help__title">How to connect</h3>
+        <p class="help__text">
+          Press <strong>Connect</strong>. Your browser opens, you sign in to OpenRouter,
+          and you come back to this window. There is nothing to copy and paste.
+        </p>
+        <p class="help__text">
+          The key that comes back is kept by Windows, not in a file the agent could read.
+          You can delete it from your OpenRouter account at any time, and Capybaras will
+          notice rather than fail confusingly.
+        </p>
+      </div>
+
+      <div class="help__section">
+        <h3 class="help__title">How much it costs</h3>
+        <p class="help__text">
+          You pay for what you use, by the token. Most replies cost a fraction of a cent,
+          and some models are free. The session panel counts your calls and what they have
+          spent, and the balance line shows what is left.
+        </p>
+        <!-- Live, not prose: the same figure the meter shows, and nothing at all
+             until the shell has actually read a balance. A guessed number in an
+             explanation about money is worse than no number (T3: text only). -->
+        <p class="help__live" id="help-live" hidden>
+          Right now, <span id="help-live-scope">your OpenRouter account</span> has
+          <strong id="help-live-balance"></strong> left.
+        </p>
+      </div>
+
+      <div class="help__section">
+        <h3 class="help__title">Why it costs money</h3>
+        <p class="help__text">
+          The companies that run the models charge for the computing that answers you.
+          OpenRouter passes that charge through to your account.
+        </p>
+      </div>
+
+      <div class="help__section">
+        <h3 class="help__title">Why the balance says “whole account”</h3>
+        <p class="help__text">
+          That figure belongs to your OpenRouter account, not to this app. It is shared
+          with anything else that uses the same account, so it is not a budget Capybaras
+          owns.
+        </p>
+      </div>
+
+      <p class="help__more">
+        You can read more on OpenRouter’s own page:
+        <a href="https://openrouter.ai/" target="_blank" rel="noopener noreferrer">openrouter.ai</a>.
+      </p>
+
+      <div class="overlay__actions">
+        <button class="btn btn--primary" id="btn-help-close">Got it</button>
+      </div>
+      <p class="hint">Press <strong>Escape</strong> to close this.</p>
+    </div>
+  </div>
+  <div class="scrim" id="help-scrim" aria-hidden="true" hidden></div>
 
   <!-- ---------------- the approval card ----------------
        The moment this product exists for, so it is a focused overlay rather than
