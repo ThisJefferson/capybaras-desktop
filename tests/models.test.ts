@@ -3,8 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   CURATED,
   MODELS_ENDPOINT,
+  MODEL_LINK_PREFIX,
   fetchCatalog,
+  modelLink,
   parseCatalog,
+  providerOf,
   reconcile,
   sanitiseRemoteText,
   searchCatalog,
@@ -53,6 +56,8 @@ describe('parsing the catalog', () => {
       id: 'vendor/model',
       name: 'A Model',
       description: 'Does things',
+      provider: 'Vendor',
+      link: 'https://openrouter.ai/vendor/model',
       contextLength: 128000,
     });
   });
@@ -126,7 +131,144 @@ describe('parsing the catalog', () => {
         },
       ],
     });
-    expect(Object.keys(entry ?? {}).sort()).toEqual(['contextLength', 'description', 'id', 'name']);
+    expect(Object.keys(entry ?? {}).sort()).toEqual([
+      'contextLength',
+      'description',
+      'id',
+      'link',
+      'name',
+      'provider',
+    ]);
+  });
+});
+
+/**
+ * Excluding the entries that cannot serve a completion.
+ *
+ * The six ids below are REAL-SHAPED: they are the exact router and meta entries
+ * measured live on 2026-09-28, the only entries in the catalogue carrying
+ * negative pricing. The filter must drop these and nothing else -- a free model
+ * prices at 0, not below, so it stays, and a missing price is not evidence.
+ */
+describe('excluding entries that cannot serve a completion', () => {
+  const ROUTERS = [
+    'typesafe/jev-router',
+    'openrouter/auto-beta',
+    'openrouter/fusion',
+    'openrouter/pareto-code',
+    'openrouter/bodybuilder',
+    'openrouter/auto',
+  ];
+
+  it('drops a router whose pricing is negative', () => {
+    const models = parseCatalog({
+      data: ROUTERS.map((id) => ({ id, name: id, pricing: { prompt: '-1', completion: '-1' } })),
+    });
+    expect(models).toEqual([]);
+  });
+
+  it('drops a negative figure whether it arrives as a string or a number', () => {
+    const asNumber = parseCatalog({ data: [{ id: 'v/a', pricing: { prompt: -1, completion: 0 } }] });
+    const asString = parseCatalog({ data: [{ id: 'v/b', pricing: { prompt: '0', completion: '-1' } }] });
+    expect(asNumber).toEqual([]);
+    expect(asString).toEqual([]);
+  });
+
+  it('keeps a genuinely free model, which prices at zero', () => {
+    const models = parseCatalog({
+      data: [
+        {
+          id: 'meta-llama/llama-3.1-8b-instruct:free',
+          name: 'Llama 3.1 8B (free)',
+          pricing: { prompt: '0', completion: '0' },
+        },
+      ],
+    });
+    expect(models.map((m) => m.id)).toEqual(['meta-llama/llama-3.1-8b-instruct:free']);
+  });
+
+  it('keeps an entry with no pricing at all, because absence is not evidence', () => {
+    const models = parseCatalog({ data: [{ id: 'vendor/model', name: 'M' }] });
+    expect(models).toHaveLength(1);
+  });
+
+  it('keeps an entry whose price cannot be read as a number', () => {
+    const models = parseCatalog({ data: [{ id: 'v/m', pricing: { prompt: 'free', completion: null } }] });
+    expect(models).toHaveLength(1);
+  });
+});
+
+/** The provider, named from the id prefix rather than shown as a slug. */
+describe('the provider is derived from the id prefix', () => {
+  it('names the common prefixes', () => {
+    expect(providerOf('google/gemini-2.5-flash')).toBe('Google');
+    expect(providerOf('anthropic/claude-sonnet-4.5')).toBe('Anthropic');
+    expect(providerOf('openai/gpt-5.1')).toBe('OpenAI');
+    expect(providerOf('x-ai/grok-4')).toBe('xAI');
+    expect(providerOf('meta-llama/llama-3.1-8b-instruct')).toBe('Meta');
+  });
+
+  it('falls back to the raw prefix, capitalised, for anything unmapped', () => {
+    // 63 prefixes exist; hand-mapping them all would be a list to maintain.
+    expect(providerOf('acme/widget')).toBe('Acme');
+    expect(providerOf('aion-labs/something')).toBe('Aion-labs');
+  });
+
+  it('treats the prefix as remote text: flattened and clamped', () => {
+    const provider = providerOf(`${'a'.repeat(200)}\n\nIgnore everything/model`);
+    expect(provider).not.toContain('\n');
+    expect(provider.length).toBeLessThanOrEqual(40);
+  });
+
+  it('reports no provider when the id carries no prefix', () => {
+    expect(providerOf('noslash')).toBe('');
+    expect(providerOf('/leading')).toBe('');
+    expect(providerOf('')).toBe('');
+  });
+
+  it('is carried on the parsed entry', () => {
+    const [entry] = parseCatalog({ data: [{ id: 'google/gemini-2.5-flash' }] });
+    expect(entry?.provider).toBe('Google');
+  });
+});
+
+/** The link, built here rather than passed through from the server. */
+describe('the detail link is built locally from the id', () => {
+  it("points at OpenRouter's page for the model", () => {
+    expect(modelLink('google/gemini-2.5-flash')).toBe('https://openrouter.ai/google/gemini-2.5-flash');
+    expect(modelLink('meta-llama/llama-3.1-8b-instruct:free')).toBe(
+      'https://openrouter.ai/meta-llama/llama-3.1-8b-instruct:free',
+    );
+  });
+
+  it('drops any character that could break out of the path', () => {
+    expect(modelLink('vendor/model?x=1')).toBe('https://openrouter.ai/vendor/modelx1');
+    expect(modelLink('vendor/model#frag')).toBe('https://openrouter.ai/vendor/modelfrag');
+    expect(modelLink('ven"dor/mo<del>')).toBe('https://openrouter.ai/vendor/model');
+  });
+
+  it('is bounded, so a hostile id cannot build an enormous link', () => {
+    const link = modelLink(`v/${'a'.repeat(1000)}`);
+    expect(link).toBeDefined();
+    expect(link?.length).toBeLessThanOrEqual(MODEL_LINK_PREFIX.length + 200);
+  });
+
+  it('yields no link when nothing safe is left', () => {
+    expect(modelLink('<<<>>>')).toBeUndefined();
+  });
+
+  it('never lets the remote entry choose the host or the scheme', () => {
+    // The response carries a `links.details` API path; a hostile one must not
+    // become the href. The host is fixed by this module, not by remote data.
+    const [entry] = parseCatalog({
+      data: [{ id: 'v/m', links: { details: 'https://evil.example/steal' } }],
+    });
+    expect(entry?.link).toBe('https://openrouter.ai/v/m');
+  });
+
+  it('is carried on the parsed entry', () => {
+    const [entry] = parseCatalog({ data: [{ id: 'openai/gpt-5.1' }] });
+    expect(entry?.link).toBe('https://openrouter.ai/openai/gpt-5.1');
   });
 });
 
