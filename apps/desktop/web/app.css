@@ -810,39 +810,53 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
 }
 
 /* ---- the four states ----
-  
-dozing      a very slow breath, 4.5s -- ambient, and it must not be noticed
-listening   a long, small sway. Syncopated across the row, never in unison
-working     a purposeful pulse. Faster than listening, still unhurried
-needs-you   the only asymmetric motion in the product: a lift, off-beat
 
-Nothing here loops at a rate a reader would call movement, and every animation
-above is the visual form of a state the sidecar actually reported. */
+quiet      a breath. Very slow, very small -- the herd should read as alive,
+           not as busy
+offered    asked, not yet answered: they actually move. A trot across the tile,
+           staggered so it reads as a herd doing something rather than as a
+           progress bar
+answered   one settled nod, then back to calm
+needs-you  the sign goes up, and nothing else in the product may mute it
 
-/* Dozing: barely there. The tile carries the opacity; the character carries the
-   movement, on its own element, so the two never fight over one transform. */
+EVERY ANIMATION HERE IS A STATE, NEVER A TIMER. "Quiet", "working" and "needs
+you" are the agent states the sidecar reported on `capybaras://agents`; "asked"
+and "answered" are the ask's own in-flight window (`data-ask`), which app.js sets
+when the shell has accepted a `send_message` and clears on the reply, on the
+failure, and on a refusal that never sent anything. Remove the state and the
+movement stops -- there is no loop running for its own sake anywhere below. */
+
+/* Quiet, dozing: barely there. The tile carries the opacity; the character
+   carries the breath, on its own element, so the two never fight over one
+   transform. */
 .agent[data-state='dozing'] .agent__mark { opacity: 0.4; }
 .agent[data-state='dozing'] .capy {
-  animation: breathe var(--motion-duration-ambient) var(--motion-easing-standard) infinite;
+  animation: capy-breathe var(--motion-duration-ambient) var(--motion-easing-standard) infinite;
 }
 
-/* Listening: attentive, still. */
+/* Quiet, listening: attentive, and breathing a touch fuller. */
 .agent[data-state='listening'] .agent__mark { opacity: 0.8; }
 .agent[data-state='listening'] .capy {
-  animation: sway 5.5s var(--motion-easing-standard) infinite;
+  animation: capy-breathe 5.5s var(--motion-easing-standard) infinite;
 }
 
-/* Working: fully present, and gently moving. Purposeful, not frantic. */
+/* Working: fully present, and breathing faster. Purposeful, not frantic. */
 .agent[data-state='working'] .agent__mark {
   opacity: 1;
   box-shadow: 0 0 0 1px var(--color-semantic-border-strong);
 }
 .agent[data-state='working'] .capy {
-  animation: work-pulse 1.6s var(--motion-easing-standard) infinite;
+  animation: capy-breathe 1.6s var(--motion-easing-standard) infinite;
 }
 
-/* Needs you: the loudest thing in the interface. Coral, lifted, and the only
-   asymmetric treatment. It has to be unmistakable from across the room. */
+/* Needs you: the loudest thing in the interface. Coral, lifted, the sign held up,
+   and the only asymmetric treatment. It has to be unmistakable from across the
+   room.
+
+   NO OTHER STATE MAY MUTE IT. Every rule that moves the herd for the ask excludes
+   `[data-state='needs-you']`, and the sign group is shown by the state alone -- so
+   a question being answered, a reply landing or a call failing all leave a raised
+   sign exactly as it was. */
 .agent[data-state='needs-you'] .agent__mark {
   opacity: 1;
   transform: translateY(-4px) scale(1.06);
@@ -867,10 +881,10 @@ above is the visual form of a state the sidecar actually reported. */
 /* ---- the ask in flight ----
 
    One honest signal, not a loop for its own sake. While a question is out and no
-   answer has come back, the herd leans in as a single wave -- the calçadão motif,
-   doing here what it already does as the header's progress. `data-ask` is set in
-   app.js from the ask's own in-flight window and cleared by the reply, by the
-   failure, and by a refusal that never sent anything.
+   answer has come back, the herd trots: this is the state the operator asked to
+   see actually move. `data-ask` is set in app.js from the ask's own in-flight
+   window and cleared by the reply, by the failure, and by a refusal that never
+   sent anything -- no timer decides it.
 
    "needs you" is excluded on purpose: a raised sign is the loudest thing in the
    interface, and a question being answered may never mute it. */
@@ -878,18 +892,32 @@ above is the visual form of a state the sidecar actually reported. */
   opacity: 1;
   box-shadow: 0 0 0 1px var(--color-semantic-border-strong);
 }
+
+/* This is the one the operator asked for: asked and not yet answered, they
+   actually move. The whole character trots the width of its tile while the legs
+   step under it, which is the one thing in this interface that has to read as
+   activity rather than as a progress bar. */
 .herd[data-ask='pending'] .agent:not([data-state='needs-you']) .capy {
-  animation: answer-wave 1.6s var(--motion-easing-standard) infinite;
+  animation: capy-trot 1.15s var(--motion-easing-standard) infinite alternate;
+}
+.herd[data-ask='pending'] .agent:not([data-state='needs-you']) .capy__legs {
+  animation: capy-step 0.34s var(--motion-easing-standard) infinite;
 }
 
-/* The wave travels the row rather than six capybaras moving in unison -- the same
-   syncopation rule the rest of the herd follows. */
-.herd[data-ask='pending'] .agent:nth-child(1) .capy { animation-delay: 0s; }
-.herd[data-ask='pending'] .agent:nth-child(2) .capy { animation-delay: -0.27s; }
-.herd[data-ask='pending'] .agent:nth-child(3) .capy { animation-delay: -0.54s; }
-.herd[data-ask='pending'] .agent:nth-child(4) .capy { animation-delay: -0.81s; }
-.herd[data-ask='pending'] .agent:nth-child(5) .capy { animation-delay: -1.08s; }
-.herd[data-ask='pending'] .agent:nth-child(6) .capy { animation-delay: -1.35s; }
+/* The trot travels the row rather than six capybaras moving in unison -- the
+   same syncopation rule the rest of the herd follows (BRAND.md section 5). */
+.herd[data-ask='pending'] .agent:nth-child(1) .capy,
+.herd[data-ask='pending'] .agent:nth-child(1) .capy__legs { animation-delay: 0s; }
+.herd[data-ask='pending'] .agent:nth-child(2) .capy,
+.herd[data-ask='pending'] .agent:nth-child(2) .capy__legs { animation-delay: -0.19s; }
+.herd[data-ask='pending'] .agent:nth-child(3) .capy,
+.herd[data-ask='pending'] .agent:nth-child(3) .capy__legs { animation-delay: -0.38s; }
+.herd[data-ask='pending'] .agent:nth-child(4) .capy,
+.herd[data-ask='pending'] .agent:nth-child(4) .capy__legs { animation-delay: -0.57s; }
+.herd[data-ask='pending'] .agent:nth-child(5) .capy,
+.herd[data-ask='pending'] .agent:nth-child(5) .capy__legs { animation-delay: -0.76s; }
+.herd[data-ask='pending'] .agent:nth-child(6) .capy,
+.herd[data-ask='pending'] .agent:nth-child(6) .capy__legs { animation-delay: -0.95s; }
 
 /* Answered: the same satisfied nod the herd already gives a resolved approval,
    once, and then nothing. No loop. */
@@ -1238,17 +1266,20 @@ above is the visual form of a state the sidecar actually reported. */
   from { transform: translateX(-110%); }
   to   { transform: translateX(310%); }
 }
-@keyframes breathe {
-  0%, 100% { transform: scale(1); opacity: 0.4; }
-  50%      { transform: scale(1.035); opacity: 0.5; }
+/* Quiet: a breath. Very slow and very small, on purpose -- the herd should read
+   as alive, not as busy. A drift and a hair of expansion is the whole gesture. */
+@keyframes capy-breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%      { transform: translateY(-0.9px) scale(1.012); }
 }
-@keyframes sway {
-  0%, 100% { transform: translateX(0); }
-  50%      { transform: translateX(2px); }
+/* Asked: they move. The character travels its tile; the legs step under it. */
+@keyframes capy-trot {
+  0%, 100% { transform: translateX(-7px) translateY(0); }
+  50%      { transform: translateX(7px) translateY(-1.4px); }
 }
-@keyframes work-pulse {
+@keyframes capy-step {
   0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-2px); }
+  50%      { transform: translateY(-2.6px); }
 }
 @keyframes sign-lift {
   0%, 100% { transform: translateY(-4px) scale(1.06); }
@@ -1258,13 +1289,6 @@ above is the visual form of a state the sidecar actually reported. */
   0%   { transform: translateY(-5px) scale(1.06); }
   60%  { transform: translateY(1px) scale(1.01); }
   100% { transform: none; }
-}
-/* The answer round trip as one gesture: the herd rises into a wave while a
-   question is out. It is the visual form of a real in-flight ask, and it stops
-   the moment the reply or the failure arrives. */
-@keyframes answer-wave {
-  0%, 100% { transform: translateY(0) scale(1); opacity: 0.72; }
-  45%      { transform: translateY(-4px) scale(1.045); opacity: 1; }
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
@@ -1504,12 +1528,19 @@ above is the visual form of a state the sidecar actually reported. */
   .btn[aria-busy='true']::after { display: none; }
   .progress::after { transform: none; width: 100%; }
 
-  /* Motion is gone; the ask is not. The herd comes fully forward and takes a ring
-     that stays still, and the summary above says the same thing in words -- so the
-     state is never carried by movement alone. */
+  /* Motion is gone; the ask is not. The herd comes fully forward, holds a still
+     forward lean, and takes a ring that stays put -- position, colour and opacity
+     carry what the movement carried, the summary above says it in words, and the
+     change is instant. */
   .herd[data-ask='pending'] .agent:not([data-state='needs-you']) .agent__mark {
-    animation: none !important;
     opacity: 1;
     box-shadow: 0 0 0 2px var(--color-semantic-state-primary);
+  }
+  .herd[data-ask='pending'] .agent:not([data-state='needs-you']) .capy {
+    animation: none !important;
+    transform: translateX(3px);
+  }
+  .herd[data-ask='pending'] .agent:not([data-state='needs-you']) .capy__legs {
+    animation: none !important;
   }
 }
