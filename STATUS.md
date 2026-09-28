@@ -3,11 +3,11 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-28 08:40 EDT
-**Current phase:** **M5 — onboarding.** The PKCE flow, the credential store, the loopback listener, the session meter, the first model call, and now **the onboarding path walked end to end through the interface** are all in the tree and tested. What remains in M5 is a free-model mode, a decision about the spend cap (**D26** — there is no enforced cap, and even the display is not wired), and the one thing no test can do — a real reply against the user's own account.
+**Last updated:** 2026-09-28 08:43 EDT
+**Current phase:** **M5 — onboarding.** The PKCE flow, the credential store, the loopback listener, the session meter, the first model call, and now **the onboarding path walked end to end through the interface** are all in the tree and tested. What remains in M5 is a free-model mode, a decision about the spend cap (**D26** — there is no enforced cap; the account-balance readout is now wired, the cap itself is open), and the one thing no test can do — a real reply against the user's own account.
 **Next milestone:** M5 — a non-technical tester reaches a first reply unaided (the path exists and is walked offline; a live key is the missing piece)
 **Spec:** `docs/protocol.md` · **Plan:** `docs/plans/next-steps.md` · **Design:** `docs/plans/M4-visual-design.md` · **Onboarding test:** `docs/onboarding-test.md`
-**Recently decided:** D19 (grants fail closed) · D20 (skills must declare) · D21 (the gate governs actions, not speech) · D22 (the meter pushes) · D23 (the card states each hazard once) · D24 (only a human's answer lowers the sign) · D25 (the model call lives in the shell) · D26 (the spend cap is display only — open)
+**Recently decided:** D19 (grants fail closed) · D20 (skills must declare) · D21 (the gate governs actions, not speech) · D22 (the meter pushes) · D23 (the card states each hazard once) · D24 (only a human's answer lowers the sign) · D25 (the model call lives in the shell) · D26 (the spend cap is display only — open; the balance readout is now wired)
 **Repo:** https://github.com/ThisJefferson/capybaras-desktop (public) · releases cut per milestone
 
 ---
@@ -17,6 +17,56 @@
 - **Building:** Capybaras — a one-install, safe-by-default desktop agent that asks before it acts. A herd of capybaras, Rio de Janeiro flavour.
 - **Ideal customer:** genuinely non-technical. Cloud API keys via OpenRouter OAuth. Free, donations, GitHub recognition.
 - **The promise:** *it will still break, just small, visibly, and undoably.*
+
+---
+
+## 2026-09-28 — the meter's readout is real, and it is display only
+
+One bounded item: the "how much is left" row never rendered. The cause was not
+missing arithmetic — `set_credit` was written and tested — but a missing **caller**:
+nothing ever fetched a balance, so `Snapshot.credit` was always `None`. The row is
+now reachable.
+
+- **The missing reader.** `src/credits.rs` fetches `GET /credits` with the stored key
+  and hands the balance to `meter::apply_credit`, which attaches it and pushes the
+  same `capybaras://usage` event the meter already sends (D22) — so the interface
+  needed no new listener. `renderUsage` already drew the row whenever a credit was
+  present; it simply never had one.
+- **Remote data, treated as remote.** The balance is money on a screen, so a shape
+  that is not exactly understood — a missing field, a string where a number belongs,
+  a negative or absurd figure, a non-2xx, an unreachable provider — produces
+  **nothing**. The rule is the catalogue's: show nothing rather than something wrong.
+- **A failed read cannot corrupt the meter.** `apply_credit(None)` changes no
+  number: the last known figure stands, or the row stays absent. Asserted in Rust,
+  and again through the interface — a refused call leaves the figure standing.
+- **Two moments, both justified in comments.** The balance is read right after the
+  model list (the first point the shell knows it holds a usable key, so the row
+  arrives with the rest of the panel) and refreshed after each completed call (the
+  one thing this app does that changes the balance). The choice is written at the
+  call sites rather than left implicit.
+- **What it is, said plainly on screen:** the **account** balance, shared with every
+  other key on the account, labelled "left (whole account)". It is **not** a
+  spending limit, and nothing is enforced with it.
+
+**No limit was set, changed or removed** — the provider-side limit is still unset
+(`limit: null`), which is the operator's decision. **D26 is otherwise unchanged**
+and now carries a same-day amendment: the cap question is open, nothing enforces a
+limit, and this readout is display only.
+
+**Tests:** 366 TypeScript across 14 files (unchanged); **151 Rust, with 5
+live-network probes still ignored** (was 140 + 5). `npm run verify` green — the
+onboarding harness now asserts the row a person sees (`left (whole account)` at the
+measured balance) and that a refused call leaves it standing.
+
+**Honestly still unproven:**
+
+- **The row in a running window.** This host cannot display one
+  (`docs/DEBUGGING.md`), so what is proven is the interface rendering the row under
+  the harness and the shell reading and pushing it under test. No human has seen it
+  in the real Tauri window.
+- **A live `/credits` read through the app's own path.** The endpoint was measured
+  live by hand on 2026-09-28 and is pinned by an offline stub; the ignored
+  `live_api.rs::probe_credits` remains the only live read, and it was **not run**.
 
 ---
 
@@ -216,6 +266,9 @@ write without one. **Superseded later the same day: see "the first model call" a
 
 ## Done
 
+- **The meter's readout — the "left" row is reachable.** `src/credits.rs` reads
+  `GET /credits`, `meter::apply_credit` attaches it, and the interface renders
+  "left (whole account)". Display only; no limit touched (D26, amended).
 - **M5's onboarding path — verified through the interface.** `npm run verify:onboarding`
   (24 assertions, green), the two defects it found fixed, and the scenario documented
   in `docs/onboarding-test.md`. The spend cap answered honestly as D26.
@@ -264,7 +317,8 @@ write without one. **Superseded later the same day: see "the first model call" a
 1. **A live first reply (M5).** The path is built, walked offline and verified
    through the interface; what is missing is one real key and one real call —
    Connect, sign in, Send. Then a free-model mode, and a decision on the spend cap
-   (D26: nothing enforces one today, and the app does not show the one that exists).
+   (D26: nothing enforces one today; the app now shows the account balance, but that
+   is a readout, not a cap).
 2. **Look at the real window, and click the scenario by hand.** The offscreen checks pass and the defects they found are fixed; what remains is a person on an unlocked desktop running `run.cmd` and clicking through the gate — which is the milestone gate itself.
 3. **Keep cutting a release per milestone with test results** (Jeff's standing request).
 

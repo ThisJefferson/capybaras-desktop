@@ -574,6 +574,23 @@ and spend with no cap in force, no cap set, and no cap visible.
 what it has spent; the only thing that limits spending is the limit on the key in
 the user's own OpenRouter account, and the app does not yet show it.
 
+### Amendment — 2026-09-28 (later the same day): the display half is closed
+
+One statement in the finding above is now stale. The row that "never renders"
+renders: `set_credit` has a caller, and the meter carries a real credit figure.
+What was added is the **account balance readout** — `GET /credits`, scope
+`Account`, read after the catalogue and refreshed after each call — and nothing
+more.
+
+**This settles nothing D26 left open.** It answers item 2 of "What a decision must
+cover" for the *account readout only*: it is read once after the catalogue (so it
+arrives with the panel rather than after a first paid call) and again after each
+completed call, and a failed read leaves the last known figure standing or shows
+nothing at all. Everything else stands exactly as written: no limit is set, changed
+or enforced, the key's own limit is still not read, and **which limit is the
+control — item 1 — is still unanswered.** The figure is labelled "whole account" so
+it cannot be mistaken for this app's own budget.
+
 ---
 
 ## Standing constraints
