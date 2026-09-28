@@ -3,7 +3,7 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-28 11:16 EDT
+**Last updated:** 2026-09-28 11:41 EDT
 **Current phase:** **M5 — onboarding.** The PKCE flow, the credential store, the loopback listener, the session meter, the first model call, **the onboarding path walked end to end through the interface**, and now **the explanation a non-technical person meets before they connect** are all in the tree and tested. What remains in M5 is a free-model mode, a decision about the spend cap (**D26** — there is no enforced cap; the account-balance readout is now wired, the cap itself is open), and the one thing no test can do — a real reply against the user's own account.
 **Next milestone:** M5 — a non-technical tester reaches a first reply unaided (the path exists and is walked offline; a live key is the missing piece)
 **Spec:** `docs/protocol.md` · **Plan:** `docs/plans/next-steps.md` · **Design:** `docs/plans/M4-visual-design.md` · **Onboarding test:** `docs/onboarding-test.md`
@@ -17,6 +17,57 @@
 - **Building:** Capybaras — a one-install, safe-by-default desktop agent that asks before it acts. A herd of capybaras, Rio de Janeiro flavour.
 - **Ideal customer:** genuinely non-technical. Cloud API keys via OpenRouter OAuth. Free, donations, GitHub recognition.
 - **The promise:** *it will still break, just small, visibly, and undoably.*
+
+---
+
+## 2026-09-28 — the herd is where the question is asked, and it answers visibly
+
+The herd and the ask were two places. They are one now: the message box and the
+answer moved out of a section further down and into the herd's own card, so a
+person types where the capybaras are. Frontend only — no command, no event, no
+protocol change, no new dependency, `textContent` throughout.
+
+**The move.** `#ask` is now the ask block inside the herd card; the model choice
+keeps its own panel, retitled “Which model answers”. The input keeps its label,
+its control and its place in the tab order, and Send is still the filled primary.
+DOM order is unchanged, so at narrow widths the ask is still the first thing on
+screen — the reason the herd was put first to begin with. The skip link now lands
+on the question box, because that is the primary action since the move.
+
+**The animation, and the signal behind it.** The obvious source would have been
+the herd's `working` state (the one behind the header wave). It does not fit:
+`working` is produced in exactly one place — the sidecar's gate, for gated tool
+actions — and a chat call never touches the herd at all. `send_message` emits
+`capybaras://reply` / `capybaras://message-failed` and no agents update. So
+`working` is silent for the one call this screen makes, and the header wave never
+ran for a chat call either. Rather than invent a signal, the animation is driven
+by **the ask's own real in-flight window**: the shell has accepted a send and
+neither terminal event has come back. It is the same condition the Send button
+already shows by going busy, it cannot be entered without a real call, and only
+the reply or the failure ends it. No timer decides it.
+
+**The four states.** *Quiet*: the herd is whatever the sidecar reported, still.
+*Asked, not answered*: the row leans in as one wave travelling left to right —
+the calçadão motif, used as the progress it already is. *Answered*: one settled
+nod (the same `confirm-nod` a resolved approval gets), then calm. *Failed*: the
+herd goes quiet with no red on it; the plain sentence and the “Not sent” chip
+beside the box carry the meaning. `needs-you` is excluded from every one of them
+— a raised sign is the loudest thing in the interface and a question being
+answered may never mute it.
+
+**Nothing is motion-only.** The herd summary — already a polite live region —
+says the herd is answering, so the state is in words as well as movement;
+`prefers-reduced-motion` swaps the wave for a still ring at full opacity and the
+words stay. The header progress wave now runs for a chat call too, since that is
+a model call and it previously showed no progress at all.
+
+**The gates.** `npm run verify` (382 tests, typecheck, tokens, sidecar,
+onboarding) green; `verify:ui`, `verify:acceptance` and `verify:onboarding` all
+PASSED. No test was deleted or weakened. The onboarding harness gained
+assertions rather than losing any: it reads the pending state in the same tick as
+the click, and checks it is left behind by both a reply and a failure. One
+selector was widened, not loosened — the labelled-control check now names the two
+containers the moved buttons live in.
 
 ---
 
