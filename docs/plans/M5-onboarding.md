@@ -94,6 +94,13 @@ actions*, and nothing here changes that this is a same-user boundary.
 before they can exceed it, and raising it should be a deliberate act with the
 consequence stated plainly.
 
+**Status (as built, 2026-09-28) — this section is a design, not a description.**
+There is **no enforced cap in the app**, and no cap is shown either: the meter
+counts and displays spend, and `set_credit` — the only path that could show a
+provider figure — has no caller. The only thing that limits spending today is the
+limit on the key in the user's own OpenRouter account. Recorded as **D26**, with
+what a decision has to cover before anything is built.
+
 ---
 
 ## 5. T6 must land with M5, not after

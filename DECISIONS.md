@@ -492,6 +492,90 @@ Rust side. If the call ever moves, `catalog.rs` should be deleted, not kept.
 
 ---
 
+## D26 — The spend cap: an open question, and what a decision has to cover
+**2026-09-28**
+
+M5's plan lists a "spend cap" (`docs/plans/next-steps.md`), and D7 says "a low
+default monthly spend cap is on from day one" (2026-09-27). **Neither is true of
+the code.** M5 was asked to settle the question, so this records what was found
+rather than leaving a promise and an implementation quietly disagreeing.
+
+### The finding, with the places to look
+
+**There is no enforced cap. There is not even a wired display.**
+
+| What | Where | What it actually does |
+|---|---|---|
+| The session counters | `apps/desktop/src-tauri/src/usage.rs:53` (`Totals::record`) | adds calls, tokens and cost. No comparison, no limit, no refusal |
+| The "remaining" figure | `usage.rs:94` (`Credit::remaining`) | subtracts usage from credits, for display |
+| The credit reading | `usage.rs:100` (`CreditSnapshot`) | holds a fetched balance, with a scope (account vs key) |
+| The reader | `usage.rs:185` / `meter.rs:54` (`set_credit`) | stores a snapshot — and **has no caller anywhere** |
+| The meter commands | `lib.rs:181` (`usage_status`), `lib.rs:195` (`record_model_call`) | read and record; neither consults a cap |
+| The model call | `chat.rs:84` (`chat::call`) | builds the request and sends it. **No budget check on the path** |
+| The only spending refusal | `chat.rs:139` | the **provider's** 402, turned into a plain sentence |
+| The interface | `apps/desktop/web/app.js:358-364` | prints `spent` and, if a credit reading exists, a balance coloured by whether it is negative |
+
+So the references a scan finds in `usage.rs` and `app.js` are **credit reading**,
+exactly as the scan suspected: they present a number, they do not stop a call.
+
+The second half of the finding is that even the *display* is unreachable:
+`set_credit` has no caller, so `Snapshot.credit` is always `None` and the "left"
+row never renders. The one place a user could have seen a limit is dead code.
+
+### Why this is not an oversight in the code — and is still a gap in the product
+
+`docs/plans/M5-onboarding.md` §4 decides the shape deliberately:
+
+> a local cap is advice; a provider-side cap is a limit ... the default should be a
+> provider-side limit, set during onboarding, with the app's own counter as a
+> *warning* rather than a control.
+
+That reasoning holds: T12 already says the agent can reach the key, and anything
+that can reach the provider directly can spend past a counter the app keeps. So a
+cap the app enforces by counting is **theatre against the threat the app exists
+for**, and building one would make the product *claim* a limit it cannot honour.
+
+But the plan's other half is unbuilt too: §2 step 5 says the window shows
+"Connected" and **the monthly cap**, and §4 says a new user should *see the figure
+before they can exceed it*. Today the window shows neither. A person can connect
+and spend with no cap in force, no cap set, and no cap visible.
+
+### Why nothing was implemented here
+
+- **The repository specifies the opposite of a local cap.** Implementing one would
+  contradict a recorded decision, not fulfil it.
+- **There is no spec for the rest of the behaviour**: when the provider-side limit
+  is read, what happens when it is reached, and what the app says. Inventing a
+  policy on a screen whose whole job is honesty about cost is the wrong place to
+  guess.
+- It is not small: reading the key's limit means a new network call (`GET /key`),
+  a new field on the meter, a caller for `set_credit`, and a way to test it
+  offline. That is a milestone item, not a fix.
+
+### What a decision must cover
+
+1. **Which limit is the control**: the key's own limit (`GET /key` → `limit`,
+   `limit_remaining`) or the account balance (`GET /credits`). Only a limit set on
+   the key answers "what may Capybaras spend"; the account figure is shared with
+   everything else on it, and `CreditScope` already carries that distinction.
+2. **When it is read**, and how the figure stays honest: at connect, on each call,
+   or on a schedule — and what is shown when the read fails.
+3. **What the app does when the limit is reached**: refuse locally before sending
+   (and say so plainly), or send and relay the provider's own 402 (which is what it
+   does today). Refusing locally is a *courtesy*; the provider's refusal is the
+   *limit*. The product must not confuse them.
+4. **Whether onboarding sets the limit** or only explains where to set it — the
+   OAuth request carries no limit parameter (`oauth.rs`), so any "set during
+   onboarding" step is guidance, not configuration.
+5. **What D7's sentence should say** once the answer exists, because as written it
+   claims something untrue today.
+
+**Until then, the honest statement is the one M5 already implies:** Capybaras shows
+what it has spent; the only thing that limits spending is the limit on the key in
+the user's own OpenRouter account, and the app does not yet show it.
+
+---
+
 ## Standing constraints
 
 - **Never restart the Gateway** — owner-only.
