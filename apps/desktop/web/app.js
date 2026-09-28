@@ -438,14 +438,14 @@ document.addEventListener('keydown', (event) => {
 /* The herd                                                            */
 /* ------------------------------------------------------------------ */
 
-// The character art is a PLACEHOLDER. The calçadão wave mark stands in until
-// the commissioned model sheet exists (one character, four poses, one sign,
-// D18). Swapping the art must not require touching this layout.
-const WAVE_PATHS = [
-  'M 60,152 C 95,130 123,130 158,152 C 193,174 221,174 256,152 C 291,130 319,130 354,152 C 389,174 417,174 452,152',
-  'M 60,256 C 95,278 123,278 158,256 C 193,234 221,234 256,256 C 291,278 319,278 354,256 C 389,234 417,234 452,256',
-  'M 60,360 C 95,338 123,338 158,360 C 193,382 221,382 256,360 C 291,338 319,338 354,360 C 389,382 417,382 452,360',
-];
+// The character art is hand-authored SVG, built part by part just below. One
+// character design, six instances (BRAND.md section 3, decision D18): the six
+// capybaras are told apart by name, accent colour and fixed position, never by
+// being different animals.
+//
+// A commissioned model sheet is still pending, so every part is its own node
+// with its own class. The commission -- or a later refinement -- can replace a
+// single part without the layout, the states or the motion noticing.
 
 const STATE_LABEL = {
   dozing: 'dozing',
@@ -456,26 +456,92 @@ const STATE_LABEL = {
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+/** One node in the character's namespace, with its attributes set from data and
+ * no markup anywhere -- the CSP is `script-src 'self'`, so every part is built
+ * with createElementNS and never parsed from a string. */
+function svgPart(tag, attrs, cls) {
+  const node = document.createElementNS(SVG_NS, tag);
+  if (cls) node.setAttribute('class', cls);
+  for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, String(value));
+  return node;
+}
+
+/** A group: the one SVG element that is structure rather than shape. */
+function svgGroup(cls) {
+  const node = document.createElementNS(SVG_NS, 'g');
+  node.setAttribute('class', cls);
+  return node;
+}
+
+/**
+ * The capybara, part by part.
+ *
+ * Everything is a primitive -- no raster asset, no baked path data, no
+ * dependency -- which is what makes an illustrated herd possible under the
+ * repo's rules at all. The parts are named so one can be swapped in place:
+ *
+ *   capy__shadow     the ground under it, so it stands rather than floats
+ *   capy__legs       the four stubs, with capy__leg for each
+ *   capy__torso      the barrel body
+ *   capy__scarf      the accent band: one palette colour per member
+ *   capy__head       the block head, carried forward and to the right
+ *   capy__ear        two round ears, capy__ear-inner darker inside them
+ *   capy__eye        two dots
+ *   capy__muzzle     the square nose end, a lighter tone over the body colour
+ *   capy__nose       the nostrils
+ *   capy__sign       the board and its post. The sign belongs to the STATE, not
+ *                    to a capybara: it is hidden unless the state is
+ *                    "needs you", and drawn identically every time, so the
+ *                    most important moment is recognised rather than re-read
+ *                    (BRAND.md section 4).
+ *
+ * Two nested groups carry the motion, so a state can move the whole character
+ * without fighting another state's transform: `.capy` travels and breathes,
+ * `.capy__body` bobs, `.capy__legs` steps.
+ */
+function buildCapybara() {
+  const svg = svgPart('svg', { viewBox: '0 0 64 64', class: 'agent__mark', 'aria-hidden': 'true' });
+
+  const capy = svgGroup('capy');
+  const body = svgGroup('capy__body');
+
+  body.append(svgPart('ellipse', { cx: 30, cy: 56.5, rx: 19, ry: 2.6 }, 'capy__shadow'));
+
+  const legs = svgGroup('capy__legs');
+  for (const x of [16, 24.5, 36, 44]) {
+    legs.append(svgPart('rect', { x, y: 45, width: 4.6, height: 11, rx: 2.3 }, 'capy__leg'));
+  }
+  body.append(legs);
+
+  body.append(svgPart('rect', { x: 12, y: 27, width: 34, height: 23, rx: 10 }, 'capy__torso'));
+  body.append(svgPart('rect', { x: 36, y: 26, width: 8, height: 16, rx: 3.4 }, 'capy__scarf'));
+  body.append(svgPart('rect', { x: 40, y: 17, width: 20, height: 20, rx: 8 }, 'capy__head'));
+  body.append(svgPart('ellipse', { cx: 45, cy: 16.5, rx: 3.6, ry: 3.2 }, 'capy__ear'));
+  body.append(svgPart('ellipse', { cx: 51, cy: 16, rx: 3.3, ry: 3 }, 'capy__ear'));
+  body.append(svgPart('ellipse', { cx: 45, cy: 16.5, rx: 1.8, ry: 1.5 }, 'capy__ear-inner'));
+  body.append(svgPart('ellipse', { cx: 51, cy: 16, rx: 1.6, ry: 1.4 }, 'capy__ear-inner'));
+  body.append(svgPart('circle', { cx: 49, cy: 24, r: 1.9 }, 'capy__eye'));
+  body.append(svgPart('circle', { cx: 55, cy: 23.6, r: 1.8 }, 'capy__eye'));
+  body.append(svgPart('rect', { x: 51, y: 27, width: 11, height: 10, rx: 4 }, 'capy__muzzle'));
+  body.append(svgPart('rect', { x: 55.6, y: 29.4, width: 1.7, height: 2.2, rx: 0.85 }, 'capy__nose'));
+  body.append(svgPart('rect', { x: 58.6, y: 29.4, width: 1.7, height: 2.2, rx: 0.85 }, 'capy__nose'));
+
+  const sign = svgGroup('capy__sign');
+  sign.append(svgPart('rect', { x: 43, y: 0.5, width: 20, height: 12, rx: 2.5 }, 'capy__sign-board'));
+  sign.append(svgPart('rect', { x: 52.2, y: 12.5, width: 2.6, height: 12, rx: 1.3 }, 'capy__sign-post'));
+
+  capy.append(body, sign);
+  svg.append(capy);
+  return svg;
+}
+
 function buildAgent(agent) {
   const el = document.createElement('div');
   el.className = `agent agent--${agent.accent}`;
   el.dataset.agent = agent.id;
   el.title = `${agent.label} — ${agent.job}`;
 
-  const svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 512 512');
-  svg.setAttribute('class', 'agent__mark');
-  svg.setAttribute('aria-hidden', 'true');
-  for (const d of WAVE_PATHS) {
-    const path = document.createElementNS(SVG_NS, 'path');
-    path.setAttribute('class', 'wave');
-    path.setAttribute('d', d);
-    path.setAttribute('fill', 'none');
-    path.setAttribute('stroke-width', '34');
-    path.setAttribute('stroke-linecap', 'round');
-    path.setAttribute('stroke-linejoin', 'round');
-    svg.append(path);
-  }
+  const svg = buildCapybara();
 
   // The sign belongs to the STATE, not to a character (BRAND.md section 4):
   // whoever needs you raises it, and it is drawn identically every time so the

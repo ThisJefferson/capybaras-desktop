@@ -730,23 +730,38 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
               transform var(--motion-duration-settle) var(--motion-easing-settle);
 }
 
-/* Duda's accent is sand, which is very nearly the page colour — so sand waves
-   on cream are invisible. Give Duda a sand TILE with dark waves instead, so the
-   accent still reads and the icon is legible.
-
-   NOTE ON SPECIFICITY: `.agent__mark .wave` below is two classes, so this
-   override needs two classes plus the accent class to win regardless of source
-   order. */
+/* Duda's accent is sand, which is very nearly the page colour. The tile goes
+   sand so the accent still reads against the cream rail, and the scarf takes a
+   hairline outline -- BRAND.md section 3 asks for exactly that on the one accent
+   that sits too close to the background. */
 .agent--sand .agent__mark { background: var(--color-brand-sand); }
-.agent--sand .agent__mark .wave { stroke: var(--color-semantic-text-primary); }
+.agent--sand .capy__scarf { stroke: var(--color-semantic-border-strong); stroke-width: 1.2; }
 
-.agent__mark .wave {
-  fill: none;
-  stroke: var(--agent-accent);
-  stroke-width: 34;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
+/* ---- the character's parts ----
+   One design, six instances (D18). Colour comes from the tokens and nothing
+   else: the body is the mascot brown, the ink details are ink, and the scarf is
+   the member's own accent (--agent-accent, set per `.agent--x` above). Coral is
+   never an accent, so no capybara can borrow the colour that means "needs you". */
+.capy__shadow { fill: var(--color-brand-ink); opacity: 0.1; }
+.capy__leg,
+.capy__torso,
+.capy__head,
+.capy__ear { fill: var(--color-brand-capy); }
+.capy__ear-inner { fill: var(--color-brand-ink); opacity: 0.32; }
+.capy__eye { fill: var(--color-brand-ink); }
+/* The muzzle is the body colour let out into the light: the same brown, carried
+   as a light wash over it, so no seventh colour enters the palette. */
+.capy__muzzle { fill: var(--color-neutral-0); opacity: 0.34; }
+.capy__nose { fill: var(--color-brand-ink); opacity: 0.72; }
+.capy__scarf { fill: var(--agent-accent); }
+
+/* The sign belongs to the STATE, not to a capybara: it is hidden unless one of
+   them needs you, and it is drawn identically every time, so the single most
+   important moment is recognised rather than re-read (BRAND.md section 4). */
+.capy__sign { display: none; }
+.agent[data-state='needs-you'] .capy__sign { display: block; }
+.capy__sign-board { fill: var(--color-brand-sand); stroke: var(--color-brand-ink); stroke-width: 1.3; }
+.capy__sign-post { fill: var(--color-brand-ink); }
 
 .agent__name {
   font-size: var(--typography-size-xs);
@@ -804,15 +819,16 @@ needs-you   the only asymmetric motion in the product: a lift, off-beat
 Nothing here loops at a rate a reader would call movement, and every animation
 above is the visual form of a state the sidecar actually reported. */
 
-/* Dozing: barely there. */
-.agent[data-state='dozing'] .agent__mark {
-  opacity: 0.4;
+/* Dozing: barely there. The tile carries the opacity; the character carries the
+   movement, on its own element, so the two never fight over one transform. */
+.agent[data-state='dozing'] .agent__mark { opacity: 0.4; }
+.agent[data-state='dozing'] .capy {
   animation: breathe var(--motion-duration-ambient) var(--motion-easing-standard) infinite;
 }
 
 /* Listening: attentive, still. */
-.agent[data-state='listening'] .agent__mark {
-  opacity: 0.8;
+.agent[data-state='listening'] .agent__mark { opacity: 0.8; }
+.agent[data-state='listening'] .capy {
   animation: sway 5.5s var(--motion-easing-standard) infinite;
 }
 
@@ -820,6 +836,8 @@ above is the visual form of a state the sidecar actually reported. */
 .agent[data-state='working'] .agent__mark {
   opacity: 1;
   box-shadow: 0 0 0 1px var(--color-semantic-border-strong);
+}
+.agent[data-state='working'] .capy {
   animation: work-pulse 1.6s var(--motion-easing-standard) infinite;
 }
 
@@ -837,15 +855,14 @@ above is the visual form of a state the sidecar actually reported. */
 /* Syncopation over simultaneity: two capybaras doing the same thing at the same
    instant looks mechanical (BRAND.md section 5). Each column starts its cycle
    at a different point, so the row never moves in unison. */
-.agent:nth-child(2n) .agent__mark { animation-delay: -0.6s; }
-.agent:nth-child(3n) .agent__mark { animation-delay: -1.7s; }
+.agent:nth-child(2n) .capy { animation-delay: -0.6s; }
+.agent:nth-child(3n) .capy { animation-delay: -1.7s; }
 
 /* The confirmation nod: a single satisfied movement when an answer lands. No
    confetti, and nothing at all unless an approval actually resolved. */
-.agent.is-settling .agent__mark {
+.agent.is-settling .capy {
   animation: confirm-nod var(--motion-duration-panel) var(--motion-easing-settle);
 }
-.agent[data-state='needs-you'] .agent__mark .wave { stroke: var(--color-semantic-text-primary); }
 
 /* ---- the ask in flight ----
 
@@ -859,21 +876,24 @@ above is the visual form of a state the sidecar actually reported. */
    interface, and a question being answered may never mute it. */
 .herd[data-ask='pending'] .agent:not([data-state='needs-you']) .agent__mark {
   opacity: 1;
+  box-shadow: 0 0 0 1px var(--color-semantic-border-strong);
+}
+.herd[data-ask='pending'] .agent:not([data-state='needs-you']) .capy {
   animation: answer-wave 1.6s var(--motion-easing-standard) infinite;
 }
 
 /* The wave travels the row rather than six capybaras moving in unison -- the same
    syncopation rule the rest of the herd follows. */
-.herd[data-ask='pending'] .agent:nth-child(1) .agent__mark { animation-delay: 0s; }
-.herd[data-ask='pending'] .agent:nth-child(2) .agent__mark { animation-delay: -0.27s; }
-.herd[data-ask='pending'] .agent:nth-child(3) .agent__mark { animation-delay: -0.54s; }
-.herd[data-ask='pending'] .agent:nth-child(4) .agent__mark { animation-delay: -0.81s; }
-.herd[data-ask='pending'] .agent:nth-child(5) .agent__mark { animation-delay: -1.08s; }
-.herd[data-ask='pending'] .agent:nth-child(6) .agent__mark { animation-delay: -1.35s; }
+.herd[data-ask='pending'] .agent:nth-child(1) .capy { animation-delay: 0s; }
+.herd[data-ask='pending'] .agent:nth-child(2) .capy { animation-delay: -0.27s; }
+.herd[data-ask='pending'] .agent:nth-child(3) .capy { animation-delay: -0.54s; }
+.herd[data-ask='pending'] .agent:nth-child(4) .capy { animation-delay: -0.81s; }
+.herd[data-ask='pending'] .agent:nth-child(5) .capy { animation-delay: -1.08s; }
+.herd[data-ask='pending'] .agent:nth-child(6) .capy { animation-delay: -1.35s; }
 
 /* Answered: the same satisfied nod the herd already gives a resolved approval,
    once, and then nothing. No loop. */
-.herd[data-ask='answered'] .agent:not([data-state='needs-you']) .agent__mark {
+.herd[data-ask='answered'] .agent:not([data-state='needs-you']) .capy {
   animation: confirm-nod var(--motion-duration-panel) var(--motion-easing-settle) both;
 }
 
