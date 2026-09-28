@@ -92,11 +92,11 @@ Raising the reply ceiling to the model's own maximum creates a new problem: **a 
 6. **The PDF skill** — depends on §5's controls, because reading a file needs them.
 7. **The installer** — still what makes this handable to anyone else.
 
-## 7. What needs the operator, not me
+## 7. The operator's answers (2026-09-28 12:55)
 
-- **Which folder may the app write to?** All write confinement follows from this.
-- **Should reading a file ask every time, or can a folder be granted once?**
-- **Confirmation that no bundled antivirus is the accepted position** — with structural inspection and data-not-instructions as what replaces it.
+- **Where may the app write?** — *"you can write to any folder you need."* **This removes the containment control rather than configuring it.** What still stands in its place, and must therefore not be weakened: the **confirm gate on every write**, **atomic writes** (temp-and-rename), and **never a silent overwrite**. Containment was the layer that limited the blast radius; without it the gate is the only thing between a mistaken write and the filesystem. Recorded so the trade is explicit rather than discovered.
+- **Reading a file** — *"a folder can be granted once."* So the inspection runs on first open, and the grant is remembered per folder rather than asked on every read.
+- **Bundled antivirus** — not requested; the plan's position stands: **no AV engine**, with structural inspection plus the data-not-instructions rule as what replaces it.
 
 ## 8. Process note
 
