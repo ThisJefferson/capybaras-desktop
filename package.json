@@ -13,6 +13,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "replit-test": "vitest run tests/replit-acceptance.test.ts",
+    "app": "tauri dev",
+    "app:build": "tauri build",
     "build:sidecar": "node apps/desktop/sidecar/build.mjs",
     "build:tokens": "node design/build-tokens.mjs",
     "build": "npm run build:tokens && npm run build:sidecar",

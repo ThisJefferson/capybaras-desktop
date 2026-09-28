@@ -6,7 +6,29 @@
 
 > Desktop agent that stops and checks with you before doing anything that matters.
 
-**Status: early development.** Nothing is installable yet. This repo is being built in the open.
+**Status: early development.** Nothing is installable yet — but it runs from source. See **Running it** below. This repo is being built in the open.
+
+---
+
+## Running it
+
+Requires Node 24+, the Rust toolchain, the MSVC C++ Build Tools and the WebView2 runtime.
+
+```
+npm install
+npm run build      # design tokens + the sidecar
+npm run app        # compiles the shell and opens the window
+```
+
+The first run compiles the shell and takes a few minutes; later runs take seconds.
+
+Then:
+
+1. **Connect** — opens your browser to sign in to OpenRouter. The key goes to the Windows credential store, never to a file.
+2. **Choose a model** — the list loads itself once a key is stored.
+3. **Send a message** — the first reply appears, and the session meter records what it cost.
+
+To see the thing this product exists for, use the **acceptance test** button: it runs a documented incident and stops at the gate. Nothing proceeds without a click, and a hard gate cannot be satisfied by a grant.
 
 ---
 
