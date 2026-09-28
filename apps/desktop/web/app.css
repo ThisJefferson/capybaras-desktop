@@ -1125,6 +1125,113 @@ above is the visual form of a state the sidecar actually reported. */
 }
 
 /* ------------------------------------------------------------------ */
+/* Responsive                                                          */
+/* ------------------------------------------------------------------ */
+
+/* Three deliberate designs, not one shrunk.
+
+   These literals are `breakpoint.tablet` (720px) and `breakpoint.desktop`
+   (1100px) in design/tokens.json. They are written out because a media query
+   cannot read a custom property — the token stays the source of truth for the
+   value, and this is the one place it is repeated. */
+
+/* ---- tablet and below: one column, and the herd lies down ---- */
+
+@media (max-width: 1099px) {
+  /* The nav stops being a right-aligned group and becomes a scrollable chip
+     row under the wordmark. It is still the same links in the same order. */
+  .nav {
+    order: 3;
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    margin-left: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav__link { flex: none; }
+
+  /* The herd is full width here, so it lays out across the row rather than
+     staying in the three-wide column it needs inside the desktop rail. Six
+     across is the row the herd is meant to read as; below 720px the base rule
+     of three across gives the clean two-row block instead. */
+  .legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 720px) and (max-width: 1099px) {
+  .herd { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
+/* ---- phone: a single focused column, and the card becomes a sheet ---- */
+
+@media (max-width: 719px) {
+  .appbar__inner {
+    padding: var(--space-3) var(--space-4);
+    gap: var(--space-2) var(--space-3);
+  }
+  /* The wordmark carries the identity at this size; the tagline would push the
+     sticky header to three lines and cost more than it gives. */
+  .brand__tag { display: none; }
+  .appbar__meter { margin-left: auto; }
+
+  .shell {
+    padding: var(--space-6) var(--space-4) var(--space-16);
+    gap: var(--space-4);
+  }
+  .rail, .workspace { gap: var(--space-4); }
+  .card-surface { padding: var(--space-5); }
+  .section-head { margin-bottom: var(--space-3); }
+  .legend { grid-template-columns: minmax(0, 1fr); }
+
+  /* A dialog centred in a phone viewport fights the keyboard and the thumb. It
+     becomes a sheet: full width, anchored to the bottom, with a sticky action
+     bar so the two buttons are always reachable without scrolling. */
+  .card {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .card__panel {
+    width: 100%;
+    max-width: none;
+    max-height: 92vh;
+    overflow: auto;
+    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+    box-shadow: var(--elevation-4);
+    padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+  }
+  .card__actions {
+    position: sticky;
+    bottom: 0;
+    margin-top: var(--space-3);
+    padding: var(--space-3) 0 0;
+    background: var(--color-semantic-surface-raised);
+  }
+  .card__actions .btn { flex: 1 1 auto; }
+
+  /* The console is a developer surface. It stays reachable, and stops taking
+     the last half of the page. */
+  .dev__buttons { gap: var(--space-1); }
+  .log { max-height: 130px; }
+}
+
+/* ---- very narrow: the readout stops being a two-column grid ---- */
+
+@media (max-width: 479px) {
+  .readout { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
+  .readout dd { margin-bottom: var(--space-2); }
+  .grants__item { flex-wrap: wrap; }
+}
+
+/* ---- touch: comfortable targets for the controls that were sized for a mouse ---- */
+
+@media (pointer: coarse) {
+  .btn--quiet,
+  .grants__item .btn { min-height: var(--layout-tap); }
+}
+
+/* ------------------------------------------------------------------ */
 /* Reduced motion                                                      */
 /* ------------------------------------------------------------------ */
 
