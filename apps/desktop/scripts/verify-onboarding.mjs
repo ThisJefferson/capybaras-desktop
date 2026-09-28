@@ -207,13 +207,29 @@ let meterCalls = 0;
 let meterTokens = 0;
 const unknownCommands = [];
 
+// The balance, as the shell reads it from GET /credits and hands to the meter.
+// The shape is the live response measured on 2026-09-28 (95 credits, 89.736...
+// used), so `remaining` is the difference and the display is usage.rs's own
+// formatting. It is scoped to the ACCOUNT: /credits describes the whole account,
+// shared with every other key on it, and the interface labels it as such.
+const CREDIT = {
+  remaining_usd: 5.263835823,
+  remaining_display: '$5.26',
+  total_credits: 95,
+  total_usage: 89.736164177,
+  scope: 'account',
+};
+
+/** The balance the shell currently holds, or null before it has read one. */
+let credit = null;
+
 /** The session meter, as the shell reports it (usage.rs's own formatting). */
 function usageSnapshot() {
   return {
     calls: meterCalls,
     total_tokens: meterTokens,
     cost_display: meterTokens ? '$0.000021' : '$0.000000',
-    credit: null,
+    credit,
   };
 }
 
@@ -286,6 +302,14 @@ function invoke(cmd, args) {
           return;
         }
         emit('capybaras://models', { models: CATALOG, default: DEFAULT_MODEL });
+        // The shell reads the balance right after the catalogue, so the "left"
+        // figure arrives with the rest of the panel rather than only after a paid
+        // call. Mirrored here so the interface is driven the way the shell drives
+        // it. (A read that fails attaches nothing -- see the Rust tests.)
+        setTimeout(() => {
+          credit = CREDIT;
+          emit('capybaras://usage', usageSnapshot());
+        }, 30);
       }, 60);
       return null;
 
@@ -703,6 +727,12 @@ try {
     'Send comes back once the reply has arrived',
     panel.askDisabled === false,
   );
+  check(
+    'the balance the shell read appears as what is left, labelled as the whole account',
+    panel.usageLabels.includes('left (whole account)') &&
+      panel.usageRows[panel.usageLabels.indexOf('left (whole account)')] === '$5.26',
+    `${panel.usageLabels.join(' / ')} = ${panel.usageRows.join(' / ')}`,
+  );
 
   /* ---- the milestone frame, for review: a first reply ------------- */
   const shot = await cdp.send('Page.captureScreenshot', {
@@ -740,6 +770,12 @@ try {
     panel.replyShown === false && panel.reply === '',
   );
   check('Send comes back after a refusal, so the person can try again', panel.askDisabled === false);
+  check(
+    'a failed call does not blank the balance -- the last known figure stands',
+    panel.usageLabels.includes('left (whole account)') &&
+      panel.usageRows[panel.usageLabels.indexOf('left (whole account)')] === '$5.26',
+    `${panel.usageLabels.join(' / ')} = ${panel.usageRows.join(' / ')}`,
+  );
 
   /* ---- nothing on screen is a machine artifact -------------------- */
   const visible = await evaluate(`(() => {
