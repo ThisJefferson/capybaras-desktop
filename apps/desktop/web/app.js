@@ -811,6 +811,25 @@ function renderModelDetail() {
     detail.append(document.createTextNode(`API: ${provider}`));
   }
 
+  // The price, exactly as the catalogue wrote it.
+  //
+  // `priceLabel` is a DISPLAY STRING that arrives pre-formatted -- "Free",
+  // "~$0.0001 a reply" -- so the shell owns both the wording and the arithmetic
+  // behind it. Nothing is computed, formatted, rounded or reworded here: it is
+  // written out verbatim, as text, so it can never become markup (T3/T4).
+  //
+  // Empty and missing are the same instruction: say nothing. No dash, no
+  // "unknown", no placeholder -- an invented price is worse than an absent one,
+  // because a placeholder reads as a real answer.
+  const priceLabel = typeof chosen.priceLabel === 'string' ? chosen.priceLabel : '';
+  if (priceLabel.length > 0) {
+    if (detail.textContent.length > 0) detail.append(document.createTextNode(' \u00b7 '));
+    const price = document.createElement('span');
+    price.className = 'model-detail__price';
+    price.textContent = priceLabel;
+    detail.append(price);
+  }
+
   const href = safeModelLink(chosen.link);
   if (href) {
     if (detail.textContent.length > 0) detail.append(document.createTextNode(' \u00b7 '));
@@ -838,6 +857,10 @@ function renderModels(payload) {
 
   catalogModels = payload.models;
   select.textContent = '';
+  // The order is the shell's, and this renders it as given. The catalogue now
+  // arrives sorted (A-Z by name); sorting again here would be a second opinion
+  // about order, and the second opinion would win -- so there is no sort in this
+  // file, and there should never be one.
   for (const model of payload.models) {
     const option = document.createElement('option');
     option.value = String(model.id ?? '');
