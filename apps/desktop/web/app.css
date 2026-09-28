@@ -22,7 +22,12 @@
 *::before,
 *::after { box-sizing: border-box; }
 
-html { -webkit-text-size-adjust: 100%; }
+html {
+  -webkit-text-size-adjust: 100%;
+  /* Jumping to a section must not put its heading under the sticky header. */
+  scroll-padding-top: calc(var(--space-16) + var(--space-2));
+  scroll-behavior: smooth;
+}
 
 body {
   margin: 0;
@@ -150,6 +155,8 @@ a { color: var(--color-semantic-state-primary); }
   font-weight: var(--typography-weight-medium);
   color: var(--color-semantic-text-secondary);
   text-decoration: none;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard),
+              color var(--motion-duration-fast) var(--motion-easing-standard);
 }
 .nav__link:hover { background: var(--color-semantic-surface-sunken); color: var(--color-semantic-text-primary); }
 .nav__link[aria-current='true'] {
@@ -367,7 +374,13 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
   border-radius: var(--radius-md);
   cursor: pointer;
   text-align: center;
+  /* Acknowledge, immediately: colour and a 1px press, never a transform that
+     could move a target out from under the pointer. */
+  transition: background-color var(--motion-duration-instant) var(--motion-easing-standard),
+              border-color var(--motion-duration-instant) var(--motion-easing-standard),
+              color var(--motion-duration-instant) var(--motion-easing-standard);
 }
+.btn:active:not(:disabled) { transform: translateY(1px); }
 
 /* The safe choice is the easy one: primary, filled, and what Enter does. */
 .btn--primary {
@@ -479,6 +492,8 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
   letter-spacing: var(--typography-tracking-caps);
   text-transform: uppercase;
   white-space: nowrap;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard),
+              color var(--motion-duration-fast) var(--motion-easing-standard);
 }
 .chip::before {
   content: '';
@@ -664,6 +679,11 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
   border-radius: var(--radius-md);
   background: var(--color-semantic-surface-inset);
   display: block;
+  /* A state change morphs; it never snaps. Transform and opacity only. */
+  transition: background-color var(--motion-duration-standard) var(--motion-easing-standard),
+              box-shadow var(--motion-duration-standard) var(--motion-easing-standard),
+              opacity var(--motion-duration-standard) var(--motion-easing-standard),
+              transform var(--motion-duration-settle) var(--motion-easing-settle);
 }
 
 /* Duda's accent is sand, which is very nearly the page colour — so sand waves
@@ -705,6 +725,9 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
   letter-spacing: var(--typography-tracking-caps);
   text-transform: uppercase;
   color: var(--color-semantic-text-secondary);
+  /* The chip morphs between states rather than being replaced. */
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard),
+              color var(--motion-duration-fast) var(--motion-easing-standard);
 }
 
 /* The sign belongs to the STATE, not to a character: whoever needs you raises
@@ -727,27 +750,56 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
   font-weight: var(--typography-weight-bold);
 }
 
-/* ---- the four states ---- */
+/* ---- the four states ----
+  
+dozing      a very slow breath, 4.5s -- ambient, and it must not be noticed
+listening   a long, small sway. Syncopated across the row, never in unison
+working     a purposeful pulse. Faster than listening, still unhurried
+needs-you   the only asymmetric motion in the product: a lift, off-beat
+
+Nothing here loops at a rate a reader would call movement, and every animation
+above is the visual form of a state the sidecar actually reported. */
 
 /* Dozing: barely there. */
-.agent[data-state='dozing'] .agent__mark { opacity: 0.4; }
+.agent[data-state='dozing'] .agent__mark {
+  opacity: 0.4;
+  animation: breathe var(--motion-duration-ambient) var(--motion-easing-standard) infinite;
+}
 
 /* Listening: attentive, still. */
-.agent[data-state='listening'] .agent__mark { opacity: 0.8; }
+.agent[data-state='listening'] .agent__mark {
+  opacity: 0.8;
+  animation: sway 5.5s var(--motion-easing-standard) infinite;
+}
 
 /* Working: fully present, and gently moving. Purposeful, not frantic. */
 .agent[data-state='working'] .agent__mark {
   opacity: 1;
   box-shadow: 0 0 0 1px var(--color-semantic-border-strong);
+  animation: work-pulse 1.6s var(--motion-easing-standard) infinite;
 }
 
 /* Needs you: the loudest thing in the interface. Coral, lifted, and the only
    asymmetric treatment. It has to be unmistakable from across the room. */
 .agent[data-state='needs-you'] .agent__mark {
   opacity: 1;
+  transform: translateY(-4px) scale(1.06);
   background: var(--color-semantic-state-needsYou);
   box-shadow: 0 0 0 2px var(--color-semantic-state-needsYou),
               0 6px 16px rgba(242, 112, 90, 0.32);
+  animation: sign-lift 1.4s var(--motion-easing-attention) infinite;
+}
+
+/* Syncopation over simultaneity: two capybaras doing the same thing at the same
+   instant looks mechanical (BRAND.md section 5). Each column starts its cycle
+   at a different point, so the row never moves in unison. */
+.agent:nth-child(2n) .agent__mark { animation-delay: -0.6s; }
+.agent:nth-child(3n) .agent__mark { animation-delay: -1.7s; }
+
+/* The confirmation nod: a single satisfied movement when an answer lands. No
+   confetti, and nothing at all unless an approval actually resolved. */
+.agent.is-settling .agent__mark {
+  animation: confirm-nod var(--motion-duration-panel) var(--motion-easing-settle);
 }
 .agent[data-state='needs-you'] .agent__mark .wave { stroke: var(--color-semantic-text-primary); }
 
@@ -938,6 +990,106 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
 }
 
 /* ------------------------------------------------------------------ */
+/* Motion: the vocabulary, in one place                                */
+/* ------------------------------------------------------------------ */
+
+/* Bossa nova (BRAND.md section 5): everything moves slowly and never rushes.
+
+   90ms   acknowledge a press, a hover, a focus
+   140ms  small feedback: a chip, a validation message
+   200ms  a component transition
+   260ms  the settle: panels, results, the card
+   380ms  a panel or page transition
+   4500ms the herd at rest
+
+   Transform and opacity wherever a transform will do the job. Durations come
+   from tokens; the only literal in this section is the length of a loop. */
+
+@keyframes settle-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes reply-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes wave-run {
+  from { transform: translateX(-110%); }
+  to   { transform: translateX(310%); }
+}
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 0.4; }
+  50%      { transform: scale(1.035); opacity: 0.5; }
+}
+@keyframes sway {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(2px); }
+}
+@keyframes work-pulse {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2px); }
+}
+@keyframes sign-lift {
+  0%, 100% { transform: translateY(-4px) scale(1.06); }
+  50%      { transform: translateY(-7px) scale(1.06); }
+}
+@keyframes confirm-nod {
+  0%   { transform: translateY(-5px) scale(1.06); }
+  60%  { transform: translateY(1px) scale(1.01); }
+  100% { transform: none; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+/* The card arrives with spatial continuity: the scrim fades, the panel settles.
+   This is the product's signature moment, so it is the one place the easing is
+   allowed to be asymmetric. */
+.card:not([hidden]) .card__panel {
+  animation: settle-in var(--motion-duration-settle) var(--motion-easing-settle) both;
+}
+.card:not([hidden]) + .scrim {
+  animation: fade-in var(--motion-duration-standard) var(--motion-easing-standard) both;
+}
+
+/* A result appearing is a result: it settles rather than pops. */
+.reply:not([hidden]) {
+  animation: reply-in var(--motion-duration-standard) var(--motion-easing-entrance) both;
+}
+.inline-error:not([hidden]) {
+  animation: fade-in var(--motion-duration-fast) var(--motion-easing-standard) both;
+}
+
+/* The calçadão as a progress motif: the wave runs while a model call is in
+   flight, and the element is removed when it is not. Indeterminate on purpose —
+   a provider gives no honest percentage. */
+.progress::after { animation: wave-run 1.2s linear infinite; }
+
+/* The busy spinner. */
+.btn[aria-busy='true']::after { animation: spin 700ms linear infinite; }
+
+/* A skeleton holds a steady tone; the shimmer is barely there and stops
+   entirely when the reader has asked for less motion. */
+.skeleton {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-neutral-100) 0%,
+    var(--color-neutral-50) 50%,
+    var(--color-neutral-100) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2.4s linear infinite;
+}
+
+/* ------------------------------------------------------------------ */
 /* Test harness (not product UI)                                        */
 /* ------------------------------------------------------------------ */
 
@@ -970,4 +1122,33 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   color: var(--color-semantic-text-secondary);
+}
+
+/* ------------------------------------------------------------------ */
+/* Reduced motion                                                      */
+/* ------------------------------------------------------------------ */
+
+/* Motion is removed; FEEDBACK IS NOT. Appearances become instant, the herd
+   still shows each state through colour, its label and its shape, and a busy
+   button gives up its spinner for its own label rather than an inert ring.
+   (The previous rule was `animation: none !important`, which deleted the
+   feedback along with the movement.) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  html { scroll-behavior: auto !important; }
+
+  .skeleton {
+    animation: none !important;
+    background-image: none;
+    background: var(--color-neutral-100);
+  }
+  .btn[aria-busy='true'] { color: inherit; }
+  .btn[aria-busy='true']::after { display: none; }
+  .progress::after { transform: none; width: 100%; }
 }

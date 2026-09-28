@@ -780,9 +780,31 @@ if (modelChoice) {
 /* Events pushed from the shell                                       */
 /* ------------------------------------------------------------------ */
 
+/**
+ * One satisfied nod for the capybara who raised the sign.
+ *
+ * The confirmation movement BRAND.md section 7 spends its fun budget on. It is
+ * driven by a real resolution -- the sign coming down -- and does nothing at all
+ * if no one was holding it. The class is removed afterwards so the animation can
+ * run again on the next answer.
+ */
+function nodOnce() {
+  const herd = $('herd');
+  const holder = herd ? herd.querySelector("[data-state='needs-you']") : null;
+  if (!holder) return;
+  holder.classList.remove('is-settling');
+  // Reading offsetWidth would force a reflow just to restart an animation; the
+  // timeout is cheaper and the interval between answers is human-scale anyway.
+  holder.classList.add('is-settling');
+  setTimeout(() => holder.classList.remove('is-settling'), 700);
+}
+
 if (listen) {
   listen('capybaras://approval-required', (e) => showCard(e.payload.id, e.payload.request));
-  listen('capybaras://approval-resolved', (e) => log(`resolved: ${e.payload.id} → ${e.payload.outcome}`));
+  listen('capybaras://approval-resolved', (e) => {
+    log(`resolved: ${e.payload.id} → ${e.payload.outcome}`);
+    nodOnce();
+  });
   listen('capybaras://action-proceeded', (e) =>
     log(`proceeded: ${e.payload.id} (${e.payload.tier}) — ${e.payload.because ?? ''}`),
   );
