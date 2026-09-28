@@ -25,6 +25,13 @@
     </p>
   </section>
 
+  <!-- The meter. Read from the shell once on load, then pushed for every
+       finished model call - no polling, and nothing here is an estimate. -->
+  <section class="usage" id="usage" aria-label="What this session has spent">
+    <h2>This session</h2>
+    <dl id="usage-figures"><dt>loading</dt><dd>-</dd></dl>
+  </section>
+
   <!-- The herd. Six instances of ONE character design (D18), distinguished by
        label, accent colour and fixed position. Rendered by app.js from real
        state reported by the sidecar. -->

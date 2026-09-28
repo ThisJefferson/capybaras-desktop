@@ -311,6 +311,56 @@ function renderHerd(agents) {
 }
 
 /* ------------------------------------------------------------------ */
+/* The meter                                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * What this session has spent.
+ *
+ * Every figure comes from the shell's own count of real provider responses.
+ * Nothing here is estimated: a price table times a token count would produce a
+ * number that disagrees with the invoice, and a meter that disagrees with the
+ * invoice is worse than no meter.
+ *
+ * The credit figure is the one number that is NOT this app's own spend, so it
+ * says which it is. An account balance is shared with anything else using the
+ * same account; presenting it as this app's budget would be a quiet lie.
+ */
+function renderUsage(snapshot) {
+  const dl = $('usage-figures');
+  if (!dl || !snapshot) return;
+
+  dl.textContent = '';
+  dl.append(...row('model calls', String(snapshot.calls)));
+  dl.append(...row('tokens', String(snapshot.total_tokens)));
+  dl.append(...row('spent', snapshot.cost_display));
+
+  if (snapshot.credit) {
+    const scope = snapshot.credit.scope === 'key' ? 'this key' : 'whole account';
+    dl.append(
+      ...row(
+        `left (${scope})`,
+        snapshot.credit.remaining_display,
+        snapshot.credit.remaining_usd <= 0 ? 'bad' : 'ok',
+      ),
+    );
+  }
+}
+
+async function refreshUsage() {
+  if (!invoke) return;
+  try {
+    renderUsage(await invoke('usage_status'));
+  } catch (error) {
+    const dl = $('usage-figures');
+    if (dl) {
+      dl.textContent = '';
+      dl.append(...row('error', String(error), 'bad'));
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Events pushed from the shell                                       */
 /* ------------------------------------------------------------------ */
 
@@ -322,6 +372,8 @@ if (listen) {
   );
   listen('capybaras://action-dry-run', (e) => log(`dry run: ${e.payload.headline}`));
   listen('capybaras://agents', (e) => renderHerd(e.payload.agents));
+  // Every model call reports itself, so the meter is pushed rather than polled.
+  listen('capybaras://usage', (e) => renderUsage(e.payload));
   listen('capybaras://protocol-error', (e) => log(`refused: ${e.payload.message}`));
   listen('capybaras://ready', (e) => log(`sidecar ready (protocol ${e.payload.protocol})`));
   listen('capybaras://connect-waiting', (e) =>
@@ -403,3 +455,4 @@ for (const button of document.querySelectorAll('.dev button[data-tool]')) {
 refreshStatus();
 setInterval(refreshStatus, 5000);
 refreshConnect();
+refreshUsage();

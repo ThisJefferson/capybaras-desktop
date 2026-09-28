@@ -17,6 +17,7 @@ pub mod credential;
 pub mod exchange;
 pub mod integrity;
 pub mod loopback;
+pub mod meter;
 pub mod oauth;
 pub mod usage;
 
@@ -70,6 +71,27 @@ fn shell_status(state: tauri::State<'_, AppState>) -> ShellStatus {
     }
 }
 
+/// Send one message to the sidecar.
+///
+/// Shared by every command that talks to the agent, so there is exactly one
+/// place that decides how the shell reaches it -- and one wording for every
+/// failure. Three copies of "no sidecar is running" is three chances to describe
+/// the same state differently.
+fn send_to_sidecar(
+    state: &tauri::State<'_, AppState>,
+    message: serde_json::Value,
+) -> Result<(), String> {
+    let mut guard = state
+        .sidecar
+        .lock()
+        .map_err(|_| "sidecar lock poisoned".to_string())?;
+    let sidecar = guard
+        .as_mut()
+        .ok_or_else(|| "no sidecar is running".to_string())?;
+
+    sidecar.send(&message).map_err(|e| e.to_string())
+}
+
 /// Ask the sidecar to consider an action.
 ///
 /// Returns immediately. The outcome arrives as an **event**, not as a return
@@ -82,14 +104,6 @@ fn propose_action(
     action: serde_json::Value,
     context: Option<serde_json::Value>,
 ) -> Result<(), String> {
-    let mut guard = state
-        .sidecar
-        .lock()
-        .map_err(|_| "sidecar lock poisoned".to_string())?;
-    let sidecar = guard
-        .as_mut()
-        .ok_or_else(|| "no sidecar is running".to_string())?;
-
     let mut message = serde_json::json!({
         "v": 1,
         "type": "action.propose",
@@ -100,7 +114,7 @@ fn propose_action(
         message["context"] = ctx;
     }
 
-    sidecar.send(&message).map_err(|e| e.to_string())
+    send_to_sidecar(&state, message)
 }
 
 /// Carry a human's decision back to the sidecar.
@@ -113,22 +127,59 @@ fn answer_approval(
     id: String,
     decision: String,
 ) -> Result<(), String> {
-    let mut guard = state
-        .sidecar
-        .lock()
-        .map_err(|_| "sidecar lock poisoned".to_string())?;
-    let sidecar = guard
-        .as_mut()
-        .ok_or_else(|| "no sidecar is running".to_string())?;
-
-    sidecar
-        .send(&serde_json::json!({
+    send_to_sidecar(
+        &state,
+        serde_json::json!({
             "v": 1,
             "type": "approval.answer",
             "id": id,
             "decision": decision,
-        }))
-        .map_err(|e| e.to_string())
+        }),
+    )
+}
+
+/// The current meter.
+///
+/// A read, not a subscription: the interface calls this once on load and is kept
+/// current from then on by `capybaras://usage` (see `meter.rs`).
+#[tauri::command]
+fn usage_status(meter: tauri::State<'_, meter::UsageMeter>) -> usage::Snapshot {
+    meter.snapshot()
+}
+
+/// Record a finished model call, and tell the interface what it cost.
+///
+/// **THIS IS THE ONLY PLACE A CALL ENTERS THE METER.** Anything that completes a
+/// model request must report it here; if a path forgets to, the meter is silently
+/// wrong rather than visibly broken -- the failure mode `usage.rs` warns about in
+/// its own header.
+///
+/// It returns the new snapshot as well as emitting it, so a caller that wants the
+/// figure does not have to race the event to get it.
+#[tauri::command]
+fn record_model_call(
+    app: tauri::AppHandle,
+    meter: tauri::State<'_, meter::UsageMeter>,
+    prompt_tokens: u64,
+    completion_tokens: u64,
+    total_tokens: u64,
+    cost_usd: f64,
+) -> usage::Snapshot {
+    crate::meter::record_and_notify(
+        meter.inner(),
+        usage::Tokens {
+            prompt: prompt_tokens,
+            completion: completion_tokens,
+            total: total_tokens,
+        },
+        cost_usd,
+        |snapshot| {
+            // Emitted for EVERY call, not only the ones that move a total: see
+            // the note at the top of meter.rs for why standing still is the case
+            // worth showing.
+            let _ = app.emit(crate::meter::USAGE_EVENT, snapshot);
+        },
+    )
 }
 
 /// Turn protocol messages into interface events.
@@ -240,10 +291,16 @@ pub fn run() {
             healthy: AtomicBool::new(false),
         })
         .manage(connect::ConnectState::default())
+        // The meter. Kept out of `AppState` on purpose: it needs no lock of its
+        // own beyond the one it already has, and holding it separately means a
+        // slow snapshot can never contend with the sidecar lock.
+        .manage(meter::UsageMeter::new())
         .invoke_handler(tauri::generate_handler![
             shell_status,
             propose_action,
             answer_approval,
+            usage_status,
+            record_model_call,
             connect::connect_status,
             connect::start_connect
         ])

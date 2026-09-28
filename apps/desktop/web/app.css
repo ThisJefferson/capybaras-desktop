@@ -43,6 +43,18 @@ dd {
 .ok { color: var(--color-semantic-state-success); }
 .bad { color: var(--color-semantic-state-needsYou); }
 
+/* ---------------- the meter ---------------- */
+
+/* What this session has spent. The same definition-list shape as the status
+   panel above, so it reads as one more readout rather than a new idea. */
+.usage {
+  margin-top: var(--space-6);
+}
+.usage h2 {
+  font-size: var(--typography-size-lg);
+  margin: 0 0 var(--space-2);
+}
+
 /* ---------------- failure banner ---------------- */
 
 /* Shown when the app cannot reach its engine at all. This has to be impossible
