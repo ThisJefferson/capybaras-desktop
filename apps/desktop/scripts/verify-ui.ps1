@@ -10,12 +10,17 @@
 # script, so they cannot drift apart.
 #
 # Usage:  powershell -NoProfile -ExecutionPolicy Bypass -File verify-ui.ps1
-#         [-Port 8791] [-Width 940] [-Height 1060]
+#         [-Port 8791] [-Width 940] [-Height 1520]
+#
+# Height note: the interface grew past the card (the model panel, the meter and the
+# remembered choices all sit above it now), so the old 1060 window CLIPPED the card's
+# confirmation field and buttons -- the two things this check exists to see. 1520 shows
+# the whole card in one frame.
 
 param(
     [int]$Port = 8791,
     [int]$Width = 940,
-    [int]$Height = 1060
+    [int]$Height = 1520
 )
 
 # Chrome writes progress text to stderr. Under 'Stop', PowerShell treats a native
@@ -75,6 +80,17 @@ window.__TAURI__ = {
       if (cmd === 'shell_status') {
         return { shell_pid: 4242, state_dir: 'C:\\Users\\Skept\\AppData\\Local\\Capybaras',
                  sidecar_running: true, sidecar_pid: 5150, job_assigned: true };
+      }
+      // The mock must mirror the REAL command surface, not just the commands this
+      // screenshot happens to depend on. Returning null for `connect_status` made
+      // the interface render a TypeError where the real app renders a sentence --
+      // a harness artefact that reads as a product defect in a reviewed image.
+      if (cmd === 'connect_status') {
+        return { store_available: true, connected: false };
+      }
+      if (cmd === 'usage_status') {
+        return { calls: 3, total_tokens: 12480, cost_display: '$0.0041',
+                 credit: { scope: 'account', remaining_display: '$8.60', remaining_usd: 8.6 } };
       }
       return null;
     }

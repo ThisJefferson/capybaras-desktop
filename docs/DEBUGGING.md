@@ -60,6 +60,15 @@ There is a verification harness that injects a mock `window.__TAURI__` before `a
 
 Then screenshot and **review it with a vision model** — the usual script here is prompted for phone screenshots and will describe the wrong things, so ask a specific question instead.
 
+**A real window cannot be captured on this host — measured, 2026-09-28.** The console session is not compositing (a locked/disconnected desktop). `Graphics.CopyFromScreen` returns a **uniform black frame**: a magenta canary window was confirmed present in the window list (alongside Notepad and Windows Terminal) while contributing **zero** magenta pixels to the capture, and the centre pixel read `ARGB=-16777216` (pure black). So "screenshot the running app's window" is not a check this machine can make — and a black screenshot must not be mistaken for a blank window in the product. Verify the interface **offscreen** instead:
+
+```powershell
+npm run verify:ui          # renders the real app.js + app.css in headless Chrome
+npm run verify:acceptance   # drives the REAL sidecar through the REAL frontend
+```
+
+Both are rendering checks; neither needs the desktop. They substitute the Tauri/OS bridge (a separate script injected before `app.js`, impossible to inline under `script-src 'self'`) and leave the product code above it — `index.html`, `app.js`, `app.css`, `tokens.css` and the whole sidecar — unmodified.
+
 ### Protocol (shell ↔ sidecar)
 
 - **`stdout` is the protocol channel.** Human-readable diagnostics go to `sidecar.log`. Writing free text to `stdout` corrupts the stream — this is the first thing to check if messages look garbled.
@@ -154,4 +163,4 @@ Ranked by how likely each is to produce the next nasty bug:
 
 ---
 
-*Last updated 2026-09-27, after the token, `file://`, mojibake, CSS-specificity and regex-defect incidents. Add to it when something costs you an hour — that is the whole point of the file.*
+*Last updated 2026-09-28, after the token, `file://`, mojibake, CSS-specificity and regex-defect incidents, and the display-environment finding above. Add to it when something costs you an hour — that is the whole point of the file.*
