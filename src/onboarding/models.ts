@@ -29,6 +29,25 @@
  *    link is built locally as `https://openrouter.ai/<id>` — never a URL the
  *    server sent. The id is remote data, so it is charset-restricted and
  *    length-bounded before it becomes part of a URL.
+ *
+ * 4. **An entry carries a `priceLabel`** - a pre-formatted, sanitised string the
+ *    interface renders VERBATIM with `textContent`. Prices arrive as a per-token
+ *    rate, which means nothing to a person, so the arithmetic to a cost-per-reply
+ *    happens HERE and the interface computes nothing. Unreadable or absent pricing
+ *    yields an empty string, never a guess and never `"$0.00"` by accident.
+ *
+ * 5. **An entry carries `maxCompletionTokens`** - the model's OWN ceiling on a
+ *    reply, from `top_provider.max_completion_tokens`. The shell uses it as the
+ *    request's `max_tokens`, so a long answer is asked for in full rather than
+ *    truncated at a number picked here. Absent when the model did not say.
+ *
+ * 6. **The catalogue is sorted by display name, case-insensitively, AFTER
+ *    filtering**, so the interface receives it already ordered and both languages
+ *    agree on the order. Ties fall back to the id, so the order is total.
+ *
+ * The rules above are the SAME rules `apps/desktop/src-tauri/src/catalog.rs`
+ * applies - a reviewer should read the two side by side. That module exists
+ * because the shell makes the call; this one is its display contract.
  */
 
 /** How long a remote string may be before it stops being a label. */
@@ -73,6 +92,18 @@ export interface CatalogEntry {
   link?: string;
   /** Reported context window, or undefined when the server did not say. */
   contextLength?: number;
+  /** A pre-formatted price for the interface to render VERBATIM with
+   *  `textContent`. `"Free"`, or an estimate per reply such as
+   *  `"~$0.0001 a reply"`, or empty when the price is absent or unreadable -
+   *  never a guess and never `"$0.00"` by accident. Display only: the interface
+   *  computes nothing, and nothing here is consumable by the policy. */
+  priceLabel: string;
+  /** The model's own ceiling on one reply, from
+   *  `top_provider.max_completion_tokens`. The shell sends it as the request's
+   *  `max_tokens` so a long answer is not truncated at a number picked here.
+   *  Display-safe: a property of the model, not of the gate. Absent when the
+   *  model did not state one. */
+  maxCompletionTokens?: number;
 }
 
 export type CatalogResult =
@@ -140,6 +171,114 @@ export function modelLink(id: string): string | undefined {
   const safe = id.replace(LINK_ID_DISALLOWED, '').slice(0, LINK_ID_MAX);
   if (safe.length === 0) return undefined;
   return `${MODEL_LINK_PREFIX}${safe}`;
+}
+
+/**
+ * How many tokens a representative reply is assumed to use, for the per-reply
+ * estimate the interface shows. Prices are per token, which means nothing to a
+ * person, so the display is a cost per reply instead.
+ *
+ * The basis is stated rather than hidden: a question and an answer of about a
+ * page in total. It is an ESTIMATE and the label says so with a leading `~`. The
+ * same figures `catalog.rs` uses, so both languages agree.
+ */
+export const PRICE_ASSUMED_PROMPT_TOKENS = 1000;
+export const PRICE_ASSUMED_REPLY_TOKENS = 1000;
+
+/**
+ * One price field as a per-token USD figure, or `undefined` when it cannot be
+ * read. Absence is not zero: an unreadable price yields no label rather than a
+ * wrong one.
+ */
+function priceField(pricing: Record<string, unknown>, name: string): number | undefined {
+  const raw = pricing[name];
+  const value = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
+  if (!Number.isFinite(value) || value < 0) return undefined;
+  return value;
+}
+
+/**
+ * Two significant figures, plain decimal, never an exponent. 0.00075 -> "0.00075".
+ *
+ * A faithful port of `money` in catalog.rs, so the two languages print the same
+ * string. `decimals` is capped at 100 because `Number.prototype.toFixed` refuses
+ * more, and a catalogue entry is remote data that may carry an absurd figure.
+ */
+function money(value: number): string {
+  const exponent = Math.floor(Math.log10(Math.abs(value)));
+  const decimals = Math.min(Math.max(1 - exponent, 2), 100);
+  const text = value.toFixed(decimals);
+  const trimmed = text.replace(/0+$/, '').replace(/\.$/, '');
+  const shown = trimmed.includes('.') ? (trimmed.split('.')[1] ?? '').length : 0;
+  return shown < 2 ? `${trimmed}0` : trimmed;
+}
+
+/**
+ * A pre-formatted price for the interface to render verbatim with `textContent`.
+ *
+ * Four cases, and the interface computes nothing:
+ *
+ * - a genuinely free model (both sides priced at zero) -> `"Free"`;
+ * - otherwise an estimate PER REPLY, human-readable, e.g. `"~$0.0001 a reply"`
+ *   - never a raw per-token rate;
+ * - unreadable or absent pricing -> `""`, never a guess and never `"$0.00"` by
+ *   accident;
+ * - a figure that cannot be read as a real number is treated as absent.
+ *
+ * The string is built from numbers here and cannot carry remote text. The same
+ * rule `catalog.rs` follows, so a price reads identically whichever layer
+ * produced it.
+ */
+export function priceLabel(entry: Record<string, unknown>): string {
+  const pricing = entry.pricing;
+  if (pricing === null || typeof pricing !== 'object') return '';
+  const fields = pricing as Record<string, unknown>;
+  const prompt = priceField(fields, 'prompt');
+  const completion = priceField(fields, 'completion');
+  if (prompt === undefined || completion === undefined) return '';
+
+  if (prompt === 0 && completion === 0) return 'Free';
+
+  const estimate = prompt * PRICE_ASSUMED_PROMPT_TOKENS + completion * PRICE_ASSUMED_REPLY_TOKENS;
+  if (!Number.isFinite(estimate) || estimate <= 0) return '';
+  return `~$${money(estimate)} a reply`;
+}
+
+/**
+ * The model's own ceiling on one reply, from `top_provider.max_completion_tokens`.
+ *
+ * Display-safe, and carried for two reasons: the interface may show it, and the
+ * shell uses it as the request's `max_tokens`. A missing or zero figure is absent,
+ * not zero - absence is answered with a high fallback rather than a small limit.
+ */
+function maxCompletionTokens(entry: Record<string, unknown>): number | undefined {
+  const provider = entry.top_provider;
+  if (provider === null || typeof provider !== 'object') return undefined;
+  const raw = (provider as Record<string, unknown>).max_completion_tokens;
+  return typeof raw === 'number' && Number.isInteger(raw) && raw > 0 ? raw : undefined;
+}
+
+/**
+ * Whether an entry advertises output this app cannot use.
+ *
+ * A RULE, NOT A LIST, AND THE MARKER IS THE CATALOGUE'S OWN. The app makes a
+ * chat completion and renders `choices[0].message.content` as TEXT. An entry
+ * whose `architecture.output_modalities` names a modality other than `text` is
+ * not a text chat model for it: `google/lyria-3-clip-preview` and
+ * `google/lyria-3-pro-preview` are music-generation models with
+ * `output_modalities: ["text", "audio"]`, priced at zero, and were offered among
+ * the free models until this rule. The same rule `catalog.rs` applies.
+ *
+ * NARROW ON PURPOSE: only an entry that STATES a non-text output modality is
+ * dropped. An entry with no `architecture` at all is kept - absence is not
+ * evidence, the same principle the pricing filter follows.
+ */
+export function hasNonTextOutput(entry: Record<string, unknown>): boolean {
+  const architecture = entry.architecture;
+  if (architecture === null || typeof architecture !== 'object') return false;
+  const modalities = (architecture as Record<string, unknown>).output_modalities;
+  if (!Array.isArray(modalities)) return false;
+  return modalities.some((m) => typeof m === 'string' && m.toLowerCase() !== 'text');
 }
 
 /**
@@ -221,10 +360,41 @@ export function isBatchOnly(id: string): boolean {
  * and reported, because dropping a model for being busy one afternoon would
  * shrink the catalogue invisibly - the most destructive kind of drift, since
  * nobody sees the entry that quietly disappeared.
+ *
+ * THE TWO POLICIES DIFFER, AND THAT IS DELIBERATE. For a PAID model, a rate limit
+ * or a 5xx is still NOT grounds for removal - that is a statement about the
+ * afternoon, and dropping a model for being busy once would shrink the catalogue
+ * invisibly. For the FREE list the operator has chosen reliability as the bar, so
+ * a free model that cannot answer every time is not offered as one that works.
+ * The dated free ids below are mostly rate limits and empty replies, removed
+ * because a person picking a "free model that works" must not get a 429. The
+ * retest's criterion is HTTP 200 AND no error envelope AND non-empty content,
+ * three attempts per model; measured 2026-09-28, of 20 zero-priced entries 4 were
+ * reliable, 4 flaky and 12 broken.
+ *
+ * THE TWO MUSIC MODELS ARE NOT HERE, ON PURPOSE. `google/lyria-3-*` are removed
+ * by the `hasNonTextOutput` RULE, not by this list - a rule survives the
+ * catalogue churning where a hand-typed id does not.
  */
 export const UNAVAILABLE_MODEL_IDS: readonly string[] = Object.freeze([
   'amazon/nova-premier-v1',
   'openai/gpt-5.2-chat',
+  // Free models that failed the 2026-09-28 reliability retest (flaky or broken).
+  'cohere/north-mini-code:free',
+  'dots-studio/dots-3-note-preview:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'google/gemma-4-31b-it:free',
+  'liquid/lfm-2.5-2.6b:free',
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'nvidia/nemotron-3.5-content-safety:free',
+  'openrouter/free',
+  'poolside/laguna-s-2.1:free',
+  'poolside/laguna-xs-2.1:free',
+  'qwen/qwen3.8-27b:free',
+  'thinkingmachines/inkling-small:free',
+  'thinkingmachines/inkling:free',
 ]);
 
 /** Turn one raw entry into a display-safe one, or reject it. */
@@ -237,6 +407,10 @@ function parseEntry(raw: unknown): CatalogEntry | undefined {
 
   // A router or meta entry cannot serve a completion. Drop it, narrowly.
   if (hasNegativePrice(entry)) return undefined;
+
+  // An entry that advertises a non-text output is not a text chat model for this
+  // app - the rule that replaced a hand-typed list for the music models.
+  if (hasNonTextOutput(entry)) return undefined;
 
   // An entry the live sweep proved cannot serve, by rule or by dated list. Kept
   // apart from the pricing rule because the reason is different: these are
@@ -253,11 +427,14 @@ function parseEntry(raw: unknown): CatalogEntry | undefined {
   const description = sanitiseRemoteText(entry.description, DESCRIPTION_MAX);
   const provider = providerOf(id);
   const link = modelLink(id);
+  const ceiling = maxCompletionTokens(entry);
 
   // NOTE what is NOT here: no tier, no trust level, no policy field, no capability
   // flags. A catalog entry describes what a model IS, never what the gate should
-  // do about it. `provider` and `link` are the same kind of thing: what the model
-  // is, and where to read about it.
+  // do about it. `provider`, `link`, `priceLabel` and `maxCompletionTokens` are
+  // the same kind of thing: what the model is, where to read about it, what a
+  // reply costs and how long it may be. None of them is something the policy could
+  // consume, and the structural test pins that as an exact set.
   return {
     id,
     name,
@@ -265,14 +442,31 @@ function parseEntry(raw: unknown): CatalogEntry | undefined {
     provider,
     ...(link ? { link } : {}),
     ...(contextLength ? { contextLength } : {}),
+    priceLabel: priceLabel(entry),
+    ...(ceiling ? { maxCompletionTokens: ceiling } : {}),
   };
 }
 
-/** Parse a `/models` response. Tolerant of extra fields, strict about shape. */
+/**
+ * Parse a `/models` response. Tolerant of extra fields, strict about shape.
+ *
+ * SORTED BY DISPLAY NAME, CASE-INSENSITIVELY, AFTER FILTERING. The interface
+ * receives the catalogue already ordered, so the order is decided here once and
+ * both languages agree rather than each re-sorting. Ties fall back to the id, so
+ * the order is total and stable. The same rule `catalog.rs` applies.
+ */
 export function parseCatalog(raw: unknown): CatalogEntry[] {
   const list = (raw as { data?: unknown } | null)?.data;
   if (!Array.isArray(list)) return [];
-  return list.map(parseEntry).filter((entry): entry is CatalogEntry => entry !== undefined);
+  return list
+    .map(parseEntry)
+    .filter((entry): entry is CatalogEntry => entry !== undefined)
+    .sort((a, b) => {
+      const left = a.name.toLowerCase();
+      const right = b.name.toLowerCase();
+      if (left !== right) return left < right ? -1 : 1;
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    });
 }
 
 export async function fetchCatalog(fetchImpl: typeof fetch): Promise<CatalogResult> {

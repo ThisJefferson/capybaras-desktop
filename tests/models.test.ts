@@ -6,9 +6,11 @@ import {
   MODEL_LINK_PREFIX,
   UNAVAILABLE_MODEL_IDS,
   fetchCatalog,
+  hasNonTextOutput,
   isBatchOnly,
   modelLink,
   parseCatalog,
+  priceLabel,
   providerOf,
   reconcile,
   sanitiseRemoteText,
@@ -61,6 +63,7 @@ describe('parsing the catalog', () => {
       provider: 'Vendor',
       link: 'https://openrouter.ai/vendor/model',
       contextLength: 128000,
+      priceLabel: '',
     });
   });
 
@@ -125,6 +128,7 @@ describe('parsing the catalog', () => {
           name: 'M',
           description: 'd',
           context_length: 1000,
+          top_provider: { max_completion_tokens: 64000 },
           // Fields an over-eager parser might carry through:
           tier: 'silent',
           trustLevel: 'high',
@@ -133,12 +137,21 @@ describe('parsing the catalog', () => {
         },
       ],
     });
+    // WIDENED DELIBERATELY, NOT LOOSENED. Two display fields were added on
+    // 2026-09-28 - `priceLabel` (a pre-formatted price the interface renders
+    // verbatim) and `maxCompletionTokens` (the model's own reply ceiling, which
+    // the shell sends as `max_tokens`). Both describe what a model IS. The
+    // assertion is still an EXACT set, so a tier, a trust level or any other
+    // field the policy could consume still fails this test loudly. The same
+    // field set `the_catalog_exposes_display_fields_only` pins in catalog.rs.
     expect(Object.keys(entry ?? {}).sort()).toEqual([
       'contextLength',
       'description',
       'id',
       'link',
+      'maxCompletionTokens',
       'name',
+      'priceLabel',
       'provider',
     ]);
   });
@@ -418,5 +431,160 @@ describe('reconciling the curated shortlist', () => {
 
   it('does not mind an empty shortlist', () => {
     expect(reconcile([], catalog)).toEqual({ available: [], missing: [] });
+  });
+});
+
+/**
+ * The price a person actually reads.
+ *
+ * Prices arrive as a per-token rate, which means nothing to a non-technical
+ * person, so the catalogue turns one into a cost PER REPLY here and the interface
+ * renders the string verbatim, computing nothing. The same rule `catalog.rs`
+ * follows - this is the mirror of it, and the two must agree.
+ */
+describe('the price is a pre-formatted label, rendered verbatim', () => {
+  it('says "Free" when both sides are genuinely priced at zero', () => {
+    expect(priceLabel({ pricing: { prompt: '0', completion: '0' } })).toBe('Free');
+    expect(priceLabel({ pricing: { prompt: 0, completion: 0 } })).toBe('Free');
+  });
+
+  it('gives a human-readable estimate per reply, never a per-token rate', () => {
+    // Real-shaped: a cheaper prompt and a pricier completion.
+    const label = priceLabel({ pricing: { prompt: '0.00000004', completion: '0.00000006' } });
+    expect(label).toBe('~$0.0001 a reply');
+    expect(label).not.toContain('token');
+  });
+
+  it('scales to a pricier model without inventing precision', () => {
+    // $3/M prompt and $15/M completion - a typical frontier-model shape.
+    expect(priceLabel({ pricing: { prompt: '0.000003', completion: '0.000015' } })).toBe(
+      '~$0.018 a reply',
+    );
+  });
+
+  it('yields an EMPTY label when the price is absent or unreadable, never $0.00', () => {
+    expect(priceLabel({})).toBe('');
+    expect(priceLabel({ pricing: null })).toBe('');
+    expect(priceLabel({ pricing: 'free' })).toBe('');
+    expect(priceLabel({ pricing: { prompt: 'free', completion: null } })).toBe('');
+    expect(priceLabel({ pricing: { prompt: '0.000003' } })).toBe('');
+  });
+
+  it('carries the label onto the parsed entry, and never a stray $0.00', () => {
+    const [free] = parseCatalog({
+      data: [
+        {
+          id: 'meta-llama/llama-3.1-8b-instruct:free',
+          name: 'Llama',
+          pricing: { prompt: '0', completion: '0' },
+        },
+      ],
+    });
+    expect(free?.priceLabel).toBe('Free');
+
+    const [unknown] = parseCatalog({ data: [{ id: 'v/m', name: 'M' }] });
+    expect(unknown?.priceLabel).toBe('');
+  });
+});
+
+/**
+ * The catalogue arrives ALREADY ORDERED. The interface renders it in the order
+ * the shell sent it and never re-sorts, so the order is decided here, once, and
+ * both languages agree. The input below is deliberately NOT in name order, so a
+ * no-op would fail this test. The same test, against the same rule, is
+ * `the_catalogue_arrives_sorted_by_display_name_ignoring_case` in catalog.rs.
+ */
+describe('the catalogue is sorted by display name, case-insensitively', () => {
+  it('orders by name ignoring case, with the input shuffled', () => {
+    const models = parseCatalog({
+      data: [
+        { id: 'v/zeta', name: 'Zeta' },
+        { id: 'v/apple', name: 'apple' },
+        { id: 'v/banana', name: 'Banana' },
+        { id: 'v/cherry', name: 'Cherry' },
+      ],
+    });
+    expect(models.map((m) => m.id)).toEqual(['v/apple', 'v/banana', 'v/cherry', 'v/zeta']);
+  });
+
+  it('breaks ties by id, so the order is total and stable', () => {
+    const models = parseCatalog({
+      data: [
+        { id: 'v/b', name: 'Same' },
+        { id: 'v/a', name: 'Same' },
+      ],
+    });
+    expect(models.map((m) => m.id)).toEqual(['v/a', 'v/b']);
+  });
+
+  it('sorts AFTER filtering, so a dropped entry does not affect the order', () => {
+    const models = parseCatalog({
+      data: [
+        { id: 'v/mid', name: 'Mid' },
+        { id: 'openrouter/auto', name: 'Aardvark', pricing: { prompt: '-1', completion: '-1' } },
+        { id: 'v/early', name: 'Early' },
+      ],
+    });
+    expect(models.map((m) => m.id)).toEqual(['v/early', 'v/mid']);
+  });
+});
+
+/**
+ * A model that advertises an output this app cannot use is not a text chat model
+ * for it. This is a RULE over the catalogue's own marker, not a list of ids, so
+ * it survives the catalogue changing. See `hasNonTextOutput` in models.ts, and
+ * `has_non_text_output` in catalog.rs.
+ */
+describe('dropping entries whose output is not text', () => {
+  it('drops a model that advertises a non-text output, and keeps the rest', () => {
+    const models = parseCatalog({
+      data: [
+        {
+          id: 'google/lyria-3-clip-preview',
+          name: 'Lyria Clip',
+          architecture: { output_modalities: ['text', 'audio'] },
+          pricing: { prompt: '0', completion: '0' },
+        },
+        {
+          id: 'google/lyria-3-pro-preview',
+          name: 'Lyria Pro',
+          architecture: { output_modalities: ['text', 'audio'] },
+          pricing: { prompt: '0', completion: '0' },
+        },
+        { id: 'vendor/chat', name: 'Chat', architecture: { output_modalities: ['text'] } },
+        // No architecture at all is NOT evidence of a non-text output.
+        { id: 'vendor/no-arch', name: 'No architecture' },
+      ],
+    });
+    expect(models.map((m) => m.id)).toEqual(['vendor/chat', 'vendor/no-arch']);
+  });
+
+  it('reads the marker case-insensitively, and treats absence as no evidence', () => {
+    expect(hasNonTextOutput({ architecture: { output_modalities: ['TEXT'] } })).toBe(false);
+    expect(hasNonTextOutput({ architecture: { output_modalities: ['Text', 'image'] } })).toBe(true);
+    expect(hasNonTextOutput({})).toBe(false);
+    expect(hasNonTextOutput({ architecture: 'nonsense' })).toBe(false);
+  });
+});
+
+/**
+ * The model's own reply ceiling, carried so the shell asks for a full answer
+ * rather than a number picked here. The same field `catalog.rs` exposes as
+ * `maxCompletionTokens`.
+ */
+describe('the model carries its own reply ceiling', () => {
+  it('reads it from top_provider, and treats zero or absence as unknown', () => {
+    const [known] = parseCatalog({
+      data: [{ id: 'v/m', top_provider: { max_completion_tokens: 64000 } }],
+    });
+    expect(known?.maxCompletionTokens).toBe(64000);
+
+    const [zero] = parseCatalog({
+      data: [{ id: 'v/m', top_provider: { max_completion_tokens: 0 } }],
+    });
+    expect(zero?.maxCompletionTokens).toBeUndefined();
+
+    const [absent] = parseCatalog({ data: [{ id: 'v/m' }] });
+    expect(absent?.maxCompletionTokens).toBeUndefined();
   });
 });
