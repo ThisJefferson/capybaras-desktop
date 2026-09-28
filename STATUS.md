@@ -3,7 +3,7 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-28 11:41 EDT
+**Last updated:** 2026-09-28 11:55 EDT
 **Current phase:** **M5 — onboarding.** The PKCE flow, the credential store, the loopback listener, the session meter, the first model call, **the onboarding path walked end to end through the interface**, and now **the explanation a non-technical person meets before they connect** are all in the tree and tested. What remains in M5 is a free-model mode, a decision about the spend cap (**D26** — there is no enforced cap; the account-balance readout is now wired, the cap itself is open), and the one thing no test can do — a real reply against the user's own account.
 **Next milestone:** M5 — a non-technical tester reaches a first reply unaided (the path exists and is walked offline; a live key is the missing piece)
 **Spec:** `docs/protocol.md` · **Plan:** `docs/plans/next-steps.md` · **Design:** `docs/plans/M4-visual-design.md` · **Onboarding test:** `docs/onboarding-test.md`
@@ -19,6 +19,46 @@
 - **The promise:** *it will still break, just small, visibly, and undoably.*
 
 ---
+
+## 2026-09-28 - the catalogue stops offering models the API refuses
+
+A person picked a model from a 452-entry menu and got "OpenRouter does not
+recognise that model." The list was `/models`, which is what OpenRouter
+*advertises*, not what it will *serve*. Those are different lists, and the app was
+offering the difference.
+
+**The sweep.** `apps/desktop/src-tauri/tests/catalog_sweep.rs` - an `#[ignore]`d
+maintenance test, never run by `cargo test` and never by `npm run verify` - calls
+every catalogue entry with `max_tokens: 1` and a one-word prompt. It reads the key
+through `credential::load`, because `GET /models` answers 200 with no credential at
+all, and an earlier sweep against the workspace's dead key returned `401 User not
+found` for all 452 models and proved nothing.
+
+Measured on 2026-09-28 with the app's own credential:
+
+- **458 catalogue entries** (452 after the router rule).
+- **356 ok, 74 unavailable, 28 inconclusive.**
+- **Spend $0.087716**, summed from the responses' own `usage.cost`; `GET /key`
+  moved $0.087708 as an independent cross-check.
+- Unavailable: 72 `:batch`, 1 BYOK-only (`openai/gpt-5.2-chat`), 1 no-endpoint
+  (`amazon/nova-premier-v1` - the Amazon failure a user reported).
+- Inconclusive and KEPT: 13 unclassified 400s, 7 age-gated 403s, 6 rate limits,
+  2 502s. A rate limit is a statement about the afternoon, not the model, and
+  removing on that basis would shrink the menu invisibly.
+
+**The rule, then a short list.** 72 of the 74 unavailable ids end in `:batch` -
+batch endpoints cannot answer `chat/completions` at all - so that is a RULE in both
+`catalog.rs` and `models.ts`, not a hand-typed list; it survives the catalogue
+churning. The two that no field predicts sit in a DATED list that says why it
+exists and how to regenerate it from the sweep. No field was added to
+`CatalogEntry`, so the display-only contract still holds.
+
+**Found, not fixed:** the negative-pricing router rule drops 6 entries, and the
+sweep shows 5 of them answer 200 with a completion. Its comment says routers
+"cannot be called as written", which the measurement contradicts. Left alone as out
+of scope - its output is a product decision - but worth a follow-up.
+
+Verify: 14 files, 385 tests.
 
 ## 2026-09-28 — the herd is where the question is asked, and it answers visibly
 
