@@ -38,10 +38,17 @@ const listen = tauri.event?.listen ?? tauri.core?.event?.listen;
 if (typeof invoke !== 'function') {
   const banner = document.createElement('div');
   banner.className = 'banner banner--error';
+  // A total failure is announced, not merely drawn: a screen reader should hear
+  // this without hunting for it.
+  banner.setAttribute('role', 'alert');
   banner.textContent =
     'Capybaras is not connected to its engine, so nothing in this window will work. ' +
     'Close this window and start the app again with run.cmd.';
-  document.body.prepend(banner);
+  // Inside the shell rather than prepended to body: the header is sticky, and a
+  // banner above it would scroll away behind it -- the opposite of unmissable.
+  const shell = document.querySelector('.shell');
+  if (shell) shell.prepend(banner);
+  else document.body.prepend(banner);
   log('FATAL: no Tauri bridge — window.__TAURI__ has no callable invoke. Nothing will work.');
 }
 
@@ -298,6 +305,30 @@ function buildAgent(agent) {
     svg.append(path);
   }
 
+  // The sign belongs to the STATE, not to a character (BRAND.md section 4):
+  // whoever needs you raises it, and it is drawn identically every time so the
+  // single most important moment is recognised rather than re-read. It is drawn
+  // here only, and shown by CSS for the one state that raises it.
+  const sign = document.createElementNS(SVG_NS, 'svg');
+  sign.setAttribute('viewBox', '0 0 24 24');
+  sign.setAttribute('class', 'agent__sign');
+  sign.setAttribute('aria-hidden', 'true');
+  const board = document.createElementNS(SVG_NS, 'rect');
+  board.setAttribute('x', '2');
+  board.setAttribute('y', '2');
+  board.setAttribute('width', '20');
+  board.setAttribute('height', '11');
+  board.setAttribute('rx', '2.5');
+  board.setAttribute('fill', 'currentColor');
+  const post = document.createElementNS(SVG_NS, 'rect');
+  post.setAttribute('x', '11');
+  post.setAttribute('y', '12');
+  post.setAttribute('width', '2');
+  post.setAttribute('height', '10');
+  post.setAttribute('rx', '1');
+  post.setAttribute('fill', 'currentColor');
+  sign.append(board, post);
+
   const name = document.createElement('span');
   name.className = 'agent__name';
   name.textContent = agent.label;
@@ -305,7 +336,7 @@ function buildAgent(agent) {
   const state = document.createElement('span');
   state.className = 'agent__state';
 
-  el.append(svg, name, state);
+  el.append(sign, svg, name, state);
   return el;
 }
 
@@ -320,6 +351,8 @@ function renderHerd(agents) {
     for (const agent of agents) host.append(buildAgent(agent));
   }
 
+  const needing = [];
+  const working = [];
   for (const agent of agents) {
     const el = host.querySelector(`[data-agent="${agent.id}"]`);
     if (!el) continue;
@@ -327,7 +360,25 @@ function renderHerd(agents) {
     el.dataset.state = agent.state;
     el.querySelector('.agent__state').textContent = label;
     el.setAttribute('aria-label', `${agent.label}, ${agent.job}: ${label}`);
+    if (agent.state === 'needs-you') needing.push(agent.label);
+    if (agent.state === 'working') working.push(agent.label);
   }
+
+  // The same state in words, so the rail never depends on decoding a colour.
+  // Every line here describes a state the sidecar actually reported.
+  const summary = $('herd-summary');
+  if (summary) {
+    if (needing.length === 1) summary.textContent = `${needing[0]} needs you.`;
+    else if (needing.length > 1) summary.textContent = `${needing.length} capybaras need you.`;
+    else if (working.length === 1) summary.textContent = `${working[0]} is working.`;
+    else if (working.length > 1) summary.textContent = `${working.length} capybaras are working.`;
+    else summary.textContent = 'All quiet. The capybaras are dozing.';
+  }
+
+  // The wave under the header runs only while real work is happening — the
+  // same fact as the working capybaras, shown where it is always in view.
+  const busy = $('busy-line');
+  if (busy) busy.hidden = working.length === 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -365,6 +416,10 @@ function renderUsage(snapshot) {
       ),
     );
   }
+
+  // The header figure is the same number, not a second opinion about it.
+  const mini = $('meter-mini-value');
+  if (mini) mini.textContent = String(snapshot.cost_display ?? '—');
 }
 
 async function refreshUsage() {

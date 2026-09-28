@@ -2,121 +2,225 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Capybaras</title>
   <link rel="stylesheet" href="tokens.css" />
   <link rel="stylesheet" href="app.css" />
 </head>
 <body>
-  <h1>Capybaras</h1>
-  <p class="sub">M4 — the approval interface.</p>
+  <!-- Keyboard users should not have to walk the header and the herd to reach
+       the workspace. Visible only when focused. -->
+  <a class="skip" href="#workspace">Skip to the workspace</a>
 
-  <dl id="status"><dt>loading</dt><dd>…</dd></dl>
+  <!-- ---------------- the shell header ----------------
+       Sticky on desktop: the wordmark, where you are, and the one number
+       BRAND.md section 6 says must always be visible. -->
+  <header class="appbar">
+    <div class="appbar__inner">
+      <div class="brand">
+        <svg class="brand__mark" viewBox="0 0 576 512" aria-hidden="true" focusable="false">
+          <path class="brand__wave" d="M 0,152 C 64,110 128,110 192,152 C 256,194 320,194 384,152 C 448,110 512,110 576,152" />
+          <path class="brand__wave" d="M 0,256 C 64,298 128,298 192,256 C 256,214 320,214 384,256 C 448,298 512,298 576,256" />
+          <path class="brand__wave" d="M 0,360 C 64,318 128,318 192,360 C 256,402 320,402 384,360 C 448,318 512,318 576,360" />
+        </svg>
+        <span class="brand__text">
+          <span class="brand__name">Capybaras</span>
+          <span class="brand__tag">The agents that ask first.</span>
+        </span>
+      </div>
 
-  <!-- Connecting a model. The key is stored by Windows, not in a file, so the
-       agent cannot read it and act outside the gate (T12, docs/threat-model.md). -->
-  <section class="connect" id="connect" aria-label="Your model">
-    <h2>Your model</h2>
-    <p class="hint" id="connect-state">Checking…</p>
-    <button class="btn btn--primary" id="btn-connect">Connect to OpenRouter</button>
-    <p class="hint">
-      Signing in opens your browser. Capybaras never sees your password, and the key
-      it receives is kept by Windows — not in a file the agent could read. You can
-      delete it from your OpenRouter account at any time.
-    </p>
-  </section>
+      <nav class="nav" id="nav" aria-label="Sections">
+        <a class="nav__link" href="#herd">Herd</a>
+        <a class="nav__link" href="#connect">Model</a>
+        <a class="nav__link" href="#ask">Ask</a>
+        <a class="nav__link" href="#usage">Spend</a>
+        <a class="nav__link" href="#grants-section">Approvals</a>
+      </nav>
 
-  <!-- The first reply. ONE message, ONE answer: this is the milestone, not a chat
-       product. Every model name here comes from OpenRouter and is rendered as
-       text only (T3/T4) -- it is attacker-influenced text in a trusted position,
-       the same shape as the approval card. -->
-  <section class="ask" id="ask" aria-label="Ask Capybaras">
-    <h2>Ask Capybaras</h2>
-    <p class="hint" id="models-state">The model list has not been loaded yet.</p>
-    <div class="ask__row">
-      <label for="model-choice">Model</label>
-      <select id="model-choice"></select>
-      <button class="btn btn--secondary" id="btn-models">Load models</button>
-    </div>
-    <!-- Which API serves the chosen model, and where to read about it. Both come
-         from the shell: the provider is derived from the id prefix and the link is
-         built locally, and both are written as text (the one attribute, the href,
-         is checked against a fixed host) -- remote data never becomes markup. -->
-    <p class="hint" id="model-detail"></p>
-    <label for="ask-prompt">Your message</label>
-    <textarea id="ask-prompt" rows="3" placeholder="Say something"></textarea>
-    <button class="btn btn--primary" id="btn-send">Send</button>
-    <p class="hint" id="ask-hold">Nothing is sent until you press Send.</p>
-    <div class="reply" id="ask-reply" hidden></div>
-    <p class="hint bad" id="ask-error" hidden></p>
-  </section>
-
-  <!-- The meter. Read from the shell once on load, then pushed for every
-       finished model call - no polling, and nothing here is an estimate. -->
-  <section class="usage" id="usage" aria-label="What this session has spent">
-    <h2>This session</h2>
-    <dl id="usage-figures"><dt>loading</dt><dd>-</dd></dl>
-  </section>
-
-  <!-- Remembered choices. They live in the state directory, so they survive a
-       restart - and they are withdrawn from here, because a permission you
-       cannot take back is not really one you gave. -->
-  <section class="grants" id="grants-section" aria-label="Remembered choices">
-    <h2>Remembered choices</h2>
-    <ul class="grants__list" id="grants"></ul>
-    <p class="hint" id="grants-empty">Nothing remembered yet.</p>
-    <button class="btn btn--secondary" id="btn-refresh-grants">Refresh</button>
-  </section>
-
-  <!-- The herd. Six instances of ONE character design (D18), distinguished by
-       label, accent colour and fixed position. Rendered by app.js from real
-       state reported by the sidecar. -->
-  <section class="herd" id="herd" aria-label="The herd"></section>
-
-  <div class="card" id="card" hidden>
-    <div class="card__flag"><span class="card__dot"></span> needs you</div>
-    <h2 class="card__headline" id="card-headline"></h2>
-    <ul class="card__reasons" id="card-reasons"></ul>
-    <div class="card__warn" id="card-warn" hidden></div>
-
-    <div class="card__phrase" id="card-phrase" hidden>
-      <label>Type <code id="card-phrase-text"></code> to continue</label>
-      <input id="card-phrase-input" type="text" autocomplete="off" spellcheck="false" />
-    </div>
-
-    <div class="card__actions">
-      <button class="btn btn--primary" id="btn-hold">Hold on</button>
-      <button class="btn btn--secondary" id="btn-go" disabled>Go ahead</button>
-    </div>
-
-    <details class="card__remember" id="card-remember" hidden>
-      <summary>Always allow something like this</summary>
-      <p>
-        Checking this box does not approve the current action. It only asks
-        Capybaras to remember your answer <em>if</em> you also choose “Go ahead”.
-        This action still has to be approved on its own.
+      <!-- The same figure the meter below shows, kept where it is always in
+           view. Filled from the shell's own count, never estimated. -->
+      <p class="appbar__meter">
+        <span class="appbar__meter-label">This session</span>
+        <strong class="appbar__meter-value" id="meter-mini-value">—</strong>
       </p>
-      <label>
-        <input type="checkbox" id="card-remember-box" />
-        Remember this exact action, on this exact target
-      </label>
-    </details>
+    </div>
+    <!-- A thin calçadão wave that runs while a model call is in flight, so
+         "working" is visible even when the herd is scrolled away. -->
+    <div class="progress" id="busy-line" role="presentation" hidden></div>
+  </header>
 
-    <p class="hint">Press <strong>Enter</strong> to hold on. Nothing runs until you choose.</p>
+  <div class="shell">
+    <!-- ---------------- the hero rail ----------------
+         DOM order puts the herd first: it is the identity, and on a phone it is
+         what should be seen first. On desktop the grid moves it to the right.
+
+         The character art is a PLACEHOLDER. The calçadão wave mark stands in
+         until the commissioned model sheet exists (one character, four poses,
+         one sign, D18). Swapping the art must not require touching this layout. -->
+    <aside class="rail">
+      <section class="card-surface herd-card" aria-labelledby="herd-heading">
+        <div class="section-head">
+          <h2 class="section-title" id="herd-heading">The herd</h2>
+          <p class="section-note" id="herd-summary" aria-live="polite">All quiet. The capybaras are dozing.</p>
+        </div>
+        <section class="herd" id="herd" aria-label="The herd"></section>
+        <ul class="legend" aria-label="What the herd states mean">
+          <li class="legend__item" data-state="dozing"><span class="legend__swatch"></span>dozing — nothing is happening</li>
+          <li class="legend__item" data-state="listening"><span class="legend__swatch"></span>listening — ready</li>
+          <li class="legend__item" data-state="working"><span class="legend__swatch"></span>working — a job is running</li>
+          <li class="legend__item" data-state="needs-you"><span class="legend__swatch"></span>needs you — waiting on your answer</li>
+        </ul>
+      </section>
+
+      <!-- The meter. Read from the shell once on load, then pushed for every
+           finished model call - no polling, and nothing here is an estimate. -->
+      <section class="card-surface meter" id="usage" aria-labelledby="usage-heading">
+        <div class="section-head">
+          <h2 class="section-title" id="usage-heading">This session</h2>
+        </div>
+        <dl class="readout" id="usage-figures"><dt>loading</dt><dd>-</dd></dl>
+      </section>
+    </aside>
+
+    <main class="workspace" id="workspace">
+      <!-- Connecting a model. The key is stored by Windows, not in a file, so the
+           agent cannot read it and act outside the gate (T12, docs/threat-model.md). -->
+      <section class="card-surface panel" id="connect" aria-labelledby="connect-heading">
+        <div class="section-head">
+          <h2 class="section-title" id="connect-heading">Your model</h2>
+          <p class="section-note" id="connect-state">Checking…</p>
+        </div>
+        <div class="panel__actions">
+          <button class="btn btn--primary" id="btn-connect">Connect to OpenRouter</button>
+        </div>
+        <p class="hint">
+          Signing in opens your browser. Capybaras never sees your password, and the key
+          it receives is kept by Windows — not in a file the agent could read. You can
+          delete it from your OpenRouter account at any time.
+        </p>
+      </section>
+
+      <!-- The first reply. ONE message, ONE answer: this is the milestone, not a chat
+           product. Every model name here comes from OpenRouter and is rendered as
+           text only (T3/T4) -- it is attacker-influenced text in a trusted position,
+           the same shape as the approval card. -->
+      <section class="card-surface panel" id="ask" aria-labelledby="ask-heading">
+        <div class="section-head">
+          <h2 class="section-title" id="ask-heading">Ask Capybaras</h2>
+          <p class="section-note" id="models-state">The model list has not been loaded yet.</p>
+        </div>
+
+        <div class="field field--row">
+          <label class="field__label" for="model-choice">Model</label>
+          <div class="field__row">
+            <select class="input" id="model-choice"></select>
+            <button class="btn btn--secondary" id="btn-models">Load models</button>
+          </div>
+        </div>
+        <!-- Which API serves the chosen model, and where to read about it. Both come
+             from the shell: the provider is derived from the id prefix and the link is
+             built locally, and both are written as text (the one attribute, the href,
+             is checked against a fixed host) -- remote data never becomes markup. -->
+        <p class="hint hint--tight" id="model-detail"></p>
+
+        <div class="field">
+          <label class="field__label" for="ask-prompt">Your message</label>
+          <textarea class="input" id="ask-prompt" rows="3" placeholder="Say something"></textarea>
+        </div>
+
+        <div class="panel__actions">
+          <button class="btn btn--primary" id="btn-send">Send</button>
+        </div>
+        <p class="hint" id="ask-hold">Nothing is sent until you press Send.</p>
+
+        <div class="reply" id="ask-reply" role="status" aria-live="polite" hidden></div>
+        <p class="inline-error" id="ask-error" role="alert" hidden></p>
+      </section>
+
+      <!-- Remembered choices. They live in the state directory, so they survive a
+           restart - and they are withdrawn from here, because a permission you
+           cannot take back is not really one you gave. -->
+      <section class="card-surface panel" id="grants-section" aria-labelledby="grants-heading">
+        <div class="section-head">
+          <h2 class="section-title" id="grants-heading">Remembered choices</h2>
+        </div>
+        <ul class="grants__list" id="grants"></ul>
+        <div class="empty" id="grants-empty">
+          <p class="empty__title">Nothing remembered yet.</p>
+          <p class="empty__note">When you say “always allow” on a safe action, it appears here — and you can forget it in one click.</p>
+        </div>
+        <div class="panel__actions">
+          <button class="btn btn--secondary" id="btn-refresh-grants">Refresh</button>
+        </div>
+      </section>
+
+      <!-- The machine. Developer-grade detail, kept because it is how a stuck
+           install gets diagnosed -- but demoted, because it is not the product. -->
+      <details class="card-surface panel panel--quiet" id="machine">
+        <summary class="section-title section-title--summary">This machine</summary>
+        <dl class="readout" id="status"><dt>loading</dt><dd>…</dd></dl>
+      </details>
+
+      <!-- Test harness (not product UI) -->
+      <section class="console" id="console" aria-label="Acceptance test">
+        <strong class="console__title">Acceptance test</strong>
+        <span class="console__note">the incident this product exists to stop.</span>
+        <div class="dev__buttons">
+          <button class="btn btn--quiet" data-scenario="replit">Run the Replit scenario — the acceptance test</button>
+        </div>
+        <div class="dev__buttons">
+          <button class="btn btn--quiet" data-tool="fs.read">fs.read (silent)</button>
+          <button class="btn btn--quiet" data-tool="fs.write" data-target="notes.md">fs.write (confirm)</button>
+          <button class="btn btn--quiet" data-tool="fs.delete" data-count="5000" data-target="the project folder">fs.delete ×5000 (hard gate)</button>
+          <button class="btn btn--quiet" data-tool="payment.send">payment.send (hard gate)</button>
+        </div>
+        <div class="log" id="log"></div>
+      </section>
+    </main>
   </div>
 
-  <div class="dev">
-    <strong>Acceptance test</strong> — the incident this product exists to stop.
-    <div class="dev__buttons">
-      <button data-scenario="replit">▸ Run the Replit scenario — the acceptance test</button>
+  <!-- ---------------- the approval card ----------------
+       The moment this product exists for, so it is a focused overlay rather than
+       one more section in the flow: it takes the foreground, it takes focus, and
+       Escape is the safe answer.
+
+       The scrim is a sibling driven purely by CSS from the card's `hidden`
+       attribute, so app.js keeps toggling exactly the one property it already
+       toggles. -->
+  <div class="card" id="card" role="dialog" aria-modal="true" aria-labelledby="card-headline" hidden>
+    <div class="card__panel">
+      <div class="card__flag"><span class="card__dot" aria-hidden="true"></span> needs you</div>
+      <h2 class="card__headline" id="card-headline"></h2>
+      <ul class="card__reasons" id="card-reasons"></ul>
+      <div class="card__warn" id="card-warn" hidden></div>
+
+      <div class="card__phrase" id="card-phrase" hidden>
+        <label class="field__label" for="card-phrase-input">Type <code id="card-phrase-text"></code> to continue</label>
+        <input class="input" id="card-phrase-input" type="text" autocomplete="off" spellcheck="false" />
+      </div>
+
+      <div class="card__actions">
+        <button class="btn btn--primary" id="btn-hold">Hold on</button>
+        <button class="btn btn--secondary" id="btn-go" disabled>Go ahead</button>
+      </div>
+
+      <details class="card__remember" id="card-remember" hidden>
+        <summary>Always allow something like this</summary>
+        <p>
+          Checking this box does not approve the current action. It only asks
+          Capybaras to remember your answer <em>if</em> you also choose “Go ahead”.
+          This action still has to be approved on its own.
+        </p>
+        <label class="check">
+          <input type="checkbox" id="card-remember-box" />
+          Remember this exact action, on this exact target
+        </label>
+      </details>
+
+      <p class="hint">Press <strong>Enter</strong> to hold on. Nothing runs until you choose.</p>
     </div>
-    <div class="dev__buttons">
-      <button data-tool="fs.read">fs.read (silent)</button>
-      <button data-tool="fs.write" data-target="notes.md">fs.write (confirm)</button>
-      <button data-tool="fs.delete" data-count="5000" data-target="the project folder">fs.delete ×5000 (hard gate)</button>
-      <button data-tool="payment.send">payment.send (hard gate)</button>
-    </div>
-    <div class="log" id="log"></div>
   </div>
+  <div class="scrim" id="card-scrim" aria-hidden="true" hidden></div>
 
   <script type="module" src="app.js"></script>
 </body>

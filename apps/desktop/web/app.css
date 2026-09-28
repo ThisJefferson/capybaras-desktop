@@ -4,207 +4,488 @@
  * which silently blocks inline styles and scripts. Keeping these in files is
  * both correct and cheaper than debugging a blank window later.
  *
- * Every value comes from tokens.css (generated from design/tokens.json).
+ * Every value comes from tokens.css (generated from design/tokens.json). Run
+ * `npm run build:tokens` after editing the token source; `scripts/check-tokens.mjs`
+ * fails the build when a var() is used that nothing declares.
+ *
+ * Layout, in one paragraph: a sticky header (identity, where you are, money),
+ * then a two-column shell — a workspace that holds the work, and a hero rail
+ * that holds the herd. Below the desktop breakpoint the shell is one column and
+ * the rail comes first, because the herd is what a first-time reader should see.
  */
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                */
+/* ------------------------------------------------------------------ */
 
 *,
 *::before,
 *::after { box-sizing: border-box; }
 
+html { -webkit-text-size-adjust: 100%; }
+
 body {
   margin: 0;
-  padding: var(--space-6);
   font-family: var(--typography-family-ui);
-  font-size: var(--typography-size-md);
+  /* BRAND.md section 5 sets 16px as the FLOOR for body text, not the ceiling.
+     The interface previously ran at 14px, which was under its own floor. */
+  font-size: var(--typography-size-lg);
   line-height: var(--typography-lineHeight-normal);
   color: var(--color-semantic-text-primary);
   background: var(--color-semantic-surface-base);
+  -webkit-font-smoothing: antialiased;
 }
 
-h1 { font-size: var(--typography-size-xl); margin: 0 0 var(--space-1); }
-.sub { margin: 0 0 var(--space-6); color: var(--color-semantic-text-secondary); font-size: var(--typography-size-sm); }
+h1, h2, h3 {
+  margin: 0;
+  font-weight: var(--typography-weight-semibold);
+  line-height: var(--typography-lineHeight-snug);
+}
 
-/* ---------------- status panel ---------------- */
+p { margin: 0; }
 
-dl {
+a { color: var(--color-semantic-state-primary); }
+
+/* One focus treatment for the whole interface, rather than seven local ones. */
+:focus-visible {
+  outline: var(--focus-width) solid var(--color-semantic-border-focus);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--radius-sm);
+}
+
+/* The first thing a keyboard user meets. Off-screen until focused. */
+.skip {
+  position: absolute;
+  left: var(--space-4);
+  top: calc(-1 * var(--space-16));
+  z-index: var(--layers-toast);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-semantic-surface-raised);
+  color: var(--color-semantic-text-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elevation-2);
+  text-decoration: none;
+  font-size: var(--typography-size-sm);
+  transition: top var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.skip:focus { top: var(--space-4); }
+
+/* ------------------------------------------------------------------ */
+/* The header                                                          */
+/* ------------------------------------------------------------------ */
+
+.appbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--layers-header);
+  background: var(--color-semantic-surface-base);
+  border-bottom: 1px solid var(--color-semantic-border-subtle);
+}
+
+.appbar__inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4) var(--space-6);
+  flex-wrap: wrap;
+  max-width: var(--layout-shell-max);
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-6);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.brand__mark {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
+  background: var(--color-semantic-surface-accent);
+}
+.brand__wave {
+  fill: none;
+  stroke: var(--color-semantic-state-primary);
+  stroke-width: 34;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.brand__text { min-width: 0; }
+.brand__name {
+  display: block;
+  font-family: var(--typography-family-display);
+  font-size: var(--typography-size-2xl);
+  font-weight: var(--typography-weight-bold);
+  letter-spacing: var(--typography-tracking-display);
+  line-height: var(--typography-lineHeight-tight);
+}
+.brand__tag {
+  display: block;
+  font-size: var(--typography-size-sm);
+  color: var(--color-semantic-text-secondary);
+}
+
+/* Where you are. Scroll-spy sets aria-current; the underline follows. */
+.nav {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.nav__link {
+  display: inline-block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--typography-size-sm);
+  font-weight: var(--typography-weight-medium);
+  color: var(--color-semantic-text-secondary);
+  text-decoration: none;
+}
+.nav__link:hover { background: var(--color-semantic-surface-sunken); color: var(--color-semantic-text-primary); }
+.nav__link[aria-current='true'] {
+  background: var(--color-semantic-surface-accent);
+  color: var(--color-semantic-state-primary);
+}
+
+/* Money, always visible: the same figure the meter below shows. */
+.appbar__meter {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--typography-size-sm);
+  color: var(--color-semantic-text-secondary);
+  white-space: nowrap;
+}
+.appbar__meter-value {
+  font-size: var(--typography-size-lg);
+  font-weight: var(--typography-weight-semibold);
+  color: var(--color-semantic-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The calçadão wave, animated only while a model call is in flight. */
+.progress {
+  height: 3px;
+  overflow: hidden;
+  background: var(--color-semantic-surface-accent);
+}
+.progress[hidden] { display: none; }
+.progress::after {
+  content: '';
+  display: block;
+  width: 34%;
+  height: 100%;
+  background: var(--color-semantic-state-primary);
+}
+
+/* ------------------------------------------------------------------ */
+/* The shell                                                           */
+/* ------------------------------------------------------------------ */
+
+.shell {
+  max-width: var(--layout-shell-max);
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6) var(--space-20);
   display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: var(--space-1) var(--space-4);
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.rail,
+.workspace {
+  display: grid;
+  gap: var(--space-6);
+  align-content: start;
+  min-width: 0;
+}
+
+/* Desktop: the workspace opens up, the rail holds the herd and the money.
+   This is the only place a viewport width changes the design until the
+   responsive pass; the literal is `breakpoint.desktop` in design/tokens.json. */
+@media (min-width: 1100px) {
+  .shell { grid-template-columns: minmax(0, 1fr) var(--layout-rail-width); }
+  .workspace { grid-column: 1; grid-row: 1; }
+  .rail {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: calc(var(--space-10) + var(--space-8));
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Surfaces                                                            */
+/* ------------------------------------------------------------------ */
+
+.card-surface {
+  background: var(--color-semantic-surface-raised);
+  border: 1px solid var(--color-semantic-border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-6);
+}
+
+.panel--quiet {
+  background: var(--color-semantic-surface-inset);
+  box-shadow: none;
+}
+.panel--quiet > summary {
+  cursor: pointer;
+  list-style-position: outside;
+}
+.panel--quiet > summary::marker { color: var(--color-semantic-text-muted); }
+
+.section-head { margin-bottom: var(--space-4); }
+.section-title {
+  font-size: var(--typography-size-lg);
+  font-weight: var(--typography-weight-semibold);
+}
+.section-title--summary { display: inline-block; }
+.section-note {
+  margin-top: var(--space-1);
+  font-size: var(--typography-size-sm);
+  color: var(--color-semantic-text-secondary);
+}
+
+.panel__actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: var(--space-4);
+}
+
+/* ------------------------------------------------------------------ */
+/* Readouts: the status panel and the meter                            */
+/* ------------------------------------------------------------------ */
+
+.readout {
+  display: grid;
+  grid-template-columns: minmax(0, 11rem) minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
   margin: 0;
   font-size: var(--typography-size-sm);
 }
-dt { color: var(--color-semantic-text-secondary); }
-dd {
+.readout dt { color: var(--color-semantic-text-secondary); }
+.readout dd {
   margin: 0;
   font-family: var(--typography-family-mono);
   font-size: var(--typography-size-xs);
-  word-break: break-all;
-}
-.ok { color: var(--color-semantic-state-success); }
-.bad { color: var(--color-semantic-state-needsYou); }
-
-/* ---------------- the meter ---------------- */
-
-/* What this session has spent. The same definition-list shape as the status
-   panel above, so it reads as one more readout rather than a new idea. */
-.usage {
-  margin-top: var(--space-6);
-}
-.usage h2,
-.grants h2 {
-  font-size: var(--typography-size-lg);
-  margin: 0 0 var(--space-2);
+  color: var(--color-semantic-text-primary);
+  /* `anywhere`, not `break-all`: a long Windows path should wrap at a
+     separator rather than mid-token, which is what caused layout jitter. */
+  overflow-wrap: anywhere;
 }
 
-/* ---------------- the first reply ---------------- */
+/* ------------------------------------------------------------------ */
+/* Fields                                                              */
+/* ------------------------------------------------------------------ */
 
-/* One message, one answer. The same panel shape as the readouts above, so it
-   reads as one more part of the app rather than a different product. */
-.ask {
-  margin-top: var(--space-6);
+.field { margin-top: var(--space-4); }
+.field:first-of-type { margin-top: 0; }
+
+.field__label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--typography-size-sm);
+  font-weight: var(--typography-weight-medium);
+  color: var(--color-semantic-text-primary);
 }
-.ask h2 {
-  font-size: var(--typography-size-lg);
-  margin: 0 0 var(--space-2);
-}
-.ask__row {
+
+.field__row {
   display: flex;
-  align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
-}
-.ask label {
-  display: block;
-  margin-top: var(--space-2);
-  color: var(--color-semantic-text-secondary);
-  font-size: var(--typography-size-sm);
-}
-.ask select,
-.ask textarea {
-  width: 100%;
-  font-family: var(--typography-family-ui);
-  font-size: var(--typography-size-sm);
-  color: var(--color-semantic-text-primary);
-  background: var(--color-semantic-surface-raised);
-  border: 1px solid var(--color-semantic-border-subtle);
-  border-radius: var(--radius-sm);
-  padding: var(--space-2);
-}
-.ask textarea {
-  margin-top: var(--space-1);
-  resize: vertical;
-}
-.ask .btn {
-  margin-top: var(--space-2);
+  align-items: center;
 }
 
-/* Model output. `pre-wrap` keeps the reply's own line breaks without ever
-   interpreting it as markup; `anywhere` stops one long token from widening the
-   window. Rendered with textContent, so it is text and stays text (T3/T4). */
-.reply {
-  margin-top: var(--space-3);
-  padding: var(--space-3);
+.input {
+  font: inherit;
+  font-size: var(--typography-size-md);
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-semantic-text-primary);
+  background: var(--color-semantic-surface-raised);
+  border: 1px solid var(--color-semantic-border-strong);
+  border-radius: var(--radius-md);
+}
+.field__row .input { flex: 1 1 12rem; width: auto; }
+textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug); }
+
+/* ------------------------------------------------------------------ */
+/* Buttons                                                             */
+/* ------------------------------------------------------------------ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font: inherit;
+  font-size: var(--typography-size-md);
+  font-weight: var(--typography-weight-semibold);
+  line-height: var(--typography-lineHeight-tight);
+  padding: var(--space-3) var(--space-5);
+  min-height: var(--layout-tap);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: center;
+}
+
+/* The safe choice is the easy one: primary, filled, and what Enter does. */
+.btn--primary {
+  background: var(--color-semantic-state-primary);
+  color: var(--color-semantic-text-onAccent);
+}
+.btn--primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-semantic-state-primary) 86%, var(--color-brand-ink));
+}
+.btn--primary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--color-semantic-state-primary) 74%, var(--color-brand-ink));
+}
+
+/* The destructive choice is deliberately the quieter one. */
+.btn--secondary {
+  background: transparent;
+  color: var(--color-semantic-text-primary);
+  border-color: var(--color-semantic-border-strong);
+}
+.btn--secondary:hover:not(:disabled) { background: var(--color-semantic-surface-sunken); }
+
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* The test harness. Present, reachable, visually subordinate. */
+.btn--quiet {
+  min-height: 0;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--typography-size-xs);
+  font-weight: var(--typography-weight-regular);
+  background: transparent;
+  color: var(--color-semantic-text-secondary);
+  border-color: var(--color-semantic-border-subtle);
+}
+.btn--quiet:hover:not(:disabled) {
   background: var(--color-semantic-surface-sunken);
+  color: var(--color-semantic-text-primary);
+}
+
+/* ------------------------------------------------------------------ */
+/* Helper text, replies, inline errors                                 */
+/* ------------------------------------------------------------------ */
+
+.hint {
+  margin-top: var(--space-3);
+  max-width: var(--layout-measure);
+  font-size: var(--typography-size-xs);
+  line-height: var(--typography-lineHeight-snug);
+  color: var(--color-semantic-text-muted);
+}
+.hint--tight { margin-top: var(--space-1); }
+
+/* Model output. `pre-wrap` keeps the reply's own line breaks without ever
+   interpreting it as markup; `anywhere` stops one long token from widening
+   the window. Rendered with textContent, so it is text and stays text (T3/T4). */
+.reply {
+  margin-top: var(--space-4);
+  max-width: var(--layout-measure);
+  padding: var(--space-4);
+  background: var(--color-semantic-surface-inset);
   border: 1px solid var(--color-semantic-border-subtle);
   border-radius: var(--radius-md);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  line-height: var(--typography-lineHeight-loose);
 }
+.reply[hidden] { display: none; }
 
-/* ---------------- remembered choices ---------------- */
+.inline-error {
+  margin-top: var(--space-4);
+  max-width: var(--layout-measure);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-status-danger-surface);
+  border-left: 3px solid var(--color-status-danger);
+  border-radius: var(--radius-sm);
+  font-size: var(--typography-size-sm);
+}
+.inline-error[hidden] { display: none; }
+
+/* ------------------------------------------------------------------ */
+/* Remembered choices                                                  */
+/* ------------------------------------------------------------------ */
 
 /* A permission that is easy to withdraw is one people are willing to give, so
    the list stays plain and "Forget" is a single click. */
-.grants {
-  margin-top: var(--space-6);
-}
 .grants__list {
   list-style: none;
-  margin: 0 0 var(--space-2);
+  margin: 0;
   padding: 0;
+  display: grid;
+  gap: var(--space-2);
 }
 .grants__item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3);
   border: 1px solid var(--color-semantic-border-subtle);
   border-radius: var(--radius-md);
-  background: var(--color-semantic-surface-raised);
+  background: var(--color-semantic-surface-inset);
   font-size: var(--typography-size-sm);
 }
-.grants__item + .grants__item {
-  margin-top: var(--space-2);
+.grants__item .btn {
+  min-height: 0;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--typography-size-sm);
+  flex: none;
 }
 
-/* ---------------- failure banner ---------------- */
-
-/* Shown when the app cannot reach its engine at all. This has to be impossible
-   to miss: a missing bridge makes every control inert, and the previous
-   behaviour -- a TypeError in a log on each click -- looked like a broken button
-   rather than a broken connection. */
-.banner {
-  padding: var(--space-4) var(--space-5);
+.empty {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  border: 1px dashed var(--color-semantic-border-strong);
   border-radius: var(--radius-md);
-  margin-bottom: var(--space-5);
+  background: var(--color-semantic-surface-inset);
+}
+.empty[hidden] { display: none; }
+.empty__title { font-weight: var(--typography-weight-semibold); }
+.empty__note {
+  margin: var(--space-2) auto 0;
+  max-width: 44ch;
   font-size: var(--typography-size-sm);
-  font-weight: var(--typography-weight-semibold);
-}
-.banner--error {
-  background: #FDECE8;
-  border: 1px solid var(--color-semantic-state-needsYou);
-  border-left-width: 4px;
-  color: var(--color-neutral-800);
+  color: var(--color-semantic-text-secondary);
 }
 
-/* ---------------- the herd ----------------
- *
- * Six instances of ONE character design, duplicated (D18). They are told apart
- * by label, accent colour and fixed position — not by being different animals.
- *
- * The character art here is a PLACEHOLDER: the calçadão wave mark stands in
- * until the commissioned model sheet exists (one character, four poses, one
- * sign). Swapping it should not require touching this layout.
- */
+/* ------------------------------------------------------------------ */
+/* The herd                                                            */
+/* ------------------------------------------------------------------ */
 
+/* Six instances of ONE character design, duplicated (D18). They are told apart
+   by label, accent colour and fixed position — not by being different animals. */
 .herd {
-  display: flex;
-  gap: var(--space-5);
-  align-items: flex-start;
-  margin: var(--space-6) 0 var(--space-2);
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
 }
 
 .agent {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
-  width: 84px;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-1);
+  border-radius: var(--radius-md);
   text-align: center;
-}
-
-.agent__mark {
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-lg);
-  display: block;
-  transition: transform var(--motion-duration-standard) var(--motion-easing-standard),
-              opacity var(--motion-duration-standard) var(--motion-easing-standard);
-}
-
-.agent__name {
-  font-size: var(--typography-size-xs);
-  font-weight: var(--typography-weight-semibold);
-  color: var(--color-semantic-text-primary);
-}
-
-.agent__state {
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--color-semantic-text-muted);
+  min-width: 0;
 }
 
 /* Accent colours: the six non-coral palette colours, one each (D18).
@@ -216,104 +497,183 @@ dd {
 .agent--capy     { --agent-accent: var(--color-brand-capy); }
 .agent--sand     { --agent-accent: var(--color-brand-sand); }
 
+.agent__mark {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
+  background: var(--color-semantic-surface-inset);
+  display: block;
+}
+
 /* Duda's accent is sand, which is very nearly the page colour — so sand waves
    on cream are invisible. Give Duda a sand TILE with dark waves instead, so the
-   accent still reads and the icon is legible. */
-.agent--sand .agent__mark {
-  background: var(--color-brand-sand);
-  outline: 1px solid var(--color-semantic-border-strong);
-}
+   accent still reads and the icon is legible.
+
+   NOTE ON SPECIFICITY: `.agent__mark .wave` below is two classes, so this
+   override needs two classes plus the accent class to win regardless of source
+   order. */
+.agent--sand .agent__mark { background: var(--color-brand-sand); }
 .agent--sand .agent__mark .wave { stroke: var(--color-semantic-text-primary); }
 
-/* NOTE ON SPECIFICITY: the rule below is `.agent__mark .wave` (two classes).
-   The sand override above must therefore use THREE classes to win, because CSS
-   source order decides equal specificity — and this rule comes later in the
-   file. Raising the specificity makes the override order-independent. */
-.agent__mark .wave { stroke: var(--agent-accent); }
+.agent__mark .wave {
+  fill: none;
+  stroke: var(--agent-accent);
+  stroke-width: 34;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.agent__name {
+  font-size: var(--typography-size-xs);
+  font-weight: var(--typography-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+/* The label is the non-colour cue. It is never hidden, and never smaller than
+   the ramp's floor, because "never rely on colour alone" is a requirement. */
+.agent__state {
+  font-size: var(--typography-size-2xs);
+  font-weight: var(--typography-weight-medium);
+  letter-spacing: var(--typography-tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-semantic-text-secondary);
+}
+
+/* The sign belongs to the state, not to a character: whoever needs you raises
+   it, and it is drawn identically every time so it is recognised, not re-read. */
+.agent__sign {
+  display: none;
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  color: var(--color-semantic-text-primary);
+}
+.agent[data-state='needs-you'] .agent__sign { display: block; }
 
 /* ---- the four states ---- */
 
 /* Dozing: barely there. */
-.agent[data-state='dozing'] .agent__mark { opacity: 0.35; }
+.agent[data-state='dozing'] .agent__mark { opacity: 0.4; }
 
 /* Listening: attentive, still. */
-.agent[data-state='listening'] .agent__mark { opacity: 0.75; }
+.agent[data-state='listening'] .agent__mark { opacity: 0.8; }
 
 /* Working: fully present, and gently moving. Purposeful, not frantic. */
-.agent[data-state='working'] .agent__mark { opacity: 1; }
-.agent[data-state='working'] .wave {
-  animation: capy-work 1.6s var(--motion-easing-standard) infinite;
-}
-@keyframes capy-work {
-  0%, 100% { transform: translateX(0); }
-  50%      { transform: translateX(3px); }
+.agent[data-state='working'] .agent__mark {
+  opacity: 1;
+  box-shadow: 0 0 0 1px var(--color-semantic-border-strong);
 }
 
 /* Needs you: the loudest thing in the interface. Coral, lifted, and the only
-   asymmetric motion. It has to be unmistakable from across the room. */
+   asymmetric treatment. It has to be unmistakable from across the room. */
 .agent[data-state='needs-you'] .agent__mark {
   opacity: 1;
-  transform: translateY(-6px) scale(1.1);
+  background: var(--color-semantic-state-needsYou);
   box-shadow: 0 0 0 2px var(--color-semantic-state-needsYou),
               0 6px 16px rgba(242, 112, 90, 0.32);
 }
-.agent[data-state='needs-you'] .agent__name { color: var(--color-semantic-state-needsYou); }
+.agent[data-state='needs-you'] .agent__mark .wave { stroke: var(--color-semantic-text-primary); }
 .agent[data-state='needs-you'] .agent__state {
-  color: var(--color-semantic-state-needsYou);
+  color: var(--color-semantic-text-primary);
   font-weight: var(--typography-weight-bold);
 }
-.agent[data-state='needs-you'] .wave {
-  animation: capy-sign 1.4s var(--motion-easing-attention) infinite;
-}
-@keyframes capy-sign {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-4px); }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .agent__mark, .wave { animation: none !important; transition: none !important; }
+.legend {
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3) 0 0;
+  border-top: 1px solid var(--color-semantic-border-subtle);
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--typography-size-2xs);
+  color: var(--color-semantic-text-secondary);
 }
+.legend__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.legend__swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-neutral-300);
+}
+.legend__item[data-state='listening'] .legend__swatch { background: var(--color-brand-sky); }
+.legend__item[data-state='working'] .legend__swatch { background: var(--color-brand-leaf); }
+.legend__item[data-state='needs-you'] .legend__swatch { background: var(--color-semantic-state-needsYou); }
 
-/* ---------------- the approval card ---------------- */
+/* ------------------------------------------------------------------ */
+/* The approval card                                                   */
+/* ------------------------------------------------------------------ */
 
+/* The moment this product exists for. It takes the foreground: a scrim behind,
+   a focused panel in front, and Escape is the safe answer. */
 .card {
-  margin: var(--space-6) 0;
-  background: var(--color-semantic-surface-raised);
-  border: 1px solid var(--color-semantic-border-subtle);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--elevation-2);
+  position: fixed;
+  inset: 0;
+  z-index: var(--layers-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: var(--space-6);
-  max-width: 560px;
+  overflow: auto;
 }
 .card[hidden] { display: none; }
 
-/* Coral is reserved for "needs you" — BRAND.md, and D18. */
+.card__panel {
+  width: min(100%, 34rem);
+  margin: auto;
+  padding: var(--space-6);
+  background: var(--color-semantic-surface-raised);
+  border: 1px solid var(--color-semantic-border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--elevation-3);
+}
+
+/* Coral is reserved for "needs you" (BRAND.md, D18) and is used as a FILL with
+   ink text, because coral text on white is only 2.9:1 and fails the contrast
+   floor. The fill keeps the meaning and passes at 6.3:1. */
 .card__flag {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: var(--typography-size-xs);
-  font-weight: var(--typography-weight-semibold);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-semantic-state-needsYou);
   margin-bottom: var(--space-4);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-semantic-state-needsYou);
+  color: var(--color-semantic-text-primary);
+  font-size: var(--typography-size-2xs);
+  font-weight: var(--typography-weight-bold);
+  letter-spacing: var(--typography-tracking-caps);
+  text-transform: uppercase;
 }
 .card__dot {
   width: 8px;
   height: 8px;
   border-radius: var(--radius-pill);
-  background: var(--color-semantic-state-needsYou);
+  background: var(--color-semantic-text-primary);
 }
 
 .card__headline {
   font-family: var(--typography-family-display);
   font-size: var(--typography-size-2xl);
+  font-weight: var(--typography-weight-bold);
+  letter-spacing: var(--typography-tracking-display);
   line-height: var(--typography-lineHeight-tight);
-  margin: 0 0 var(--space-4);
+  margin-bottom: var(--space-4);
 }
 
-.card__reasons { margin: 0 0 var(--space-4); padding: 0; list-style: none; }
+.card__reasons {
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+}
 .card__reasons li {
   position: relative;
   padding-left: var(--space-5);
@@ -322,10 +682,10 @@ dd {
   font-size: var(--typography-size-sm);
 }
 .card__reasons li::before {
-  content: "";
+  content: '';
   position: absolute;
   left: 0;
-  top: 8px;
+  top: 0.5em;
   width: 6px;
   height: 6px;
   border-radius: var(--radius-pill);
@@ -333,74 +693,31 @@ dd {
 }
 
 .card__warn {
-  background: var(--color-semantic-surface-sunken);
-  border-left: 3px solid var(--color-semantic-state-needsYou);
+  margin-bottom: var(--space-4);
   padding: var(--space-3) var(--space-4);
+  background: var(--color-status-caution-surface);
+  border-left: 3px solid var(--color-semantic-state-caution);
   border-radius: var(--radius-sm);
   font-size: var(--typography-size-sm);
-  margin: 0 0 var(--space-4);
 }
 .card__warn[hidden] { display: none; }
 
-.card__phrase { margin: 0 0 var(--space-4); }
+.card__phrase { margin-bottom: var(--space-4); }
 .card__phrase[hidden] { display: none; }
-.card__phrase label {
-  display: block;
-  font-size: var(--typography-size-sm);
-  margin-bottom: var(--space-2);
-  color: var(--color-semantic-text-secondary);
-}
 .card__phrase code {
   font-family: var(--typography-family-mono);
-  background: var(--color-semantic-surface-sunken);
   padding: 1px var(--space-1);
   border-radius: var(--radius-sm);
-  color: var(--color-semantic-text-primary);
-}
-.card__phrase input {
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  font-family: var(--typography-family-mono);
-  font-size: var(--typography-size-sm);
-  border: 1px solid var(--color-semantic-border-strong);
-  border-radius: var(--radius-md);
-  background: var(--color-semantic-surface-base);
-  color: var(--color-semantic-text-primary);
-}
-.card__phrase input:focus {
-  outline: 2px solid var(--color-semantic-border-focus);
-  outline-offset: 1px;
+  background: var(--color-semantic-surface-sunken);
 }
 
-.card__actions { display: flex; gap: var(--space-3); align-items: center; }
-
-.btn {
-  font: inherit;
-  font-weight: var(--typography-weight-semibold);
-  padding: var(--space-3) var(--space-5);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: background var(--motion-duration-fast) var(--motion-easing-standard);
+.card__actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  align-items: center;
 }
 
-/* The safe choice is the easy one: primary, filled, and what Enter does. */
-.btn--primary {
-  background: var(--color-semantic-state-primary);
-  color: var(--color-semantic-text-onAccent);
-}
-.btn--primary:hover { filter: brightness(1.12); }
-
-/* The destructive choice is deliberately the quieter one. */
-.btn--secondary {
-  background: transparent;
-  color: var(--color-semantic-text-primary);
-  border-color: var(--color-semantic-border-strong);
-}
-.btn--secondary:hover:not(:disabled) { background: var(--color-semantic-surface-sunken); }
-.btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-/* Below the fold, and it does not approve anything on its own. */
 .card__remember {
   margin-top: var(--space-4);
   font-size: var(--typography-size-sm);
@@ -408,37 +725,74 @@ dd {
 }
 .card__remember[hidden] { display: none; }
 .card__remember summary { cursor: pointer; }
-.card__remember p { margin: var(--space-2) 0 0; }
-.card__remember label { display: flex; gap: var(--space-2); align-items: flex-start; margin-top: var(--space-3); }
+.card__remember p { margin-top: var(--space-2); }
 
-.hint {
-  margin-top: var(--space-4);
-  font-size: var(--typography-size-xs);
-  color: var(--color-semantic-text-muted);
+.check {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  margin-top: var(--space-3);
 }
 
-/* ---------------- test harness (not product UI) ---------------- */
+/* The scrim is a sibling of the card and appears only while the card is up, so
+   app.js never has to know it exists: it keeps toggling `hidden` on #card. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layers-scrim);
+  background: var(--color-semantic-surface-scrim);
+  display: none;
+}
+.card:not([hidden]) + .scrim { display: block; }
 
-.dev {
-  margin-top: var(--space-8);
+/* ------------------------------------------------------------------ */
+/* Failure banner                                                      */
+/* ------------------------------------------------------------------ */
+
+/* Shown when the app cannot reach its engine at all. This has to be impossible
+   to miss: a missing bridge makes every control inert, and the previous
+   behaviour -- a TypeError in a log on each click -- looked like a broken button
+   rather than a broken connection. */
+.banner {
+  grid-column: 1 / -1;
+  padding: var(--space-4) var(--space-5);
+  font-size: var(--typography-size-sm);
+  font-weight: var(--typography-weight-semibold);
+}
+.banner--error {
+  background: var(--color-status-danger-surface);
+  border-left: 4px solid var(--color-status-danger);
+  color: var(--color-semantic-text-primary);
+}
+
+/* ------------------------------------------------------------------ */
+/* Test harness (not product UI)                                        */
+/* ------------------------------------------------------------------ */
+
+.console {
+  margin-top: var(--space-6);
   padding-top: var(--space-4);
-  border-top: 1px dashed var(--color-semantic-border-subtle);
+  border-top: 1px dashed var(--color-semantic-border-strong);
   font-size: var(--typography-size-xs);
   color: var(--color-semantic-text-secondary);
 }
-.dev__buttons { margin-top: var(--space-2); }
-.dev button {
-  font-size: var(--typography-size-xs);
-  padding: var(--space-1) var(--space-2);
-  margin-right: var(--space-2);
-  cursor: pointer;
+.console__title { font-weight: var(--typography-weight-semibold); }
+.dev__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 .log {
   margin-top: var(--space-3);
-  font-family: var(--typography-family-mono);
-  font-size: 11px;
-  max-height: 160px;
+  padding: var(--space-3);
+  max-height: 180px;
   overflow: auto;
+  border-radius: var(--radius-md);
+  background: var(--color-semantic-surface-inset);
+  font-family: var(--typography-family-mono);
+  font-size: var(--typography-size-xs);
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   color: var(--color-semantic-text-secondary);
 }
