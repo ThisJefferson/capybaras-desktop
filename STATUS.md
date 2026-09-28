@@ -3,7 +3,7 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-28 10:55 EDT
+**Last updated:** 2026-09-28 11:06 EDT
 **Current phase:** **M5 — onboarding.** The PKCE flow, the credential store, the loopback listener, the session meter, the first model call, and now **the onboarding path walked end to end through the interface** are all in the tree and tested. What remains in M5 is a free-model mode, a decision about the spend cap (**D26** — there is no enforced cap; the account-balance readout is now wired, the cap itself is open), and the one thing no test can do — a real reply against the user's own account.
 **Next milestone:** M5 — a non-technical tester reaches a first reply unaided (the path exists and is walked offline; a live key is the missing piece)
 **Spec:** `docs/protocol.md` · **Plan:** `docs/plans/next-steps.md` · **Design:** `docs/plans/M4-visual-design.md` · **Onboarding test:** `docs/onboarding-test.md`
@@ -17,6 +17,50 @@
 - **Building:** Capybaras — a one-install, safe-by-default desktop agent that asks before it acts. A herd of capybaras, Rio de Janeiro flavour.
 - **Ideal customer:** genuinely non-technical. Cloud API keys via OpenRouter OAuth. Free, donations, GitHub recognition.
 - **The promise:** *it will still break, just small, visibly, and undoably.*
+
+---
+
+## 2026-09-28 — the interface gets a design system
+
+A GUI-only polish pass, per `docs/plans/ui-polish-brief.md`, planned in
+`docs/plans/ui-polish-2026-09-28.md` and built in six stages, one commit each,
+on top of `c1a41cc`. No business logic, sidecar, shell, protocol, permission or
+security rule was touched, and no copy string any harness asserts was changed.
+
+**What was wrong.** A flat stack of eight sections with no header, no
+navigation and no measure. Body text at 14px, under the 16px floor `BRAND.md`
+§5 sets, with two sizes hard-coded outside the ramp. Status was two classes and
+one of them re-used **coral** — the colour D18 reserves for *needs you*. The
+herd's states were opacity alone. Loading was the word "loading". The approval
+card — the moment the product exists for — rendered in the flow, mid-scroll,
+with no focus management. Motion was two one-off keyframes. There was not one
+media query except `prefers-reduced-motion`.
+
+**What it is now.** A sticky header (identity, current section, money), a
+workspace column and a hero rail holding the herd, on a real type scale and one
+spacing rhythm. One chip family — colour plus word plus shape — for every state,
+so nothing relies on colour alone. The card is a dialog: scrim, scroll lock,
+focus moved in and returned, Escape and Enter both hold on, and a bottom sheet
+with a sticky action bar on a phone. Skeletons replace "loading". The nav tracks
+the section. Three deliberate responsive designs, verified by reading the
+resolved layout back out of the live page at 1440 / 820 / 390.
+
+**Tokens.** `design/tokens.json` gained a semantic status family (caution,
+danger, info, success-as-text), layout measures, a settle easing, a focus pair
+and a layer scale — so nothing re-uses coral for an error again. Every reference
+resolves; `check-tokens` is green.
+
+**The gate.** `npm run verify` (382 tests, typecheck, tokens, sidecar,
+onboarding) green; `verify:ui`, `verify:acceptance` and `verify:onboarding` all
+PASSED. No test was deleted or weakened. No file was added to `web/`, because
+both CDP harnesses serve a fixed file map.
+
+**Still on the list:** the commissioned capybara model sheet to replace the
+calçadão placeholder art; a bundled OFL display face and a proper icon set
+(`M4-visual-design.md` steps 2–3 both need new files, which the harness file map
+does not serve); a density control for the console; and collapsing the dev
+console behind a disclosure on mobile — the acceptance harness drives it, so it
+was deliberately left reachable.
 
 ---
 
