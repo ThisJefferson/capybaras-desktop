@@ -14,7 +14,7 @@
 // gateway -> `action.propose` -> the classifier -> the card.
 //
 // THE ONE SUBSTITUTION, stated rather than hidden. `window.__TAURI__` is provided
-// by `acceptance-bridge.js` instead of the Rust shell's webview, because this
+// by `harness-bridge.js` instead of the Rust shell's webview, because this
 // check runs without a desktop (see docs/DEBUGGING.md -- a window cannot be
 // captured on this host). It is a transport shim and nothing more. No product
 // decision is re-implemented here: the harness only moves bytes.
@@ -151,7 +151,7 @@ const STATIC = new Map([
   ['/tokens.css', join(web, 'tokens.css')],
   ['/app.css', join(web, 'app.css')],
   ['/app.js', join(web, 'app.js')],
-  ['/acceptance-bridge.js', join(here, 'acceptance-bridge.js')],
+  ['/harness-bridge.js', join(here, 'harness-bridge.js')],
 ]);
 
 const ANCHOR = '<script type="module" src="app.js">';
@@ -164,7 +164,7 @@ if (!indexHtml.includes(ANCHOR)) {
 // reads it. This mirrors exactly what verify-ui.ps1 does, for the same reason.
 const harnessHtml = indexHtml.replace(
   ANCHOR,
-  `<script src="acceptance-bridge.js"></script>\n  ${ANCHOR}`,
+  `<script src="harness-bridge.js"></script>\n  ${ANCHOR}`,
 );
 
 function invoke(cmd, args) {

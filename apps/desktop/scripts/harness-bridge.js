@@ -1,11 +1,13 @@
 // Verification bridge -- NOT SHIPPED.
 //
-// This is the ONE substitution the acceptance harness makes. The real
-// `window.__TAURI__` is injected by the Rust shell's webview; this check runs
+// This is the ONE substitution BOTH interface harnesses make: `verify-acceptance.mjs`
+// (the gate) and `verify-onboarding.mjs` (the first reply). The real
+// `window.__TAURI__` is injected by the Rust shell's webview; these checks run
 // without a desktop, so the bridge is mapped onto the harness's HTTP server
 // instead. Everything ABOVE it -- index.html, app.js, app.css, tokens.css -- is
-// the product's own code, unmodified, and the gate behind the server is the real
-// sidecar.
+// the product's own code, unmodified, and everything the SERVER does is decided
+// by the harness, not here: this file only moves bytes. For the acceptance
+// harness the gate behind the server is the real sidecar.
 //
 // It is a classic script on purpose: it runs while the parser reaches it, which
 // is BEFORE the deferred `app.js` module evaluates and reads the bridge.

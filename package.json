@@ -16,9 +16,10 @@
     "build:sidecar": "node apps/desktop/sidecar/build.mjs",
     "build:tokens": "node design/build-tokens.mjs",
     "build": "npm run build:tokens && npm run build:sidecar",
-    "verify": "npm run build:tokens && npm run build:sidecar && node scripts/check-tokens.mjs && npm run typecheck && npm test",
+    "verify": "npm run build:tokens && npm run build:sidecar && node scripts/check-tokens.mjs && npm run typecheck && npm test && npm run verify:onboarding",
     "verify:ui": "powershell -NoProfile -ExecutionPolicy Bypass -File apps/desktop/scripts/verify-ui.ps1",
-    "verify:acceptance": "npm run build:sidecar && node apps/desktop/scripts/verify-acceptance.mjs"
+    "verify:acceptance": "npm run build:sidecar && node apps/desktop/scripts/verify-acceptance.mjs",
+    "verify:onboarding": "npm run build:sidecar && node apps/desktop/scripts/verify-onboarding.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.0",

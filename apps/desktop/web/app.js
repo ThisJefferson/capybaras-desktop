@@ -140,6 +140,22 @@ async function refreshConnect() {
   }
 }
 
+/**
+ * Say something on the connection panel.
+ *
+ * Exists because the connection state is reported from two directions -- the
+ * `connect_status` read and the sign-in events -- and only one of them was ever
+ * reaching the screen. The panel is the ONLY place a non-technical person looks;
+ * the log is a developer's, and a message that appears only there is a message
+ * that was not delivered.
+ */
+function setConnectState(text, kind) {
+  const state = $('connect-state');
+  if (!state) return;
+  state.textContent = text;
+  state.className = kind ? `hint ${kind}` : 'hint';
+}
+
 const connectButton = $('btn-connect');
 if (connectButton) {
   connectButton.addEventListener('click', async () => {
@@ -567,9 +583,15 @@ if (listen) {
   listen('capybaras://grants', (e) => renderGrants(e.payload.grants));
   listen('capybaras://protocol-error', (e) => log(`refused: ${e.payload.message}`));
   listen('capybaras://ready', (e) => log(`sidecar ready (protocol ${e.payload.protocol})`));
-  listen('capybaras://connect-waiting', (e) =>
-    log(`waiting for your browser to come back (port ${e.payload.port})`),
-  );
+  listen('capybaras://connect-waiting', (e) => {
+    log(`waiting for your browser to come back (port ${e.payload.port})`);
+    // The person has just been sent to their browser. If the panel keeps saying
+    // "Not connected yet." they cannot tell the sign-in is running at all -- and
+    // until now the only place it was said was the log below, which they never read.
+    setConnectState(
+      'A browser window has opened. Sign in to OpenRouter there, then come back to this window.',
+    );
+  });
   listen('capybaras://connect-connected', (e) => {
     log(`connected — a key is stored as "${e.payload.credentialName}" in Windows`);
     refreshConnect();
@@ -577,9 +599,18 @@ if (listen) {
     // knowing that a "Load models" button exists.
     loadModels();
   });
-  listen('capybaras://connect-failed', (e) => {
+  listen('capybaras://connect-failed', async (e) => {
     log(`sign-in failed (${e.payload.reason}): ${e.payload.detail}`);
-    refreshConnect();
+    // refreshConnect puts the button back; it also restores "Not connected yet.",
+    // so the reason is set AFTER it, or it would be overwritten by the generic line.
+    await refreshConnect();
+    // The reason has to reach the panel. A sign-in that fails silently reads as
+    // "the button did nothing". Choosing not to authorize is not an error, so it
+    // keeps the neutral colour; everything else is a problem worth noticing.
+    setConnectState(
+      String(e.payload.detail ?? 'the sign-in did not finish; try again'),
+      e.payload.reason === 'denied' ? undefined : 'bad',
+    );
   });
 } else {
   log('not running inside Tauri — the card cannot be driven from here');
