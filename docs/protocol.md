@@ -92,11 +92,12 @@ The whole herd, sent whenever anything changes. It is a **whole-state message, n
 }
 ```
 
-Three rules the sidecar enforces before sending (BRAND.md):
+Four rules the sidecar enforces before sending (BRAND.md):
 
 1. **At most one agent is in `needs-you`** — the loudest state, never a badge.
 2. **At most two agents are `working` at once.** A third contender pushes the longest-busy one back to `listening`.
 3. **All six are always present.** A list that omits idle agents cannot show that the herd is quiet, and quiet is information.
+4. **Only a human's answer lowers the sign, and nothing else does.** `needs-you` is raised when an action blocks, and it stays raised until an `approval.answer` arrives. A new task cannot switch it off — not even one owned by the *same* agent — and finishing unrelated work does not clear it. Before this rule a second action owned by the waiting agent lowered its own sign, so the herd showed nobody needing anyone while the card was still on screen. **The card and the herd must never contradict each other.**
 
 
 `request` is an `ApprovalRequest`: `{ tier, headline, reasons[], confirmationPhrase?, canRemember, requiresTypedConfirmation, target }`.

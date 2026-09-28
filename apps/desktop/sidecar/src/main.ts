@@ -297,7 +297,9 @@ function answer(id: string, decision: string): void {
   // Rule 2: a denial is final for this action.
   if (decision === 'deny') {
     pending.delete(id);
-    herd.release(entry.owner);
+    // A human answered, so the sign comes down -- through `standDown`, not
+    // `release`. The two mean different things: `release` is "work finished".
+    herd.standDown(entry.owner);
     emitHerd();
     emit({ type: 'approval.resolved', id, outcome: 'denied' });
     say(`denied id=${id}`);
@@ -334,7 +336,8 @@ function answer(id: string, decision: string): void {
   }
 
   pending.delete(id);
-  herd.release(entry.owner);
+  // A human answered, so the sign comes down (see the denial above).
+  herd.standDown(entry.owner);
   emitHerd();
   emit({ type: 'approval.resolved', id, outcome: 'allowed' });
   emit({

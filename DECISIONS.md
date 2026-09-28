@@ -389,6 +389,56 @@ entry records the scope of the *current* design, not a verdict on anyone else's.
 
 ---
 
+## D23 — The card states each hazard exactly once
+**2026-09-28**
+
+Found by driving the acceptance scenario through the real interface: the Replit
+card listed **five** reasons, and two of them restated hazards it had already
+stated.
+
+- `"this target is marked off-limits"` (the protection policy) and `"This target
+  is marked off-limits."` (the classifier) both survived, because the gate merged
+  the two layers with an exact-string `Set` and the pair differs by a capital
+  letter and a full stop.
+- `"This cannot be undone."` and `"This cannot be undone, and it affects many
+  things."` both survived, because the classifier pushed the *combination* as a
+  hazard of its own on top of the two it combined.
+
+**Decision.** D10 is one reason **per hazard**, and a repeated line is not a
+hazard — it is noise, and noise on the warning list is precisely what teaches
+someone to stop reading it. So: the merge compares a **normalised** form (case,
+whitespace, trailing punctuation) and a combination that only restates its parts
+escalates the tier **without** adding a line. The acceptance card now states
+exactly the three reasons `docs/acceptance-test.md` documents.
+
+**Rejected:** dedupe on exact strings only (leaves the near-duplicates).
+**Rejected:** drop the policy layer's reasons entirely (loses the *policy*
+explanation when a freeze or a protected target is declared, which the classifier
+cannot know about).
+
+---
+
+## D24 — A raised sign is lowered by a human's answer, and by nothing else
+**2026-09-28**
+
+The herd could contradict the card. With an approval pending, a **second action
+owned by that same agent** lowered its own sign — `beginWork`'s guard only
+protected *other* agents — and `release` conflated two different events: "work
+finished" and "a human answered". The card stayed on screen while the herd showed
+nobody needing anyone.
+
+**Decision.** Two operations, not one. `release` means work finished and may only
+return `working` to `listening`. `standDown` means a human answered and is the
+only thing that clears `needs-you`. `beginWork` never overwrites a raised sign,
+including for its own owner. `needs-you` is the loudest thing in the interface;
+nothing may quietly switch it off.
+
+**Consequence for the tests:** the old assertion that `release` lowers the sign
+encoded the defect, so it was corrected to `standDown` rather than kept — with
+the reason written beside it, so the change is visible rather than silent.
+
+---
+
 ## Standing constraints
 
 - **Never restart the Gateway** — owner-only.

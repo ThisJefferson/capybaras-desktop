@@ -206,6 +206,17 @@ fn latest<'a>(seen: &'a [Value], message_type: &str) -> Option<&'a Value> {
     seen.iter().filter(|m| m["type"] == message_type).next_back()
 }
 
+/// One agent's state, out of an `agents.state` message.
+fn state_of(message: &Value, id: &str) -> String {
+    message["agents"]
+        .as_array()
+        .expect("agents must be an array")
+        .iter()
+        .find(|a| a["id"] == id)
+        .map(|a| a["state"].as_str().unwrap_or_default().to_string())
+        .unwrap_or_default()
+}
+
 /// M4.6 — the herd.
 ///
 /// Verifies the state machine through the real protocol, not just in unit
@@ -273,6 +284,77 @@ fn the_herd_reports_who_is_busy_and_who_needs_you() {
         nina["state"], "listening",
         "the sign should come down once answered: {settled}"
     );
+}
+
+/// M4.6 -- the loudest state outranks everything, including the same agent's work.
+///
+/// The herd could contradict the card. With an approval pending and a human
+/// still being waited on, a SECOND action owned by that same agent lowered its
+/// own sign -- because the guard only protected other agents, and because
+/// finishing work and answering an approval were the same operation. The card
+/// stayed on screen while the herd showed nobody needing anyone.
+#[test]
+fn a_raised_sign_survives_the_same_agents_own_work() {
+    let dir = state_dir("herd-sign");
+    let mut sidecar = spawn(&dir);
+    expect(&sidecar, "ready", Duration::from_secs(25));
+
+    // Nina owns fs.write. Ask for one, so she raises the sign.
+    sidecar
+        .send(&json!({
+            "v": 1,
+            "type": "action.propose",
+            "id": "s1",
+            "action": { "tool": "fs.write", "args": { "path": "notes.md" } },
+            "context": { "targetLabel": "notes.md" }
+        }))
+        .expect("could not send the write");
+
+    let during = drain(&sidecar, 1600);
+    assert!(
+        during.iter().any(|m| m["type"] == "approval.required"),
+        "the write should have asked for approval"
+    );
+    let raised = latest(&during, "agents.state").expect("agents.state while pending");
+    assert_eq!(state_of(raised, "nina"), "needs-you", "{raised}");
+
+    // Now something else of NINA's that proceeds -- a create is a notify -- while
+    // her approval is still unanswered. This is what used to lower the sign.
+    sidecar
+        .send(&json!({
+            "v": 1,
+            "type": "action.propose",
+            "id": "s2",
+            "action": { "tool": "fs.create", "args": { "path": "another.md" } },
+            "context": { "targetLabel": "another.md" }
+        }))
+        .expect("could not send the create");
+
+    let after = drain(&sidecar, 1400);
+    assert!(
+        after.iter().any(|m| m["type"] == "action.proceeded"),
+        "the create should have proceeded"
+    );
+    let still = latest(&after, "agents.state").expect("agents.state after Nina's other work");
+    assert_eq!(
+        state_of(still, "nina"),
+        "needs-you",
+        "the sign must stay up while an approval is pending: {still}"
+    );
+
+    // And the approval is genuinely still pending: answering it lowers the sign.
+    sidecar
+        .send(&json!({ "v": 1, "type": "approval.answer", "id": "s1", "decision": "deny" }))
+        .expect("could not send the denial");
+    let settled = drain(&sidecar, 1300);
+    let lowered = latest(&settled, "agents.state").expect("agents.state after the decision");
+    assert_eq!(
+        state_of(lowered, "nina"),
+        "listening",
+        "the sign comes down once a human answers: {lowered}"
+    );
+
+    let _ = sidecar.stop(Duration::from_secs(10));
 }
 
 /// M4.7 — THE MILESTONE GATE.

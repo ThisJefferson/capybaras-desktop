@@ -79,11 +79,29 @@ describe('herd state', () => {
     expect(herd.snapshot().find((a) => a.id === 'nina')?.state).toBe('needs-you');
   });
 
-  it('lowers the sign when released', () => {
+  it('lowers the sign when a human answers (standDown), not when work merely ends', () => {
+    // This assertion used to be a bare `herd.release('nina')`, and it was WRONG:
+    // `release` conflated two different events -- work finishing, and a human
+    // answering. Conflating them is exactly what let a background task switch
+    // off the loudest state in the interface while its card was still on screen.
     const herd = new Herd();
     herd.needsYou('nina');
-    herd.release('nina');
+    herd.release('nina'); // work ended: the sign stays up, a human is still needed
+    expect(herd.snapshot().find((a) => a.id === 'nina')?.state).toBe('needs-you');
+    herd.standDown('nina'); // a human answered: now it comes down
     expect(herd.snapshot().find((a) => a.id === 'nina')?.state).toBe('listening');
+  });
+
+  it('keeps a raised sign when the SAME agent starts more work', () => {
+    // The loudest thing in the interface must not be switched off by a
+    // background task. `beginWork` only guarded OTHER agents, so an action owned
+    // by the agent already waiting for a human lowered its OWN sign -- and the
+    // herd then contradicted the approval card still sitting on screen.
+    const herd = new Herd();
+    herd.beginWork('fs.write'); // nina
+    herd.needsYou('nina');
+    herd.beginWork('fs.create'); // more of nina's work, while she is waiting
+    expect(herd.snapshot().find((a) => a.id === 'nina')?.state).toBe('needs-you');
   });
 
   it('reports how long since each agent changed state', () => {

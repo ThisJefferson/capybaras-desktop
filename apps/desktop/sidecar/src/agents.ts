@@ -100,6 +100,15 @@ export class Herd {
   beginWork(tool: string): string {
     const owner = agentForTool(tool);
 
+    // "needs you" is the loudest thing in the interface, and NOTHING may quietly
+    // overwrite it -- including the same agent starting another task.
+    //
+    // The loop below only guarded OTHER agents, so an action owned by the agent
+    // who was already waiting for a human lowered its OWN sign: the approval was
+    // still pending, and the herd stopped saying so. Card and herd then
+    // contradicted each other, which is worse than either being wrong alone.
+    if (this.states.get(owner) === 'needs-you') return owner;
+
     // An agent in "needs you" keeps that state: it is the loudest thing and a
     // new task must not silently overwrite it.
     for (const agent of HERD) {
@@ -133,11 +142,22 @@ export class Herd {
     this.set(agentId, 'needs-you');
   }
 
-  /** Work finished, or a decision was made. Back to attentive. */
+  /**
+   * Work finished: back to attentive.
+   *
+   * It deliberately does NOT clear "needs you". Finishing a task and answering
+   * an approval are different events, and a raised sign means a human is still
+   * being waited on -- so only `standDown` lowers it. (An earlier version had
+   * `release` do both, which let a background task switch off the loudest thing
+   * in the interface while its approval card was still on screen.)
+   */
   release(agentId: string): void {
-    if (this.states.get(agentId) === 'needs-you' || this.states.get(agentId) === 'working') {
-      this.set(agentId, 'listening');
-    }
+    if (this.states.get(agentId) === 'working') this.set(agentId, 'listening');
+  }
+
+  /** A human answered: the sign can come down. */
+  standDown(agentId: string): void {
+    if (this.states.get(agentId) === 'needs-you') this.set(agentId, 'listening');
   }
 
   /** The whole herd, in fixed display order, ready to send. */
