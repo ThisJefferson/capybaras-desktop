@@ -730,12 +730,18 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
               transform var(--motion-duration-settle) var(--motion-easing-settle);
 }
 
-/* Duda's accent is sand, which is very nearly the page colour. The tile goes
-   sand so the accent still reads against the cream rail, and the scarf takes a
-   hairline outline -- BRAND.md section 3 asks for exactly that on the one accent
-   that sits too close to the background. */
+/* Two accents need help against the body they are drawn on, and both get an
+   OUTLINE rather than a different colour -- the palette is exhausted on purpose
+   (one non-coral colour each), so inventing a seventh would break it.
+
+   Duda's sand is very nearly the page colour, which BRAND.md section 3 already
+   anticipates. Joca's capy brown is the mascot's own body colour, which the
+   brand doc did not anticipate, because there the accents were chips rather than
+   something worn: measured on the render, an unoutlined capy scarf is invisible
+   against the torso. */
 .agent--sand .agent__mark { background: var(--color-brand-sand); }
 .agent--sand .capy__scarf { stroke: var(--color-semantic-border-strong); stroke-width: 1.2; }
+.agent--capy .capy__scarf { stroke: var(--color-brand-ink); stroke-opacity: 0.6; stroke-width: 1.1; }
 
 /* ---- the character's parts ----
    One design, six instances (D18). Colour comes from the tokens and nothing

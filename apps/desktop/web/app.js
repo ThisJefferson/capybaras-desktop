@@ -514,7 +514,7 @@ function buildCapybara() {
   body.append(legs);
 
   body.append(svgPart('rect', { x: 12, y: 27, width: 34, height: 23, rx: 10 }, 'capy__torso'));
-  body.append(svgPart('rect', { x: 36, y: 26, width: 8, height: 16, rx: 3.4 }, 'capy__scarf'));
+  body.append(svgPart('rect', { x: 33, y: 25, width: 10, height: 18, rx: 3.5 }, 'capy__scarf'));
   body.append(svgPart('rect', { x: 40, y: 17, width: 20, height: 20, rx: 8 }, 'capy__head'));
   body.append(svgPart('ellipse', { cx: 45, cy: 16.5, rx: 3.6, ry: 3.2 }, 'capy__ear'));
   body.append(svgPart('ellipse', { cx: 51, cy: 16, rx: 3.3, ry: 3 }, 'capy__ear'));
