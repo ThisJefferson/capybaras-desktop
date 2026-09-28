@@ -80,6 +80,52 @@ describe('a hostile label cannot turn the card into a lie', () => {
   });
 });
 
+describe('the card never states the same hazard twice', () => {
+  /** What a person reads as "the same sentence": case, spacing, final punctuation. */
+  const key = (reason: string): string =>
+    reason.toLowerCase().replace(/\s+/g, ' ').replace(/[.;:!]+$/, '').trim();
+
+  it('collapses the classifier’s wording and the policy’s wording into one line', () => {
+    // The Replit action, this time claiming `protectedTarget` — which is what the
+    // policy layer speaks to. Both layers describe the same hazard: "This target
+    // is marked off-limits." (the classifier) and "this target is marked
+    // off-limits" (the policy). Until the merge was normalised, the card showed
+    // BOTH, and a duplicated line is how a person learns to stop reading.
+    const decision = gate(
+      {
+        tool: 'db.delete',
+        args: { database: 'production', statement: 'DELETE FROM customers' },
+        affectedCount: 1200,
+        reversible: false,
+        protectedTarget: true,
+      },
+      { grants: new GrantStore(), targetLabel: 'the production database' },
+    );
+    if (decision.outcome !== 'ask') throw new Error(`expected the gate to ask, got "${decision.outcome}"`);
+
+    const reasons = decision.request.reasons;
+    const keys = reasons.map(key);
+    expect(new Set(keys).size).toBe(keys.length);
+
+    // Not even one reason nested inside another. The classifier used to add
+    // "This cannot be undone, and it affects many things." beside "This cannot
+    // be undone." and "This would affect 1200 things at once." -- a line that
+    // restated the two above it. Nothing here may be a restatement of anything
+    // else: the card explains, it does not repeat.
+    for (const a of keys) {
+      for (const b of keys) {
+        if (a !== b) expect(b.includes(a)).toBe(false);
+      }
+    }
+
+    // And the merge must not have eaten a distinct hazard: the off-limits
+    // warning, the blast radius and the irreversibility all survive (D10).
+    expect(keys.some((k) => k.includes('off-limits'))).toBe(true);
+    expect(keys.some((k) => k.includes('1200'))).toBe(true);
+    expect(keys.some((k) => k.includes('undone'))).toBe(true);
+  });
+});
+
 describe('attacker text cannot change what the buttons mean', () => {
   it.each(HOSTILE_LABELS)('leaves the tier, the confirmation and rememberability alone: %s', (_why, label) => {
     const request = askFor(label);

@@ -103,6 +103,34 @@ export function sanitiseLabel(label: string): string {
   return flattened.length <= LABEL_MAX ? flattened : `${flattened.slice(0, LABEL_MAX - 1)}\u2026`;
 }
 
+/**
+ * Merge reason lists without saying the same thing twice.
+ *
+ * D10 is "every hazard gets its own reason", and the point of it is that a person
+ * can understand what they are approving. Two layers can describe the SAME hazard
+ * in nearly the same words -- the classifier says "This target is marked
+ * off-limits." and the protection policy says "this target is marked off-limits" --
+ * and an exact-string merge keeps both.
+ *
+ * That is noise, and noise on the warning list is exactly what teaches a person to
+ * stop reading it. So the merge compares a NORMALISED form (case, whitespace and
+ * trailing punctuation), keeping the first occurrence and its original wording.
+ * Distinct hazards are untouched: they do not differ only in punctuation.
+ */
+function mergeReasons(...groups: ReadonlyArray<readonly string[]>): string[] {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const group of groups) {
+    for (const reason of group) {
+      const key = reason.toLowerCase().replace(/\s+/g, ' ').replace(/[.;:!]+$/, '').trim();
+      if (key.length === 0 || seen.has(key)) continue;
+      seen.add(key);
+      merged.push(reason);
+    }
+  }
+  return merged;
+}
+
 function headlineFor(action: ActionDescriptor, ctx: GateContext): string {
   const base = verbFor(action);
   if (!ctx.targetLabel) return `${base}?`;
@@ -153,10 +181,14 @@ export function gate(action: ActionDescriptor, ctx: GateContext): GateDecision {
 
   // Whatever the policy decided is stated on the card. A freeze nobody is told
   // about is indistinguishable from a malfunction.
+  //
+  // Merged through `mergeReasons` rather than a plain `Set`, so a hazard the
+  // classifier already stated is not repeated in the policy's own words. The
+  // classifier's sentence leads: it is the well-formed, concrete one.
   if (protection.reasons.length > 0) {
     classification = {
       ...classification,
-      reasons: [...new Set([...protection.reasons, ...classification.reasons])],
+      reasons: mergeReasons(classification.reasons, protection.reasons),
     };
   }
   const now = ctx.now ?? Date.now();

@@ -222,7 +222,13 @@ export function classify(action: ActionDescriptor): Classification {
   if (action.reversible === false) {
     hazard(atLeast(tier, 'confirm'), 'This cannot be undone.');
     if (count > MASS_OPERATION) {
-      hazard('hard_gate', 'This cannot be undone, and it affects many things.');
+      // Escalate on the COMBINATION -- irreversible at scale is the most
+      // dangerous shape -- but do NOT restate it. The two reasons above already
+      // say it ("cannot be undone", "affects 1200 things"), and D10 is one
+      // reason PER HAZARD: a repeated line adds no hazard and no understanding.
+      // It only makes the warning list longer, and a longer list is one people
+      // read less. The tier rises; the card stays short.
+      tier = escalate(tier, 'hard_gate');
     }
   }
 
