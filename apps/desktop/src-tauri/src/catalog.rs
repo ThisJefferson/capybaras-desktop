@@ -21,6 +21,18 @@
 //!    asserts exactly that, in both languages.
 //! 3. An empty catalog is an **error**, not an empty menu. A menu that renders
 //!    nothing reads as "no models exist" rather than "the fetch failed".
+//! 4. An entry carries a `priceLabel` — a **pre-formatted, sanitised string** the
+//!    interface renders verbatim. Prices arrive as a per-token rate, which means
+//!    nothing to a person, so the arithmetic to a cost-per-reply happens HERE and
+//!    the interface computes nothing. Unreadable or absent pricing yields an empty
+//!    string, never a guess and never "$0.00" by accident.
+//! 5. An entry carries `maxCompletionTokens` — the model's OWN ceiling on a reply,
+//!    from `top_provider.max_completion_tokens`. The shell uses it as the request's
+//!    `max_tokens` (see `chat::reply_limit`), so a long answer is asked for in full
+//!    rather than truncated at a number picked here.
+//! 6. The catalogue is **sorted by display name, case-insensitively, after
+//!    filtering**, so the interface receives it already ordered and both languages
+//!    agree on the order.
 //!
 //! The provider and the detail link follow `models.ts` too, and for the same
 //! reason: `top_provider` carries no name, and `links.details` is a relative API
@@ -185,6 +197,121 @@ fn is_negative_price(value: &serde_json::Value) -> bool {
     false
 }
 
+/// Whether an entry advertises output this app cannot use.
+///
+/// **A RULE, NOT A LIST, AND THE MARKER IS THE CATALOGUE'S OWN.** The app makes a
+/// chat completion and renders `choices[0].message.content` as TEXT. An entry whose
+/// `architecture.output_modalities` names a modality other than `text` is not a
+/// text chat model for it: `google/lyria-3-clip-preview` and
+/// `google/lyria-3-pro-preview` are music-generation models with
+/// `output_modalities: ["text", "audio"]`, priced at zero, and were offered among
+/// the free models until this rule.
+///
+/// Measured live on 2026-09-28: 15 of the 458 entries advertise a non-text output
+/// (audio or image), and this rule catches every zero-priced one. It replaces a
+/// hand-typed list of two ids that would rot the moment the catalogue churns, which
+/// is exactly why a rule is preferred.
+///
+/// NARROW ON PURPOSE: only an entry that STATES a non-text output modality is
+/// dropped. An entry with no `architecture` at all is kept — absence is not
+/// evidence, the same principle the pricing filter follows.
+fn has_non_text_output(entry: &serde_json::Map<String, serde_json::Value>) -> bool {
+    let Some(modalities) = entry
+        .get("architecture")
+        .and_then(|value| value.as_object())
+        .and_then(|architecture| architecture.get("output_modalities"))
+        .and_then(|value| value.as_array())
+    else {
+        return false;
+    };
+    modalities
+        .iter()
+        .any(|m| m.as_str().is_some_and(|name| !name.eq_ignore_ascii_case("text")))
+}
+
+/// How many tokens a representative reply is assumed to use, for the per-reply
+/// estimate the interface shows. Prices are per token, which means nothing to a
+/// person, so the display is a cost per reply instead.
+///
+/// The basis is stated rather than hidden: a question and an answer of about a page
+/// in total. It is an ESTIMATE and the label says so with a leading `~`.
+pub const PRICE_ASSUMED_PROMPT_TOKENS: f64 = 1000.0;
+pub const PRICE_ASSUMED_REPLY_TOKENS: f64 = 1000.0;
+
+/// One price field as a per-token USD figure, or `None` when it cannot be read.
+/// Absence is not zero: an unreadable price yields no label rather than a wrong one.
+fn price_field(pricing: &serde_json::Map<String, serde_json::Value>, name: &str) -> Option<f64> {
+    let value = pricing.get(name)?;
+    let number = value
+        .as_f64()
+        .or_else(|| value.as_str().and_then(|text| text.trim().parse::<f64>().ok()))?;
+    (number.is_finite() && number >= 0.0).then_some(number)
+}
+
+/// Two significant figures, plain decimal, never an exponent. 0.00075 -> "0.00075".
+fn money(value: f64) -> String {
+    let exponent = value.abs().log10().floor() as i32;
+    let decimals = (1 - exponent).max(2) as usize;
+    let text = format!("{value:.decimals$}");
+    let trimmed = text.trim_end_matches('0').trim_end_matches('.').to_string();
+    let shown = trimmed.split('.').nth(1).map(str::len).unwrap_or(0);
+    if shown < 2 {
+        format!("{trimmed}0")
+    } else {
+        trimmed
+    }
+}
+
+/// A pre-formatted price for the interface to render verbatim with `textContent`.
+///
+/// Four cases, and the interface computes nothing:
+///
+/// * a genuinely free model (both sides priced at zero) -> `"Free"`;
+/// * otherwise an estimate **per reply**, human-readable, e.g. `"~$0.0001 a reply"`
+///   — never a raw per-token rate;
+/// * unreadable or absent pricing -> `""`, never a guess and never `"$0.00"` by
+///   accident. Same rule the balance row already follows;
+/// * a figure that cannot be read as a real number is treated as absent.
+///
+/// The string is built from numbers here and cannot carry remote text, but it is
+/// still produced by this module rather than the interface, so nothing downstream
+/// has to parse a price.
+pub fn price_label(entry: &serde_json::Map<String, serde_json::Value>) -> String {
+    let Some(pricing) = entry.get("pricing").and_then(|value| value.as_object()) else {
+        return String::new();
+    };
+    let (Some(prompt), Some(completion)) =
+        (price_field(pricing, "prompt"), price_field(pricing, "completion"))
+    else {
+        return String::new();
+    };
+
+    if prompt == 0.0 && completion == 0.0 {
+        return "Free".to_string();
+    }
+
+    let estimate = prompt * PRICE_ASSUMED_PROMPT_TOKENS + completion * PRICE_ASSUMED_REPLY_TOKENS;
+    if !estimate.is_finite() || estimate <= 0.0 {
+        return String::new();
+    }
+    format!("~${} a reply", money(estimate))
+}
+
+/// The model's own ceiling on one reply, from `top_provider.max_completion_tokens`.
+///
+/// Display-safe, and carried for two reasons: the interface may show it, and the
+/// shell uses it as the request's `max_tokens`. A missing or zero figure is absent,
+/// not zero — absence is answered with a high fallback rather than a small limit
+/// (`chat::reply_limit`).
+fn max_completion_tokens(entry: &serde_json::Map<String, serde_json::Value>) -> Option<u64> {
+    entry
+        .get("top_provider")
+        .and_then(|value| value.as_object())
+        .and_then(|provider| provider.get("max_completion_tokens"))
+        .and_then(|value| value.as_u64())
+        .filter(|n| *n > 0)
+}
+
 /// Whether an entry's pricing disqualifies it — see `is_negative_price`.
 fn has_negative_price(entry: &serde_json::Map<String, serde_json::Value>) -> bool {
     let Some(pricing) = entry.get("pricing").and_then(|value| value.as_object()) else {
@@ -220,40 +347,71 @@ pub fn is_batch_only(id: &str) -> bool {
     bytes.len() > suffix.len() && bytes[bytes.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
 }
 
-/// Entries a live sweep PROVED cannot serve, that no rule covers yet.
+/// Entries measured live that the catalogue will not let this app use.
 ///
-/// **DATED 2026-09-28, AND REGENERABLE.** How to refresh it: run the maintenance
-/// sweep that sits beside this module (`tests/catalog_sweep.rs`), which calls
-/// every catalogue entry with a one-token prompt and writes its raw result
-/// outside this repository -
+/// **DATED 2026-09-28, AND REGENERABLE.** Two kinds of entry now sit here, and the
+/// provenance of each is stated so a future reader can tell which is which. Both
+/// come from the maintenance harness beside this module (`tests/catalog_sweep.rs`),
+/// which writes its raw result outside this repository:
 ///
 /// ```text
 /// cd apps/desktop/src-tauri
 /// cargo test --test catalog_sweep -- --ignored --nocapture
+/// cargo test --test catalog_sweep retest_the_free_models -- --ignored --nocapture
 /// ```
 ///
-/// Take its `unavailable_ids`, drop the `:batch` entries (the rule above already
-/// covers those), and put what is left here. Re-run it rather than trusting this
-/// list: an entry can be repaired as easily as it broke.
+/// **1. Endpoints the full sweep proved cannot serve.** Take its `unavailable_ids`,
+/// drop the `:batch` entries (the rule above already covers those), and put what is
+/// left here. Two entries qualify: `amazon/nova-premier-v1` answers 404, "Provider
+/// returned error" — the Amazon failure a user reported; and `openai/gpt-5.2-chat`
+/// answers 404 because every candidate endpoint was removed as BYOK-only, and there
+/// is nowhere in this app to paste another provider's key. Both are properties of an
+/// endpoint rather than of a moment.
 ///
-/// **WHY A LIST EXISTS AT ALL, WHEN A RULE IS PREFERRED.** Because two entries
-/// refused in a way no field in the catalogue predicts, and neither was flaky:
+/// **2. Free models that failed the reliability retest.** The operator's instruction
+/// was explicit — *"no flaky models just legit free models that work"* — and, against
+/// the earlier recommendation, **flaky models are removed too**. The retest's
+/// criterion is the corrected one: HTTP 200 **and** no error envelope **and**
+/// non-empty content, three attempts per model, and only a model that answers every
+/// time is reliable. A 200 with an empty reply is the failure the operator met
+/// (`chat.rs` names it), and the first sweep's "any 200" rule missed it. Measured
+/// 2026-09-28: of 20 zero-priced entries, 4 were reliable, 4 flaky and 12 broken;
+/// the 15 free ids below are the flaky and broken ones.
 ///
-/// * `amazon/nova-premier-v1` answers 404, "Provider returned error": no endpoint
-///   will serve it. This is the Amazon failure a user reported.
-/// * `openai/gpt-5.2-chat` answers 404 because every candidate endpoint was
-///   removed as BYOK-only. `models.ts` scopes the catalogue to models reachable
-///   through the OpenRouter OAuth key and says there is nowhere to paste another
-///   provider's key, so this entry can never serve here.
+/// **THE TWO POLICIES DIFFER, AND THAT IS DELIBERATE.** For a PAID model, a rate
+/// limit or a 5xx is still NOT grounds for removal — that is a statement about the
+/// afternoon, and dropping a model for being busy once would shrink the catalogue
+/// invisibly, the most destructive kind of drift. For the FREE list the operator has
+/// chosen reliability as the bar, so a free model that cannot answer every time is
+/// not offered as one that works. The 15 ids below are mostly rate limits and empty
+/// replies; they are removed because a person picking a "free model that works" must
+/// not get a 429.
 ///
-/// Both are properties of an endpoint rather than of a moment, which is the test
-/// for putting an id on this list. A rate limit or a 5xx is NOT: those are kept
-/// and reported, because dropping a model for being busy one afternoon would
-/// shrink the catalogue invisibly - the most destructive kind of drift, since
-/// nobody sees the entry that quietly disappeared.
-pub const UNAVAILABLE_MODEL_IDS: [&str; 2] = [
+/// **THE TWO MUSIC MODELS ARE NOT HERE, ON PURPOSE.** `google/lyria-3-*` are removed
+/// by the `has_non_text_output` RULE, not by this list — a rule survives the
+/// catalogue churning where a hand-typed id does not. Note that
+/// `google/lyria-3-pro-preview` actually answered the retest reliably; it is gone
+/// because it is not a text chat model, which is a capability fact rather than a
+/// reliability one.
+pub const UNAVAILABLE_MODEL_IDS: [&str; 17] = [
     "amazon/nova-premier-v1",
     "openai/gpt-5.2-chat",
+    // Free models that failed the 2026-09-28 reliability retest (flaky or broken).
+    "cohere/north-mini-code:free",
+    "dots-studio/dots-3-note-preview:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "google/gemma-4-31b-it:free",
+    "liquid/lfm-2.5-2.6b:free",
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "nvidia/nemotron-3.5-content-safety:free",
+    "openrouter/free",
+    "poolside/laguna-s-2.1:free",
+    "poolside/laguna-xs-2.1:free",
+    "qwen/qwen3.8-27b:free",
+    "thinkingmachines/inkling-small:free",
+    "thinkingmachines/inkling:free",
 ];
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -273,6 +431,19 @@ pub struct CatalogEntry {
     /// Reported context window, or absent when the server did not say.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_length: Option<u64>,
+    /// A pre-formatted price for the interface to render VERBATIM with
+    /// `textContent`. `"Free"`, or an estimate per reply such as
+    /// `"~$0.0001 a reply"`, or empty when the price is absent or unreadable — never
+    /// a guess and never `"$0.00"` by accident. Display only: the interface computes
+    /// nothing, and nothing here is consumable by the policy.
+    #[serde(rename = "priceLabel")]
+    pub price_label: String,
+    /// The model's own ceiling on one reply, from
+    /// `top_provider.max_completion_tokens`. The shell sends it as the request's
+    /// `max_tokens` so a long answer is not truncated at a number picked here.
+    /// Display-safe: a property of the model, not of the gate.
+    #[serde(rename = "maxCompletionTokens", skip_serializing_if = "Option::is_none")]
+    pub max_completion_tokens: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -299,6 +470,12 @@ fn parse_entry(raw: &serde_json::Value) -> Option<CatalogEntry> {
 
     // A router or meta entry cannot serve a completion. Drop it, narrowly.
     if has_negative_price(entry) {
+        return None;
+    }
+
+    // An entry that advertises a non-text output is not a text chat model for this
+    // app — the rule that replaced a hand-typed list for the music models.
+    if has_non_text_output(entry) {
         return None;
     }
 
@@ -339,15 +516,31 @@ fn parse_entry(raw: &serde_json::Value) -> Option<CatalogEntry> {
         provider: provider_for(id),
         link: model_link(id),
         context_length,
+        price_label: price_label(entry),
+        max_completion_tokens: max_completion_tokens(entry),
     })
 }
 
 /// Parse a `/models` response. Tolerant of extra fields, strict about shape.
+///
+/// **SORTED BY DISPLAY NAME, CASE-INSENSITIVELY, AFTER FILTERING.** The interface
+/// receives the catalogue already ordered, so the order is decided here once and
+/// both languages agree rather than each re-sorting. Ties fall back to the id so the
+/// order is total and stable.
 pub fn parse_catalog(raw: &serde_json::Value) -> Vec<CatalogEntry> {
-    raw.get("data")
+    let mut entries: Vec<CatalogEntry> = raw
+        .get("data")
         .and_then(|data| data.as_array())
         .map(|list| list.iter().filter_map(parse_entry).collect())
-        .unwrap_or_default()
+        .unwrap_or_default();
+
+    entries.sort_by(|a, b| {
+        a.name
+            .to_lowercase()
+            .cmp(&b.name.to_lowercase())
+            .then_with(|| a.id.cmp(&b.id))
+    });
+    entries
 }
 
 /// Fetch the catalog with the stored key.

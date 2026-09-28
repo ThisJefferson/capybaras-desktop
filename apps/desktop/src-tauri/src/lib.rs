@@ -30,6 +30,11 @@ pub struct AppState {
     /// Refreshed by the supervision thread. Kept separate from the sidecar lock
     /// so the UI never blocks on a health probe.
     healthy: AtomicBool,
+    /// The catalogue as last fetched. Kept for one reason only: `send_message`
+    /// asks the CHOSEN model for its own reply ceiling, so a long answer is asked
+    /// for in full instead of being truncated at a number picked in the shell.
+    /// Display data, never consulted by the gate, and the key never reaches it.
+    catalogue: Mutex<Vec<catalog::CatalogEntry>>,
 }
 
 #[derive(Serialize)]
@@ -307,6 +312,14 @@ fn fetch_models(app: tauri::AppHandle) {
 
         match catalog::fetch_catalog(&transport, &key) {
             catalog::CatalogResult::Models(models) => {
+                // Keep the catalogue so a later Send can ask the chosen model for
+                // its own reply ceiling. Display data only: it shapes a request
+                // bound, never a gate decision.
+                if let Some(state) = app.try_state::<AppState>() {
+                    if let Ok(mut guard) = state.catalogue.lock() {
+                        *guard = models.clone();
+                    }
+                }
                 // The default is chosen here, over the real list, so the interface
                 // never has to guess which model is the sensible first pick.
                 let default = catalog::default_model(&models).map(str::to_string);
@@ -347,6 +360,13 @@ fn send_message(app: tauri::AppHandle, prompt: String, model: String) -> Result<
     let key = stored_key()?;
     let chosen = model.trim().to_string();
 
+    // The request's `max_tokens` is the CHOSEN model's OWN ceiling, read from the
+    // catalogue the shell already fetched — not a number picked here, and never a
+    // low one. An unknown ceiling resolves to a high fallback (`chat::reply_limit`),
+    // because the operator's instruction is that the answer be as long as it needs
+    // to be. Display data shaping a request bound: it cannot raise or lower a gate.
+    let max_tokens = reply_limit_for(&app, &chosen);
+
     std::thread::spawn(move || {
         let transport = match http::HttpTransport::new() {
             Ok(transport) => transport,
@@ -364,6 +384,7 @@ fn send_message(app: tauri::AppHandle, prompt: String, model: String) -> Result<
             &key,
             &chosen,
             &prompt,
+            max_tokens,
             |usage| {
                 // THE ONE SEAM (D22). Every finished call — success or failure —
                 // reports through `record_model_call`, which moves the totals and
@@ -403,6 +424,23 @@ fn send_message(app: tauri::AppHandle, prompt: String, model: String) -> Result<
     });
 
     Ok(())
+}
+
+/// The chosen model's own reply ceiling, or the high fallback.
+///
+/// Looks the model up in the catalogue the shell last fetched. A model the
+/// catalogue does not know (or an entry with no stated ceiling) resolves to
+/// `chat::reply_limit(None)` — the high fallback, never a short limit.
+fn reply_limit_for(app: &tauri::AppHandle, model: &str) -> u32 {
+    let ceiling = app.try_state::<AppState>().and_then(|state| {
+        state.catalogue.lock().ok().and_then(|guard| {
+            guard
+                .iter()
+                .find(|entry| entry.id == model)
+                .and_then(|entry| entry.max_completion_tokens)
+        })
+    });
+    chat::reply_limit(ceiling)
 }
 
 /// Turn protocol messages into interface events.
@@ -512,6 +550,7 @@ pub fn run() {
         .manage(AppState {
             sidecar: Mutex::new(None),
             healthy: AtomicBool::new(false),
+            catalogue: Mutex::new(Vec::new()),
         })
         .manage(connect::ConnectState::default())
         // The meter. Kept out of `AppState` on purpose: it needs no lock of its

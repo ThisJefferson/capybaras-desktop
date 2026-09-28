@@ -180,7 +180,10 @@ fn probe_the_first_reply_through_the_apps_own_path() {
     let transport = capybaras_shell::http::HttpTransport::new()
         .expect("build the same client the app uses");
 
-    match capybaras_shell::chat::call(&transport, &key, &model, "Reply with the single word: ready") {
+    // The same bound the app resolves for a model the catalogue does not know:
+    // the high fallback. A probe that asked for less would not be the shipped path.
+    let max_tokens = capybaras_shell::chat::DEFAULT_MAX_REPLY_TOKENS;
+    match capybaras_shell::chat::call(&transport, &key, &model, "Reply with the single word: ready", max_tokens) {
         capybaras_shell::chat::ChatOutcome::Replied { text, usage } => {
             println!("reply  : {text}");
             println!("tokens : prompt={} completion={} total={}", usage.prompt_tokens, usage.completion_tokens, usage.total_tokens);

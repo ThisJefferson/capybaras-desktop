@@ -620,6 +620,326 @@ fn sweep_the_catalogue_with_the_apps_own_credential() {
 }
 
 // ---------------------------------------------------------------------------
+// The free-model retest
+// ---------------------------------------------------------------------------
+//
+// **WHY THIS EXISTS, AND WHY IT IS SEPARATE FROM THE SWEEP ABOVE.** The first
+// sweep kept any model that answered HTTP 200. That criterion is wrong: `chat.rs`
+// proves a 200 carrying **no content** is a real failure (`"OpenRouter returned an
+// empty reply"`), and the operator met exactly that. A status code is not a
+// reply. This retest uses the corrected criterion and is deliberately strict:
+//
+//   a real message = HTTP 200 AND no error envelope AND non-empty content.
+//
+// **THREE ATTEMPTS, AND ONLY THE MODELS THAT PASS EVERY TIME ARE RELIABLE.** A
+// free model that answers twice and fails once is flaky, and the operator's call
+// is to remove flaky and broken alike ("no flaky models just legit free models
+// that work"). This differs from the main sweep, which keeps anything it cannot
+// classify — a *rate limit* there is a statement about the afternoon. Here the
+// operator has chosen reliability as the bar for the free list, so a failure to
+// serve on any attempt disqualifies. The two policies are recorded as they are
+// because they answer different questions.
+//
+// ```text
+// cargo test --test catalog_sweep retest_the_free_models -- --ignored --nocapture
+// ```
+const FREE_ATTEMPTS: usize = 3;
+/// A real question with a real answer shape: a prompt a chat model answers.
+const FREE_PROBE_PROMPT: &str = "In one short sentence, which is larger: a lake or a puddle?";
+const FREE_PROBE_MAX_TOKENS: u32 = 48;
+/// Space between a single model's attempts, so the retest does not manufacture
+/// the rate limit it is trying to measure.
+const FREE_GAP: Duration = Duration::from_millis(500);
+
+/// Whether a response is a REAL chat reply — the corrected criterion.
+///
+/// `Ok(text)` only when the status is 2xx, there is no error envelope, and
+/// `choices[0].message.content` is non-empty after trimming. Everything else is
+/// an `Err(why)` a reader can classify by eye.
+fn real_reply(status: u16, body: &str) -> Result<String, String> {
+    let value: serde_json::Value = serde_json::from_str(body).unwrap_or(serde_json::Value::Null);
+    if !(200..300).contains(&status) {
+        return Err(format!("http {status}"));
+    }
+    if value.get("error").map(|e| !e.is_null()).unwrap_or(false) {
+        return Err(format!("error envelope: {}", clamp_detail(&error_text(&value))));
+    }
+    let content = value
+        .pointer("/choices/0/message/content")
+        .and_then(|c| c.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if content.is_empty() {
+        return Err("empty content".to_string());
+    }
+    Ok(content)
+}
+
+#[derive(Debug, Clone)]
+struct FreeAttempt {
+    status: u16,
+    real: bool,
+    why: String,
+    cost_usd: f64,
+}
+
+#[derive(Debug, Clone)]
+struct FreeProbe {
+    id: String,
+    attempts: Vec<FreeAttempt>,
+    real_count: usize,
+    cost_usd: f64,
+    sample: String,
+}
+
+impl FreeProbe {
+    /// The one word the report groups by.
+    fn verdict(&self) -> &'static str {
+        match self.real_count {
+            n if n == FREE_ATTEMPTS => "reliable",
+            0 => "broken",
+            _ => "flaky",
+        }
+    }
+}
+
+/// One free model, tried `FREE_ATTEMPTS` times. Never sees or prints the key.
+fn probe_free(client: &Client, key: &str, id: &str) -> FreeProbe {
+    let payload = serde_json::json!({
+        "model": id,
+        "messages": [{ "role": "user", "content": FREE_PROBE_PROMPT }],
+        "max_tokens": FREE_PROBE_MAX_TOKENS,
+    })
+    .to_string();
+
+    let mut attempts = Vec::with_capacity(FREE_ATTEMPTS);
+    let mut real_count = 0usize;
+    let mut cost_usd = 0.0f64;
+    let mut sample = String::new();
+
+    for attempt in 0..FREE_ATTEMPTS {
+        match client
+            .post(format!("{BASE}/chat/completions"))
+            .bearer_auth(key)
+            .header("Content-Type", "application/json")
+            .body(payload.clone())
+            .send()
+        {
+            Ok(response) => {
+                let status = response.status().as_u16();
+                let retry_after = response
+                    .headers()
+                    .get("retry-after")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|s| s.trim().parse::<u64>().ok());
+                let body = response.text().unwrap_or_default();
+                let (cost, _, _) = read_usage(&body);
+                cost_usd += cost;
+
+                match real_reply(status, &body) {
+                    Ok(text) => {
+                        real_count += 1;
+                        if sample.is_empty() {
+                            sample = clamp_detail(&text);
+                        }
+                        attempts.push(FreeAttempt { status, real: true, why: "served".to_string(), cost_usd: cost });
+                    }
+                    Err(why) => {
+                        attempts.push(FreeAttempt { status, real: false, why, cost_usd: cost });
+                        // A 429 is worth a longer wait before the next attempt,
+                        // so a rate limit is not confused with a dead model.
+                        if status == 429 {
+                            sleep_backoff(attempt, retry_after);
+                        }
+                    }
+                }
+            }
+            Err(_) => {
+                attempts.push(FreeAttempt { status: 0, real: false, why: "transport".to_string(), cost_usd: 0.0 });
+            }
+        }
+        if attempt + 1 < FREE_ATTEMPTS {
+            std::thread::sleep(FREE_GAP);
+        }
+    }
+
+    FreeProbe { id: id.to_string(), attempts, real_count, cost_usd, sample }
+}
+
+fn free_output_path(date: &str) -> PathBuf {
+    match std::env::var("CAPYBARAS_FREE_RETEST_OUT") {
+        Ok(path) if !path.trim().is_empty() => PathBuf::from(path),
+        _ => std::env::temp_dir().join(format!("capybaras-free-retest-{date}.json")),
+    }
+}
+
+/// Whether an entry is priced at zero on both sides — the catalogue's own
+/// definition of a free model.
+fn is_free(entry: &serde_json::Value) -> bool {
+    let Some(pricing) = entry.get("pricing") else { return false };
+    let zero = |field: &str| {
+        pricing
+            .get(field)
+            .and_then(as_f64)
+            .map(|n| n == 0.0)
+            .unwrap_or(false)
+    };
+    zero("prompt") && zero("completion")
+}
+
+/// The output modalities an entry advertises, as the catalogue states them.
+fn output_modalities(entry: &serde_json::Value) -> Vec<String> {
+    entry
+        .pointer("/architecture/output_modalities")
+        .and_then(|v| v.as_array())
+        .map(|list| list.iter().filter_map(|m| m.as_str().map(str::to_string)).collect())
+        .unwrap_or_default()
+}
+
+#[test]
+#[ignore = "live retest: needs the app's stored credential and network access; free models cost nothing but the run is deliberate"]
+fn retest_the_free_models() {
+    let key = match credential::load(KEY_CREDENTIAL) {
+        Ok(Some(key)) => key,
+        Ok(None) => {
+            eprintln!("NOT CONNECTED: nothing stored under {KEY_CREDENTIAL}. Use Connect first.");
+            return;
+        }
+        Err(error) => {
+            eprintln!("the credential store is unusable here: {error}");
+            return;
+        }
+    };
+
+    let client = Client::builder().timeout(REQUEST_TIMEOUT).build().expect("build an HTTP client");
+    let before = key_usage(&client, &key);
+
+    let body = client
+        .get(format!("{BASE}/models"))
+        .bearer_auth(&key)
+        .send()
+        .expect("the model list should reach OpenRouter")
+        .text()
+        .unwrap_or_default();
+    let catalogue: serde_json::Value = serde_json::from_str(&body).expect("the model list should be JSON");
+
+    let kept: HashSet<String> = capybaras_shell::catalog::parse_catalog(&catalogue)
+        .into_iter()
+        .map(|entry| entry.id)
+        .collect();
+
+    let mut candidates: Vec<(String, Vec<String>, bool)> = Vec::new();
+    for entry in catalogue.get("data").and_then(|d| d.as_array()).cloned().unwrap_or_default() {
+        let Some(id) = entry.get("id").and_then(|v| v.as_str()).map(str::trim) else { continue };
+        if id.is_empty() || !is_free(&entry) {
+            continue;
+        }
+        candidates.push((id.to_string(), output_modalities(&entry), !kept.contains(id)));
+    }
+    candidates.sort_by(|a, b| a.0.cmp(&b.0));
+
+    println!("free candidates: {}", candidates.len());
+    println!("probing each {FREE_ATTEMPTS} times, sequentially, max_tokens={FREE_PROBE_MAX_TOKENS}...");
+
+    let mut probes: Vec<FreeProbe> = Vec::new();
+    for (id, modalities, already_dropped) in &candidates {
+        let probe = probe_free(&client, &key, id);
+        println!(
+            "  {:<12} {}  real={}/{}  modalities={:?}{}",
+            probe.verdict(),
+            id,
+            probe.real_count,
+            FREE_ATTEMPTS,
+            modalities,
+            if *already_dropped { "  (already dropped by the app filter)" } else { "" }
+        );
+        for attempt in &probe.attempts {
+            println!("        HTTP {:<3} {} - {}", attempt.status, if attempt.real { "real" } else { "no reply" }, attempt.why);
+        }
+        probes.push(probe);
+    }
+
+    let count = |v: &str| probes.iter().filter(|p| p.verdict() == v).count();
+    let spend: f64 = probes.iter().map(|p| p.cost_usd).sum();
+    let after = key_usage(&client, &key);
+    let delta = match (before, after) { (Some(b), Some(a)) => Some(a - b), _ => None };
+    let (retested_at, date) = utc_now();
+
+    let to_json = |probe: &FreeProbe| {
+        serde_json::json!({
+            "id": probe.id,
+            "verdict": probe.verdict(),
+            "real_count": probe.real_count,
+            "attempts": probe.attempts.iter().map(|a| serde_json::json!({
+                "status": a.status, "real": a.real, "why": a.why, "cost_usd": a.cost_usd,
+            })).collect::<Vec<_>>(),
+            "cost_usd": probe.cost_usd,
+            "sample": probe.sample,
+        })
+    };
+
+    let document = serde_json::json!({
+        "retested_at": retested_at,
+        "date": date,
+        "source": "apps/desktop/src-tauri/tests/catalog_sweep.rs",
+        "criterion": "HTTP 2xx AND no error envelope AND non-empty choices[0].message.content",
+        "attempts_per_model": FREE_ATTEMPTS,
+        "probe": { "prompt": FREE_PROBE_PROMPT, "max_tokens": FREE_PROBE_MAX_TOKENS },
+        "free_candidates": candidates.iter().map(|(id, modalities, dropped)| serde_json::json!({
+            "id": id, "output_modalities": modalities, "already_dropped": dropped,
+        })).collect::<Vec<_>>(),
+        "counts": {
+            "reliable": count("reliable"),
+            "flaky": count("flaky"),
+            "broken": count("broken"),
+        },
+        "reliable_ids": probes.iter().filter(|p| p.verdict() == "reliable").map(|p| p.id.clone()).collect::<Vec<_>>(),
+        "flaky_ids": probes.iter().filter(|p| p.verdict() == "flaky").map(|p| p.id.clone()).collect::<Vec<_>>(),
+        "broken_ids": probes.iter().filter(|p| p.verdict() == "broken").map(|p| p.id.clone()).collect::<Vec<_>>(),
+        "spend_usd": spend,
+        "account_usage_before": before,
+        "account_usage_after": after,
+        "account_usage_delta": delta,
+        "results": probes.iter().map(to_json).collect::<Vec<_>>(),
+    });
+
+    let path = free_output_path(&date);
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    std::fs::write(&path, serde_json::to_string_pretty(&document).expect("serialise the report")).expect("write the report");
+
+    println!();
+    println!("=============== free-model retest ===============");
+    println!("when        : {retested_at}");
+    println!("candidates  : {}", probes.len());
+    println!("reliable    : {} (a real message every attempt)", count("reliable"));
+    println!("flaky       : {} (some attempts had no reply)", count("flaky"));
+    println!("broken      : {}", count("broken"));
+    println!("spend       : ${spend:.6} (free models, so the tokens cost nothing)");
+    if let Some(delta) = delta {
+        println!("cross-check : GET /key usage moved ${delta:.6}");
+    }
+    println!();
+    println!("reliable ids:");
+    for probe in probes.iter().filter(|p| p.verdict() == "reliable") {
+        println!("  {}", probe.id);
+    }
+    println!("flaky ids:");
+    for probe in probes.iter().filter(|p| p.verdict() == "flaky") {
+        println!("  {} ({}/{})", probe.id, probe.real_count, FREE_ATTEMPTS);
+    }
+    println!("broken ids:");
+    for probe in probes.iter().filter(|p| p.verdict() == "broken") {
+        println!("  {} ({})", probe.id, probe.attempts.first().map(|a| a.why.as_str()).unwrap_or(""));
+    }
+    println!();
+    println!("raw result  : {}", path.display());
+    println!("================================================");
+}
+
+// ---------------------------------------------------------------------------
 // Offline tests: the classifier never needs a network
 // ---------------------------------------------------------------------------
 
@@ -711,6 +1031,39 @@ fn the_detail_is_flattened_and_clamped() {
     let detail = clamp_detail(&"a\n\nb\t".repeat(200));
     assert!(!detail.contains('\n'));
     assert!(detail.chars().count() <= DETAIL_MAX);
+}
+
+#[test]
+fn a_real_reply_needs_content_not_just_a_status() {
+    // 200 with an empty message is the failure the operator met.
+    let empty = serde_json::json!({ "choices": [{ "message": { "content": "  " } }] }).to_string();
+    assert!(real_reply(200, &empty).is_err());
+    // 200 carrying an error envelope is a refusal, not a reply.
+    let error = serde_json::json!({ "error": { "message": "upstream exploded" } }).to_string();
+    assert!(real_reply(200, &error).is_err());
+    // A non-2xx is not a reply however much text it carries.
+    assert!(real_reply(429, &empty).is_err());
+    // Only a 200 with real content is a reply.
+    let served = serde_json::json!({ "choices": [{ "message": { "content": "A lake." } }] }).to_string();
+    assert_eq!(real_reply(200, &served).as_deref(), Ok("A lake."));
+}
+
+#[test]
+fn a_free_entry_is_one_priced_at_zero_on_both_sides() {
+    let free = serde_json::json!({ "id": "a/free", "pricing": { "prompt": "0", "completion": "0" } });
+    let paid = serde_json::json!({ "id": "a/paid", "pricing": { "prompt": "0.000001", "completion": "0" } });
+    let missing = serde_json::json!({ "id": "a/none" });
+    assert!(is_free(&free));
+    assert!(!is_free(&paid), "one non-zero side is not free");
+    assert!(!is_free(&missing), "absence is not evidence of free");
+}
+
+#[test]
+fn output_modalities_are_read_only_when_the_catalogue_states_them() {
+    let with = serde_json::json!({ "architecture": { "output_modalities": ["text", "audio"] } });
+    let without = serde_json::json!({ "architecture": {} });
+    assert_eq!(output_modalities(&with), vec!["text".to_string(), "audio".to_string()]);
+    assert!(output_modalities(&without).is_empty());
 }
 
 #[test]

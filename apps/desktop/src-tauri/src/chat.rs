@@ -25,18 +25,60 @@ use crate::http::Transport;
 /// Where a completion is asked for. Must match the path `tests/live_api.rs` probes.
 pub const CHAT_ENDPOINT: &str = "https://openrouter.ai/api/v1/chat/completions";
 
-/// The most one reply may be. Bounded so a first reply is a first reply and not an
-/// invoice — the app does not surprise a new user with a large generation.
-pub const MAX_REPLY_TOKENS: u32 = 256;
+/// The biggest reply asked for when the catalogue does not say what a model's own
+/// ceiling is.
+///
+/// **THIS IS A FALLBACK, NOT THE LIMIT.** The request asks for the model's OWN
+/// maximum — `top_provider.max_completion_tokens`, carried on each catalogue entry
+/// as `maxCompletionTokens` — and falls back here only when that figure is absent.
+///
+/// **THE FALLBACK IS DELIBERATELY HIGH.** The operator's instruction is that *"the
+/// answer should be as long as it needs to be. if it's a long response, i want to
+/// see the whole thing"*. An unknown ceiling must therefore never be read as a
+/// short one — the old `256` here was the bug. 65,535 is the highest ceiling
+/// measured in the catalogue on 2026-09-28 (`google/gemini-2.5-flash`), so it is a
+/// number from the same source rather than one invented here.
+///
+/// **WHAT THIS COSTS, PLAINLY.** This is the ceiling on what one reply may cost,
+/// and preferring a complete answer over a short one is the operator's explicit
+/// choice. A long reply on an expensive model is real money: at
+/// `anthropic/claude-sonnet-4.5` prices, a full 64,000-token reply is on the order
+/// of $0.96. The catalogue carries a per-reply estimate (`priceLabel`) so a person
+/// can see that before choosing. The reasoning is recorded in DECISIONS.md.
+pub const DEFAULT_MAX_REPLY_TOKENS: u32 = 65535;
+
+/// The request's `max_tokens`: the model's OWN maximum, or the high fallback.
+///
+/// `None` means the catalogue did not state a ceiling, and `Some(0)` is not a real
+/// ceiling either. Both are answered with `DEFAULT_MAX_REPLY_TOKENS` — never with a
+/// smaller number picked here, because absence is not evidence of a short limit.
+pub fn reply_limit(max_completion_tokens: Option<u64>) -> u32 {
+    match max_completion_tokens {
+        Some(max) if max > 0 => u32::try_from(max).unwrap_or(u32::MAX),
+        _ => DEFAULT_MAX_REPLY_TOKENS,
+    }
+}
 
 /// The longest prompt accepted, in characters. A first reply is not a document
 /// pipeline; anything longer is refused locally rather than sent and billed.
 pub const PROMPT_MAX: usize = 4000;
 
-/// The longest reply kept, in characters. A generous bound against a runaway
-/// response burying the interface — not a summary, so it is far above a normal
-/// reply at `MAX_REPLY_TOKENS`.
-pub const REPLY_MAX: usize = 8000;
+/// How many characters one token can reasonably be worth, at the generous end.
+/// Used only to size `REPLY_MAX` from the token ceiling.
+pub const CHARS_PER_TOKEN_MAX: usize = 5;
+
+/// The longest reply kept, in characters.
+///
+/// **THIS RISES WITH THE TOKEN CEILING, AND IT HAS TO.** It was a flat 8,000 —
+/// generous beside a 256-token request. It is now derived from
+/// `DEFAULT_MAX_REPLY_TOKENS`, the highest ceiling a request may ask for, at
+/// `CHARS_PER_TOKEN_MAX` characters per token. That way a reply the model was
+/// allowed to write cannot be cut a SECOND time in the shell: cutting it here would
+/// leave the truncation bug looking unfixed with the request already fixed.
+///
+/// It is still a bound — it stops a runaway response burying the interface. It is
+/// not a summary, and it sits far above any ordinary reply.
+pub const REPLY_MAX: usize = DEFAULT_MAX_REPLY_TOKENS as usize * CHARS_PER_TOKEN_MAX;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct Usage {
@@ -71,17 +113,27 @@ pub fn report_of(outcome: &ChatOutcome) -> Usage {
 }
 
 /// Build the request body. Contains the prompt; never the key.
-pub fn request_body(model: &str, prompt: &str) -> String {
+///
+/// `max_tokens` is the resolved request bound — the chosen model's own maximum via
+/// `reply_limit`, not a number this module picks. The caller resolves it so the one
+/// place that holds the catalogue is the one place that decides.
+pub fn request_body(model: &str, prompt: &str, max_tokens: u32) -> String {
     serde_json::json!({
         "model": model,
         "messages": [{ "role": "user", "content": prompt }],
-        "max_tokens": MAX_REPLY_TOKENS,
+        "max_tokens": max_tokens,
     })
     .to_string()
 }
 
 /// Make one completion.
-pub fn call(transport: &dyn Transport, key: &str, model: &str, prompt: &str) -> ChatOutcome {
+pub fn call(
+    transport: &dyn Transport,
+    key: &str,
+    model: &str,
+    prompt: &str,
+    max_tokens: u32,
+) -> ChatOutcome {
     let model = model.trim();
     if model.is_empty() {
         return ChatOutcome::Failed {
@@ -104,7 +156,7 @@ pub fn call(transport: &dyn Transport, key: &str, model: &str, prompt: &str) -> 
         };
     }
 
-    let response = match transport.post_json(CHAT_ENDPOINT, key, &request_body(model, prompt)) {
+    let response = match transport.post_json(CHAT_ENDPOINT, key, &request_body(model, prompt, max_tokens)) {
         Ok(response) => response,
         Err(_) => {
             return ChatOutcome::Failed {
@@ -259,6 +311,7 @@ pub fn perform<U, D>(
     key: &str,
     model: &str,
     prompt: &str,
+    max_tokens: u32,
     mut on_usage: U,
     mut on_outcome: D,
 ) -> ChatOutcome
@@ -266,7 +319,7 @@ where
     U: FnMut(&Usage),
     D: FnMut(&ChatOutcome),
 {
-    let outcome = call(transport, key, model, prompt);
+    let outcome = call(transport, key, model, prompt, max_tokens);
     on_usage(&report_of(&outcome));
     on_outcome(&outcome);
     outcome
