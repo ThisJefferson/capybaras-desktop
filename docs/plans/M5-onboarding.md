@@ -196,7 +196,7 @@ their OpenRouter account and is the one control the agent cannot route around.
 
 ---
 
-## 9. Recorded 2026-09-28 — NOT built, deliberately
+## 9. Recorded 2026-09-28 — deferred, then built the same day
 
 **The user must understand the API before they use it.** Jeff's words: the OpenRouter
 link has to be *"accessible and easy"* — the user needs to know **how to get to the API,
@@ -216,3 +216,39 @@ inline disclosure on the model picker, or a help page — and where the cost fig
 from. Note that "how much does it cost" can be partly **live** rather than prose: the
 account balance is already fetched and rendered, so the explanation can show the real
 number beside its own explanation.
+
+### 9a. Implemented 2026-09-28 — the overlay, frontend only
+
+Picked up the same day, inside the conventions the UI polish pass had just set. No
+backend, no agent logic, no new fetching.
+
+- **Where it lives.** One overlay (`#help` in `apps/desktop/web/index.html`):
+  `role="dialog"`, `aria-modal`, `aria-labelledby`, the card's own focus management
+  (focus in, focus returned to the trigger), Escape to close, `contain: paint`, and a
+  CSS-driven sibling scrim exactly like the approval card's. Every control is named;
+  nothing is hover-only.
+- **How it is reached.** A first-run card inside the connect panel, shown only while a
+  key is *not* connected, and a "How models, keys and costs work" button beside the
+  model picker. **It opens on demand and never on its own.** There is no honest way to
+  tell a real first run from a harness run, and an auto-opening modal would cover the
+  window on launch and sit in every review frame; so the first-run path is a prominent
+  *invitation in the connect area*, not a pop-up.
+- **What it says.** Six short sections, one per question: one account and one key (and
+  that pressing Connect is how you get one); what happens when you send a message (and
+  that the app never sees the password); how to connect (browser, Windows-held key,
+  delete it any time and the app notices rather than fails confusingly); how much it
+  costs; why it costs money; and why the balance says "whole account". The voice is
+  `BRAND.md` section 6 — plain, warm, short sentences, no alarm.
+- **Cost figures, live where a live figure exists.** "How much it costs" carries a live
+  line — *Right now, your OpenRouter account has $5.26 left.* — filled from the **same**
+  `usage_status` snapshot the meter renders, with `textContent` only. When no balance has
+  been read, the line is hidden rather than guessed at. **The free-model count is not
+  quoted**: the catalogue's prices never reach the frontend, so the app has no measured
+  figure to state and says only "some models are free".
+- **What was not added.** No new command and no new event — the seam check in
+  `verify-onboarding.mjs` passes unchanged. No input of any kind, so "nowhere to paste a
+  key" still holds. One link, to OpenRouter's own page; no third-party signup link and no
+  key-creation link.
+
+So the §9 open questions are answered: an on-demand overlay plus a first-run invitation,
+with cost figures live wherever a real figure exists and silent where it does not.
