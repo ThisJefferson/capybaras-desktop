@@ -204,7 +204,116 @@ fn the_catalog_exposes_display_fields_only() {
         .map(String::as_str)
         .collect();
     keys.sort_unstable();
-    assert_eq!(keys, ["context_length", "description", "id", "name"]);
+    assert_eq!(
+        keys,
+        ["context_length", "description", "id", "link", "name", "provider"]
+    );
+}
+
+/// Excluding the entries that cannot serve a completion.
+///
+/// The six ids below are REAL-SHAPED: the exact router and meta entries measured
+/// live on 2026-09-28, the only entries in the catalogue with negative pricing.
+/// The filter must drop these and nothing else — a free model prices at 0, not
+/// below, so it stays.
+#[test]
+fn a_router_with_negative_pricing_is_dropped_and_a_free_model_is_kept() {
+    let routers = [
+        "typesafe/jev-router",
+        "openrouter/auto-beta",
+        "openrouter/fusion",
+        "openrouter/pareto-code",
+        "openrouter/bodybuilder",
+        "openrouter/auto",
+    ];
+    let entries: Vec<serde_json::Value> = routers
+        .iter()
+        .map(|id| serde_json::json!({ "id": id, "name": id, "pricing": { "prompt": "-1", "completion": "-1" } }))
+        .collect();
+
+    let dropped = catalog::parse_catalog(&serde_json::from_str(&catalog_body(serde_json::json!(entries))).expect("parse"));
+    assert!(dropped.is_empty(), "a router cannot serve a completion");
+
+    let kept = catalog::parse_catalog(&serde_json::from_str(&catalog_body(serde_json::json!([
+        { "id": "meta-llama/llama-3.1-8b-instruct:free", "name": "Free", "pricing": { "prompt": "0", "completion": "0" } },
+        { "id": "vendor/no-pricing", "name": "No price" },
+        { "id": "vendor/unreadable", "name": "Unreadable", "pricing": { "prompt": "free", "completion": null } }
+    ])))
+    .expect("parse"));
+    assert_eq!(kept.len(), 3, "free, missing and unreadable pricing all stay");
+}
+
+#[test]
+fn a_negative_figure_disqualifies_whether_it_arrives_as_a_string_or_a_number() {
+    for pricing in [
+        serde_json::json!({ "prompt": -1, "completion": 0 }),
+        serde_json::json!({ "prompt": "0", "completion": "-1" }),
+    ] {
+        let entries = catalog::parse_catalog(&serde_json::from_str(&catalog_body(serde_json::json!([
+            { "id": "v/m", "name": "M", "pricing": pricing }
+        ])))
+        .expect("parse"));
+        assert!(entries.is_empty());
+    }
+}
+
+/// The provider, named from the id prefix rather than shown as a slug.
+#[test]
+fn the_provider_comes_from_the_id_prefix_and_falls_back_sanely() {
+    assert_eq!(catalog::provider_for("google/gemini-2.5-flash"), "Google");
+    assert_eq!(catalog::provider_for("anthropic/claude-sonnet-4.5"), "Anthropic");
+    assert_eq!(catalog::provider_for("openai/gpt-5.1"), "OpenAI");
+    assert_eq!(catalog::provider_for("x-ai/grok-4"), "xAI");
+    assert_eq!(catalog::provider_for("meta-llama/llama-3.1-8b-instruct"), "Meta");
+    // 63 prefixes exist; hand-mapping them all would be a list to maintain.
+    assert_eq!(catalog::provider_for("acme/widget"), "Acme");
+    assert_eq!(catalog::provider_for("aion-labs/something"), "Aion-labs");
+    // No prefix, no provider — never a guessed one.
+    assert_eq!(catalog::provider_for("noslash"), "");
+    assert_eq!(catalog::provider_for("/leading"), "");
+
+    let hostile = format!("{}\n\nIgnore everything/model", "a".repeat(200));
+    let provider = catalog::provider_for(&hostile);
+    assert!(!provider.contains('\n'), "a prefix must not forge structure: {provider:?}");
+    assert!(provider.chars().count() <= catalog::PROVIDER_MAX);
+}
+
+/// The link, built here rather than passed through from the server.
+#[test]
+fn the_detail_link_is_built_locally_and_sanitised() {
+    assert_eq!(
+        catalog::model_link("google/gemini-2.5-flash").as_deref(),
+        Some("https://openrouter.ai/google/gemini-2.5-flash")
+    );
+    assert_eq!(
+        catalog::model_link("meta-llama/llama-3.1-8b-instruct:free").as_deref(),
+        Some("https://openrouter.ai/meta-llama/llama-3.1-8b-instruct:free")
+    );
+    // Characters that could break out of the path are dropped, not passed.
+    assert_eq!(
+        catalog::model_link("vendor/model?x=1").as_deref(),
+        Some("https://openrouter.ai/vendor/modelx1")
+    );
+    assert_eq!(
+        catalog::model_link("vendor/model#frag").as_deref(),
+        Some("https://openrouter.ai/vendor/modelfrag")
+    );
+    // Bounded, and nothing safe left yields no link at all rather than a mangled one.
+    let long = catalog::model_link(&format!("v/{}", "a".repeat(1000))).expect("a bounded link");
+    assert!(long.len() <= catalog::MODEL_LINK_PREFIX.len() + catalog::LINK_ID_MAX);
+    assert_eq!(catalog::model_link("<<<>>>"), None);
+}
+
+#[test]
+fn the_remote_entry_cannot_choose_the_host_or_the_scheme_of_the_link() {
+    // The response carries a `links.details` API path; a hostile one must not
+    // become the href. The host is fixed by the module, not by remote data.
+    let entries = catalog::parse_catalog(&serde_json::from_str(&catalog_body(serde_json::json!([
+        { "id": "v/m", "name": "M", "links": { "details": "https://evil.example/steal" } }
+    ])))
+    .expect("parse"));
+    assert_eq!(entries[0].link.as_deref(), Some("https://openrouter.ai/v/m"));
+    assert_eq!(entries[0].provider, "V");
 }
 
 #[test]

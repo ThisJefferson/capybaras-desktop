@@ -22,6 +22,13 @@
 //! 3. An empty catalog is an **error**, not an empty menu. A menu that renders
 //!    nothing reads as "no models exist" rather than "the fetch failed".
 //!
+//! The provider and the detail link follow `models.ts` too, and for the same
+//! reason: `top_provider` carries no name, and `links.details` is a relative API
+//! path, so neither can be shown as-is. The provider is derived from the id
+//! prefix; the link is built locally as `https://openrouter.ai/<id>` and never
+//! taken from what the server sent. The id is remote data, so it is
+//! charset-restricted and length-bounded before it becomes part of a URL.
+//!
 //! An `id` is kept verbatim, exactly as `models.ts` does: it is an opaque key sent
 //! to the API, not display text, and altering it would break the request.
 
@@ -36,6 +43,36 @@ pub const MODELS_ENDPOINT: &str = "https://openrouter.ai/api/v1/models";
 /// models.ts sets: a value that can be arbitrarily long can bury the interface.
 pub const NAME_MAX: usize = 80;
 pub const DESCRIPTION_MAX: usize = 240;
+/// How long a provider label may be. Derived from the id prefix, so remote.
+pub const PROVIDER_MAX: usize = 40;
+/// The longest id a link will carry. A link is convenience, not data.
+pub const LINK_ID_MAX: usize = 200;
+/// The only host a detail link may point at. Fixed locally, never remote.
+pub const MODEL_LINK_PREFIX: &str = "https://openrouter.ai/";
+
+/// Provider labels for the prefixes worth naming, so a person sees "Google"
+/// rather than "google". Deliberately small: 63 prefixes exist and hand-mapping
+/// all of them would be a list to maintain against a catalogue that churns. The
+/// fallback is the point — an unmapped prefix still shows, capitalised. The same
+/// table `models.ts` carries.
+pub const PROVIDER_LABELS: [(&str, &str); 16] = [
+    ("anthropic", "Anthropic"),
+    ("amazon", "Amazon"),
+    ("cohere", "Cohere"),
+    ("deepseek", "DeepSeek"),
+    ("google", "Google"),
+    ("groq", "Groq"),
+    ("meta-llama", "Meta"),
+    ("microsoft", "Microsoft"),
+    ("mistralai", "Mistral"),
+    ("moonshotai", "Moonshot AI"),
+    ("nvidia", "NVIDIA"),
+    ("openai", "OpenAI"),
+    ("perplexity", "Perplexity"),
+    ("qwen", "Qwen"),
+    ("x-ai", "xAI"),
+    ("z-ai", "Z.AI"),
+];
 
 /// Flatten and clamp a string that came from somewhere else.
 ///
@@ -67,6 +104,97 @@ fn is_control(c: char) -> bool {
     n <= 0x001F || (0x007F..=0x009F).contains(&n)
 }
 
+/// The prefix of an id — everything before the first `/`. Empty when there is
+/// none, so a bare id gets no provider rather than a guessed one.
+fn provider_prefix(id: &str) -> &str {
+    match id.split_once('/') {
+        Some((prefix, _)) if !prefix.is_empty() => prefix,
+        _ => "",
+    }
+}
+
+/// The API that serves a model, from its id prefix.
+///
+/// `google/gemini-2.5-flash` -> "Google". `top_provider` has no name field, so
+/// the prefix is the only honest source. The prefix is REMOTE DATA rendered in the
+/// interface, so an unmapped one is flattened and clamped like any other label.
+pub fn provider_for(id: &str) -> String {
+    let prefix = provider_prefix(id);
+    if prefix.is_empty() {
+        return String::new();
+    }
+    if let Some((_, label)) = PROVIDER_LABELS
+        .iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case(prefix))
+    {
+        return (*label).to_string();
+    }
+    // Not one we know: show the raw prefix, sanitised, first letter up so a bare
+    // "acme" does not read as a typo rather than a name.
+    let safe = sanitise_remote_text(&serde_json::Value::String(prefix.to_string()), PROVIDER_MAX);
+    let mut chars = safe.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
+    }
+}
+
+/// A link to OpenRouter's page for this model, BUILT LOCALLY.
+///
+/// Not `links.details`, which is a relative API path, and never a URL the server
+/// sent: a link is an injection surface, and the host is fixed here rather than
+/// chosen by remote data. The id is charset-restricted to what an OpenRouter id
+/// actually uses and length-bounded, then dropped entirely if nothing safe is
+/// left, so a malformed id yields no link rather than a mangled one.
+pub fn model_link(id: &str) -> Option<String> {
+    let safe: String = id
+        .chars()
+        .filter(|c| is_link_id_char(*c))
+        .take(LINK_ID_MAX)
+        .collect();
+    if safe.is_empty() {
+        return None;
+    }
+    Some(format!("{MODEL_LINK_PREFIX}{safe}"))
+}
+
+/// Exactly the characters an OpenRouter id uses: `[A-Za-z0-9._~:@/-]`. Anything
+/// else is dropped before the id becomes part of a URL.
+fn is_link_id_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '~' | ':' | '@' | '/' | '-')
+}
+
+/// Whether a price field is NEGATIVE.
+///
+/// This is not quality filtering. OpenRouter publishes `-1` pricing for its own
+/// routers and meta entries (`openrouter/auto`, `openrouter/fusion`, ...), which
+/// dispatch to other models rather than serving a completion — they cannot be
+/// called as written. Six of the 458 entries measured on 2026-09-28 carried
+/// negative pricing and every one was such a router. The rule is deliberately
+/// narrow: only a negative figure disqualifies. A free model prices at 0, so it
+/// stays, and a value that cannot be read as a number is not evidence either way.
+fn is_negative_price(value: &serde_json::Value) -> bool {
+    if let Some(number) = value.as_f64() {
+        return number < 0.0;
+    }
+    if let Some(text) = value.as_str() {
+        if let Ok(number) = text.trim().parse::<f64>() {
+            return number < 0.0;
+        }
+    }
+    false
+}
+
+/// Whether an entry's pricing disqualifies it — see `is_negative_price`.
+fn has_negative_price(entry: &serde_json::Map<String, serde_json::Value>) -> bool {
+    let Some(pricing) = entry.get("pricing").and_then(|value| value.as_object()) else {
+        return false;
+    };
+    ["prompt", "completion"]
+        .iter()
+        .any(|field| pricing.get(*field).is_some_and(is_negative_price))
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct CatalogEntry {
     /// The identifier sent to the API. Verbatim: it is an opaque key, not display
@@ -75,6 +203,12 @@ pub struct CatalogEntry {
     /// Human-facing, sanitised.
     pub name: String,
     pub description: String,
+    /// Which API serves this model, from the id prefix. Display only.
+    pub provider: String,
+    /// OpenRouter's page for this model, built locally. Absent when the id cannot
+    /// safely form one. Display only — the interface opens it, nothing consumes it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub link: Option<String>,
     /// Reported context window, or absent when the server did not say.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_length: Option<u64>,
@@ -99,6 +233,11 @@ fn parse_entry(raw: &serde_json::Value) -> Option<CatalogEntry> {
 
     let id = entry.get("id").and_then(|v| v.as_str()).map(str::trim).unwrap_or("");
     if id.is_empty() {
+        return None;
+    }
+
+    // A router or meta entry cannot serve a completion. Drop it, narrowly.
+    if has_negative_price(entry) {
         return None;
     }
 
@@ -129,6 +268,8 @@ fn parse_entry(raw: &serde_json::Value) -> Option<CatalogEntry> {
         id: id.to_string(),
         name,
         description,
+        provider: provider_for(id),
+        link: model_link(id),
         context_length,
     })
 }
