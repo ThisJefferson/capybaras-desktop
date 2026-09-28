@@ -162,3 +162,34 @@ fn probe_tiny_completion() {
     println!("  model  : {}", value["model"]);
     println!("  id     : {}", value["id"]);
 }
+
+/// The app's OWN path to a first reply, live.
+///
+/// `probe_tiny_completion` above talks to the endpoint directly. This one runs
+/// `chat::call` — the same code the Send button runs — so the request it builds,
+/// the reply it reads and the usage it extracts are the shipped ones, not a
+/// parallel implementation written for a test. That is the point: a probe that
+/// hand-writes its own request proves the endpoint works, not the app.
+#[test]
+#[ignore = "needs a live credential, network access, and spends a tiny amount"]
+fn probe_the_first_reply_through_the_apps_own_path() {
+    let Some(key) = api_key() else { return };
+    let model = std::env::var("CAPYBARAS_PROBE_MODEL")
+        .unwrap_or_else(|_| "openai/gpt-4o-mini".to_string());
+
+    let transport = capybaras_shell::http::HttpTransport::new()
+        .expect("build the same client the app uses");
+
+    match capybaras_shell::chat::call(&transport, &key, &model, "Reply with the single word: ready") {
+        capybaras_shell::chat::ChatOutcome::Replied { text, usage } => {
+            println!("reply  : {text}");
+            println!("tokens : prompt={} completion={} total={}", usage.prompt_tokens, usage.completion_tokens, usage.total_tokens);
+            println!("cost   : ${:.6}", usage.cost_usd);
+        }
+        capybaras_shell::chat::ChatOutcome::Failed { message } => {
+            // Printed, not asserted: a live probe reports what happened rather
+            // than failing the build on a provider's bad day.
+            println!("failed : {message}");
+        }
+    }
+}

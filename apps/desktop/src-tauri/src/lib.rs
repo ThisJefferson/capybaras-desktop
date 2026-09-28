@@ -12,9 +12,12 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, Manager, RunEvent};
 
+pub mod catalog;
+pub mod chat;
 pub mod connect;
 pub mod credential;
 pub mod exchange;
+pub mod http;
 pub mod integrity;
 pub mod loopback;
 pub mod meter;
@@ -214,6 +217,151 @@ fn record_model_call(
     )
 }
 
+/// The interface events for the first model call.
+///
+/// Public so the emitter and the frontend cannot drift apart, the same way
+/// `meter::USAGE_EVENT` is.
+pub const REPLY_EVENT: &str = "capybaras://reply";
+pub const MESSAGE_FAILED_EVENT: &str = "capybaras://message-failed";
+pub const MODELS_EVENT: &str = "capybaras://models";
+pub const MODELS_FAILED_EVENT: &str = "capybaras://models-failed";
+
+/// Load the stored provider key, or explain plainly why there is none.
+///
+/// **FAILS CLOSED.** Anything other than a readable credential is "not
+/// connected", never "proceed and hope" (M5-onboarding.md §3). The credential
+/// error is deliberately not interpolated: a store detail is not a message for a
+/// person, and an error string is the last place one should travel.
+fn stored_key() -> Result<String, String> {
+    match credential::load(connect::CREDENTIAL_NAME) {
+        Ok(Some(key)) => Ok(key),
+        Ok(None) => Err(
+            "Capybaras is not connected to OpenRouter yet. Use Connect first.".to_string(),
+        ),
+        Err(_) => Err(
+            "Capybaras cannot read the Windows credential store, so it cannot use your key. \
+             It will not keep one anywhere else."
+                .to_string(),
+        ),
+    }
+}
+
+/// Load the model list with the stored key.
+///
+/// The answer arrives as an event rather than a return value, for the same reason
+/// the sign-in does: the interface must not freeze for a network round trip.
+/// `capybaras://models` carries the entries and the default; `capybaras://models-failed`
+/// carries a reason.
+#[tauri::command]
+fn fetch_models(app: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        let key = match stored_key() {
+            Ok(key) => key,
+            Err(message) => {
+                let _ = app.emit(MODELS_FAILED_EVENT, serde_json::json!({ "message": message }));
+                return;
+            }
+        };
+
+        let transport = match http::HttpTransport::new() {
+            Ok(transport) => transport,
+            Err(_) => {
+                let _ = app.emit(
+                    MODELS_FAILED_EVENT,
+                    serde_json::json!({ "message": "Capybaras could not start its network client. Restart the app and try again." }),
+                );
+                return;
+            }
+        };
+
+        match catalog::fetch_catalog(&transport, &key) {
+            catalog::CatalogResult::Models(models) => {
+                // The default is chosen here, over the real list, so the interface
+                // never has to guess which model is the sensible first pick.
+                let default = catalog::default_model(&models).map(str::to_string);
+                let _ = app.emit(
+                    MODELS_EVENT,
+                    serde_json::json!({ "models": models, "default": default }),
+                );
+            }
+            catalog::CatalogResult::Failed { detail, .. } => {
+                let _ = app.emit(MODELS_FAILED_EVENT, serde_json::json!({ "message": detail }));
+            }
+        }
+        drop(key);
+    });
+}
+
+/// One message, one reply — the first reply.
+///
+/// Dispatches and returns; the answer arrives as `capybaras://reply` or
+/// `capybaras://message-failed`. An `Err` here is something known *before* any
+/// network call — not connected, nothing to send, no model chosen — so the person
+/// gets the reason immediately rather than waiting for a round trip to tell them.
+#[tauri::command]
+fn send_message(app: tauri::AppHandle, prompt: String, model: String) -> Result<(), String> {
+    if prompt.trim().is_empty() {
+        return Err("Type a message first.".to_string());
+    }
+    if model.trim().is_empty() {
+        return Err("Pick a model first — load the model list, then choose one.".to_string());
+    }
+
+    let key = stored_key()?;
+    let chosen = model.trim().to_string();
+
+    std::thread::spawn(move || {
+        let transport = match http::HttpTransport::new() {
+            Ok(transport) => transport,
+            Err(_) => {
+                let _ = app.emit(
+                    MESSAGE_FAILED_EVENT,
+                    serde_json::json!({ "message": "Capybaras could not start its network client. Restart the app and try again." }),
+                );
+                return;
+            }
+        };
+
+        chat::perform(
+            &transport,
+            &key,
+            &chosen,
+            &prompt,
+            |usage| {
+                // THE ONE SEAM (D22). Every finished call — success or failure —
+                // reports through `record_model_call`, which moves the totals and
+                // emits `capybaras://usage`. A path that skipped this would make
+                // the meter silently wrong rather than visibly broken.
+                record_model_call(
+                    app.clone(),
+                    app.state::<meter::UsageMeter>(),
+                    usage.prompt_tokens,
+                    usage.completion_tokens,
+                    usage.total_tokens,
+                    usage.cost_usd,
+                );
+            },
+            |outcome| match outcome {
+                chat::ChatOutcome::Replied { text, .. } => {
+                    let _ = app.emit(
+                        REPLY_EVENT,
+                        serde_json::json!({ "text": text, "model": chosen }),
+                    );
+                }
+                chat::ChatOutcome::Failed { message } => {
+                    let _ = app.emit(MESSAGE_FAILED_EVENT, serde_json::json!({ "message": message }));
+                }
+            },
+        );
+
+        // The key's in-memory copy is released here. Not scrubbed — the same known
+        // limit `connect.rs` records for the exchange step.
+        drop(key);
+    });
+
+    Ok(())
+}
+
 /// Turn protocol messages into interface events.
 ///
 /// Before this existed the shell had no way to tell the interface anything — its
@@ -335,6 +483,8 @@ pub fn run() {
             revoke_grant,
             usage_status,
             record_model_call,
+            fetch_models,
+            send_message,
             connect::connect_status,
             connect::start_connect
         ])
