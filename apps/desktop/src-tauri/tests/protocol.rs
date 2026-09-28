@@ -58,6 +58,20 @@ fn propose_mass_delete(sidecar: &mut Sidecar, id: &str) {
         .expect("could not send action.propose");
 }
 
+/// A plain, rememberable write to one named file. Used where the subject is the
+/// grant rather than the danger.
+fn propose_file_write(sidecar: &mut Sidecar, id: &str) {
+    sidecar
+        .send(&json!({
+            "v": 1,
+            "type": "action.propose",
+            "id": id,
+            "action": { "tool": "fs.write", "args": { "path": "notes.md" } },
+            "context": { "targetLabel": "notes.md" }
+        }))
+        .expect("could not send action.propose");
+}
+
 #[test]
 fn rule_1_a_hard_gate_cannot_proceed_without_an_answer() {
     let dir = state_dir("rule1");
@@ -514,4 +528,67 @@ fn a_remembered_grant_survives_a_restart() {
 
         let _ = sidecar.stop(Duration::from_secs(10));
     }
+}
+
+/// M4.5 — revocation, over the real wire.
+///
+/// A remembered choice is a permission, and a permission the user cannot
+/// withdraw is not one they really gave. This drives the exact message the
+/// shell's `revoke_grant` command sends, then proves the withdrawal took effect
+/// **by making the same action ask again** — not by trusting the reply that says
+/// it was removed.
+#[test]
+fn a_revoked_grant_asks_again() {
+    let dir = state_dir("grants-revoke");
+    let mut sidecar = spawn(&dir);
+    expect(&sidecar, "ready", Duration::from_secs(25));
+
+    // ---- remember the write ----
+    propose_file_write(&mut sidecar, "r1");
+    let required = expect(&sidecar, "approval.required", Duration::from_secs(15));
+    assert_eq!(required["request"]["canRemember"], true, "{required}");
+
+    sidecar
+        .send(&json!({ "v": 1, "type": "approval.answer", "id": "r1", "decision": "remember" }))
+        .expect("could not send remember");
+    expect(&sidecar, "approval.resolved", Duration::from_secs(10));
+
+    // ---- it is listed, with a description and the id revocation needs ----
+    sidecar
+        .send(&json!({ "v": 1, "type": "grants.list" }))
+        .expect("could not send grants.list");
+    let listed = expect(&sidecar, "grants.listed", Duration::from_secs(10));
+    let grants = listed["grants"].as_array().expect("a grants array").clone();
+    assert_eq!(grants.len(), 1, "the remembered choice should be listed: {listed}");
+    let id = grants[0]["id"].as_str().expect("an id").to_string();
+    assert!(
+        grants[0]["description"].as_str().unwrap_or("").contains("notes.md"),
+        "the list must describe the grant in words a person can read: {listed}"
+    );
+
+    // ---- and the same action now goes through without asking ----
+    propose_file_write(&mut sidecar, "r2");
+    expect(&sidecar, "action.proceeded", Duration::from_secs(10));
+
+    // ---- withdraw it, with the message the shell sends ----
+    sidecar
+        .send(&capybaras_shell::grants_revoke_message(&id))
+        .expect("could not send grants.revoke");
+    let after = expect(&sidecar, "grants.listed", Duration::from_secs(10));
+    assert_eq!(
+        after["grants"].as_array().map(|g| g.len()),
+        Some(0),
+        "the grant should be gone: {after}"
+    );
+
+    // THE ASSERTION THAT MATTERS. If the revoke were silently ignored, the
+    // permission would outlive the decision and this would proceed instead.
+    propose_file_write(&mut sidecar, "r3");
+    let required = expect(&sidecar, "approval.required", Duration::from_secs(10));
+    assert_eq!(
+        required["id"], "r3",
+        "a revoked grant must make the action ask again: {required}"
+    );
+
+    let _ = sidecar.stop(Duration::from_secs(10));
 }

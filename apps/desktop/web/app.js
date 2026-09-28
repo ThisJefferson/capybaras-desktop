@@ -361,6 +361,62 @@ async function refreshUsage() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Remembered choices                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The grants that are currently in force.
+ *
+ * Rendered with text, never HTML: the target is a filename or a resource name,
+ * which means it is whatever its author wrote. That rule is the same one the
+ * approval card follows, and it applies here for the same reason.
+ */
+function renderGrants(grants) {
+  const list = $('grants');
+  const empty = $('grants-empty');
+  if (!list || !Array.isArray(grants)) return;
+
+  list.textContent = '';
+  for (const grant of grants) {
+    const item = document.createElement('li');
+    item.className = 'grants__item';
+
+    const text = document.createElement('span');
+    text.textContent = grant.description ?? `${grant.tool} on ${grant.target}`;
+
+    const forget = document.createElement('button');
+    forget.className = 'btn btn--secondary';
+    forget.textContent = 'Forget';
+    forget.addEventListener('click', async () => {
+      forget.disabled = true;
+      log(`forgetting ${grant.id}`);
+      try {
+        // The refreshed list comes back as an event, so nothing is removed here
+        // by hand: the display follows the store rather than guessing.
+        await invoke('revoke_grant', { id: grant.id });
+      } catch (error) {
+        forget.disabled = false;
+        log(`could not forget that: ${error}`);
+      }
+    });
+
+    item.append(text, forget);
+    list.append(item);
+  }
+
+  if (empty) empty.hidden = grants.length > 0;
+}
+
+async function refreshGrants() {
+  if (!invoke) return;
+  try {
+    await invoke('list_grants');
+  } catch (error) {
+    log(`could not read the remembered choices: ${error}`);
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Events pushed from the shell                                       */
 /* ------------------------------------------------------------------ */
 
@@ -374,6 +430,9 @@ if (listen) {
   listen('capybaras://agents', (e) => renderHerd(e.payload.agents));
   // Every model call reports itself, so the meter is pushed rather than polled.
   listen('capybaras://usage', (e) => renderUsage(e.payload));
+  // The remembered choices are revocable here, because a permission you cannot
+  // withdraw is not one you really gave.
+  listen('capybaras://grants', (e) => renderGrants(e.payload.grants));
   listen('capybaras://protocol-error', (e) => log(`refused: ${e.payload.message}`));
   listen('capybaras://ready', (e) => log(`sidecar ready (protocol ${e.payload.protocol})`));
   listen('capybaras://connect-waiting', (e) =>
@@ -456,3 +515,9 @@ refreshStatus();
 setInterval(refreshStatus, 5000);
 refreshConnect();
 refreshUsage();
+refreshGrants();
+
+const refreshGrantsButton = $('btn-refresh-grants');
+if (refreshGrantsButton) {
+  refreshGrantsButton.addEventListener('click', () => refreshGrants());
+}

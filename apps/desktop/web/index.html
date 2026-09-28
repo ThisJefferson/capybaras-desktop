@@ -32,6 +32,16 @@
     <dl id="usage-figures"><dt>loading</dt><dd>-</dd></dl>
   </section>
 
+  <!-- Remembered choices. They live in the state directory, so they survive a
+       restart - and they are withdrawn from here, because a permission you
+       cannot take back is not really one you gave. -->
+  <section class="grants" id="grants-section" aria-label="Remembered choices">
+    <h2>Remembered choices</h2>
+    <ul class="grants__list" id="grants"></ul>
+    <p class="hint" id="grants-empty">Nothing remembered yet.</p>
+    <button class="btn btn--secondary" id="btn-refresh-grants">Refresh</button>
+  </section>
+
   <!-- The herd. Six instances of ONE character design (D18), distinguished by
        label, accent colour and fixed position. Rendered by app.js from real
        state reported by the sidecar. -->

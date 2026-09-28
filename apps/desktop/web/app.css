@@ -50,9 +50,37 @@ dd {
 .usage {
   margin-top: var(--space-6);
 }
-.usage h2 {
+.usage h2,
+.grants h2 {
   font-size: var(--typography-size-lg);
   margin: 0 0 var(--space-2);
+}
+
+/* ---------------- remembered choices ---------------- */
+
+/* A permission that is easy to withdraw is one people are willing to give, so
+   the list stays plain and "Forget" is a single click. */
+.grants {
+  margin-top: var(--space-6);
+}
+.grants__list {
+  list-style: none;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+}
+.grants__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-semantic-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-semantic-surface-raised);
+  font-size: var(--typography-size-sm);
+}
+.grants__item + .grants__item {
+  margin-top: var(--space-2);
 }
 
 /* ---------------- failure banner ---------------- */

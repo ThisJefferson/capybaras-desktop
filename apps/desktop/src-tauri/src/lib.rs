@@ -138,6 +138,38 @@ fn answer_approval(
     )
 }
 
+/// The message that asks the sidecar for the remembered choices.
+///
+/// Public so the shape the shell sends can be pinned by a test: if the shell and
+/// the sidecar ever disagree about the name of this message, the list would come
+/// back empty and read as "nothing is remembered" rather than as a bug.
+pub fn grants_list_message() -> serde_json::Value {
+    serde_json::json!({ "v": 1, "type": "grants.list" })
+}
+
+/// The message that revokes one remembered choice, by id.
+///
+/// Revocation is the user's, so it is a first-class message rather than something
+/// reachable only by editing a file. Deleting `grants.json` also works, and that
+/// is on purpose: a permission you cannot inspect and withdraw by hand is not
+/// really one you hold.
+pub fn grants_revoke_message(id: &str) -> serde_json::Value {
+    serde_json::json!({ "v": 1, "type": "grants.revoke", "scope": { "id": id } })
+}
+
+/// Ask what has been remembered. The answer arrives as `capybaras://grants`.
+#[tauri::command]
+fn list_grants(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    send_to_sidecar(&state, grants_list_message())
+}
+
+/// Forget one remembered choice. The refreshed list arrives as
+/// `capybaras://grants`.
+#[tauri::command]
+fn revoke_grant(state: tauri::State<'_, AppState>, id: String) -> Result<(), String> {
+    send_to_sidecar(&state, grants_revoke_message(&id))
+}
+
 /// The current meter.
 ///
 /// A read, not a subscription: the interface calls this once on load and is kept
@@ -299,6 +331,8 @@ pub fn run() {
             shell_status,
             propose_action,
             answer_approval,
+            list_grants,
+            revoke_grant,
             usage_status,
             record_model_call,
             connect::connect_status,
