@@ -782,3 +782,102 @@ fn the_reported_figure_moves_the_real_meter_even_when_the_call_failed() {
     assert_eq!(snapshot.cost_usd, 0.0);
     assert_eq!(snapshot.cost_display, "$0.000000");
 }
+
+// ---------------------------------------------------------------------------
+// The conversation: the history travels with the turn
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_conversation_is_sent_oldest_first_and_in_full() {
+    let turns = vec![
+        chat::Message::user("first"),
+        chat::Message::assistant("reply"),
+        chat::Message::user("second"),
+    ];
+    let body: serde_json::Value =
+        serde_json::from_str(&chat::request_body_for(MODEL, &turns, LIMIT)).expect("json");
+
+    assert_eq!(body["model"], MODEL);
+    assert_eq!(body["max_tokens"], LIMIT);
+    let sent = body["messages"].as_array().expect("messages");
+    assert_eq!(sent.len(), 3, "every turn the person can see is sent");
+    assert_eq!(sent[0]["role"], "user");
+    assert_eq!(sent[0]["content"], "first");
+    assert_eq!(sent[1]["role"], "assistant");
+    assert_eq!(sent[1]["content"], "reply");
+    assert_eq!(sent[2]["content"], "second");
+}
+
+#[test]
+fn the_window_keeps_the_most_recent_turns_when_the_count_is_over() {
+    let mut turns: Vec<chat::Message> = Vec::new();
+    for i in 0..(chat::MESSAGES_MAX + 5) {
+        turns.push(chat::Message::user(format!("turn {i}")));
+    }
+    let kept = chat::window(&turns);
+    assert_eq!(kept.len(), chat::MESSAGES_MAX);
+    assert_eq!(kept.first().expect("non-empty").content, "turn 5", "oldest dropped first");
+    assert_eq!(
+        kept.last().expect("non-empty").content,
+        format!("turn {}", chat::MESSAGES_MAX + 4),
+        "the most recent turn always survives"
+    );
+}
+
+#[test]
+fn the_window_drops_the_oldest_when_the_character_budget_is_exceeded() {
+    let big = "x".repeat(chat::CONVERSATION_MAX);
+    let turns = vec![
+        chat::Message::user(big.clone()),
+        chat::Message::assistant(big),
+        chat::Message::user("the follow-up"),
+    ];
+    let kept = chat::window(&turns);
+    assert_eq!(kept.len(), 1, "only the follow-up fits beside a full-budget earlier turn");
+    assert_eq!(kept[0].content, "the follow-up");
+}
+
+#[test]
+fn a_thread_whose_last_turn_is_the_assistants_is_refused_without_a_call() {
+    let stub = Stub::answering(200, reply_body("unused", serde_json::json!({})));
+    let outcome = chat::call_with_history(
+        &stub,
+        KEY,
+        MODEL,
+        &[chat::Message::user("hi"), chat::Message::assistant("hello")],
+        LIMIT,
+    );
+    assert_eq!(failure_message(outcome), "Type a message first.");
+    assert_eq!(stub.calls(), 0, "a malformed thread is refused locally, not billed");
+}
+
+#[test]
+fn an_empty_conversation_is_refused() {
+    let stub = Stub::answering(200, reply_body("unused", serde_json::json!({})));
+    let outcome = chat::call_with_history(&stub, KEY, MODEL, &[], LIMIT);
+    assert_eq!(failure_message(outcome), "Type a message first.");
+    assert_eq!(stub.calls(), 0);
+}
+
+#[test]
+fn a_follow_up_carries_the_earlier_turns_to_the_provider() {
+    let stub = Stub::answering(200, reply_body("the second answer", serde_json::json!({})));
+    let outcome = chat::call_with_history(
+        &stub,
+        KEY,
+        MODEL,
+        &[
+            chat::Message::user("what is a capybara"),
+            chat::Message::assistant("a large rodent"),
+            chat::Message::user("and its name"),
+        ],
+        LIMIT,
+    );
+    assert!(outcome.replied(), "expected a reply");
+    let sent: serde_json::Value =
+        serde_json::from_str(stub.last().body.as_deref().expect("a body")).expect("json");
+    let messages = sent["messages"].as_array().expect("messages");
+    assert_eq!(messages.len(), 3, "the follow-up arrives with its context");
+    assert_eq!(messages[0]["content"], "what is a capybara");
+    assert_eq!(messages[2]["content"], "and its name");
+}

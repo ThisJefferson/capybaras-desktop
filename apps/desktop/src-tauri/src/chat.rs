@@ -80,6 +80,68 @@ pub const CHARS_PER_TOKEN_MAX: usize = 5;
 /// not a summary, and it sits far above any ordinary reply.
 pub const REPLY_MAX: usize = DEFAULT_MAX_REPLY_TOKENS as usize * CHARS_PER_TOKEN_MAX;
 
+/// One turn in the conversation.
+///
+/// **THE HISTORY IS SENT, NOT REMEMBERED REMOTELY.** Capybaras holds no session on
+/// OpenRouter. Every request carries the turns the person can see in the window and
+/// nothing else — so the thread lives in one place, which is the place it is shown
+/// and the place it can be cleared. A follow-up question works because the earlier
+/// turns travel with it, not because a provider kept them.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Message {
+    pub role: String,
+    pub content: String,
+}
+
+impl Message {
+    pub fn user(content: impl Into<String>) -> Self {
+        Self { role: "user".to_string(), content: content.into() }
+    }
+
+    pub fn assistant(content: impl Into<String>) -> Self {
+        Self { role: "assistant".to_string(), content: content.into() }
+    }
+}
+
+/// The most turns sent in one request.
+///
+/// A conversation is not a document pipeline. This is a ceiling on how much of a
+/// long thread travels, so a session that runs for hours cannot quietly become a
+/// request nobody can afford. The most recent turns are the ones kept.
+pub const MESSAGES_MAX: usize = 40;
+
+/// The most characters of history sent with one request.
+///
+/// **A SECOND BOUND, BECAUSE THE FIRST IS NOT ENOUGH.** Forty turns of a long reply
+/// can still be an enormous request; the character budget is what actually bounds
+/// the cost, and it is checked against the provider's own ceiling rather than
+/// guessed at here. When the window is cut, the cut is **oldest-first** — the most
+/// recent turns are what a follow-up needs.
+pub const CONVERSATION_MAX: usize = 120_000;
+
+/// The turns that will actually be sent: the most recent ones that fit both bounds.
+///
+/// Bounded by count **and** by characters, oldest dropped first. Trimming here rather
+/// than refusing means a long conversation keeps working; it just stops carrying its
+/// own beginning, which is the honest trade for a follow-up that still has context.
+pub fn window(messages: &[Message]) -> Vec<Message> {
+    let mut kept: Vec<Message> = Vec::new();
+    let mut used = 0usize;
+    for message in messages.iter().rev() {
+        if kept.len() >= MESSAGES_MAX {
+            break;
+        }
+        let size = message.content.chars().count();
+        if !kept.is_empty() && used + size > CONVERSATION_MAX {
+            break;
+        }
+        used += size;
+        kept.push(message.clone());
+    }
+    kept.reverse();
+    kept
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct Usage {
     pub prompt_tokens: u64,
@@ -118,20 +180,51 @@ pub fn report_of(outcome: &ChatOutcome) -> Usage {
 /// `reply_limit`, not a number this module picks. The caller resolves it so the one
 /// place that holds the catalogue is the one place that decides.
 pub fn request_body(model: &str, prompt: &str, max_tokens: u32) -> String {
+    request_body_for(model, &[Message::user(prompt)], max_tokens)
+}
+
+/// Build the request body for a whole conversation. Contains the history; never the key.
+///
+/// The turns are sent in order, oldest first, exactly as they appear in the window.
+/// `max_tokens` is still the resolved request bound (see `reply_limit`); this module
+/// does not pick it.
+pub fn request_body_for(model: &str, messages: &[Message], max_tokens: u32) -> String {
+    let turns: Vec<serde_json::Value> = messages
+        .iter()
+        .map(|message| serde_json::json!({ "role": message.role, "content": message.content }))
+        .collect();
     serde_json::json!({
         "model": model,
-        "messages": [{ "role": "user", "content": prompt }],
+        "messages": turns,
         "max_tokens": max_tokens,
     })
     .to_string()
 }
 
-/// Make one completion.
+/// Make one completion from a single prompt. A thin wrapper over `call_with_history`,
+/// kept so a one-shot caller does not have to build a turn.
 pub fn call(
     transport: &dyn Transport,
     key: &str,
     model: &str,
     prompt: &str,
+    max_tokens: u32,
+) -> ChatOutcome {
+    call_with_history(transport, key, model, &[Message::user(prompt)], max_tokens)
+}
+
+/// Make one completion for a conversation.
+///
+/// **THE LAST TURN MUST BE THE PERSON'S.** A request whose final message is the
+/// assistant's is a regenerate, and it is handled by the caller trimming that turn
+/// off before asking — this function refuses rather than sending a request whose
+/// meaning depends on the provider's mood. The check is here so a malformed thread
+/// fails locally, in plain words, instead of being billed.
+pub fn call_with_history(
+    transport: &dyn Transport,
+    key: &str,
+    model: &str,
+    messages: &[Message],
     max_tokens: u32,
 ) -> ChatOutcome {
     let model = model.trim();
@@ -142,7 +235,21 @@ pub fn call(
         };
     }
 
-    let prompt = prompt.trim();
+    let turns = window(messages);
+    let last = match turns.last() {
+        Some(last) => last,
+        None => {
+            return ChatOutcome::Failed {
+                message: "Type a message first.".to_string(),
+            };
+        }
+    };
+    if last.role != "user" {
+        return ChatOutcome::Failed {
+            message: "Type a message first.".to_string(),
+        };
+    }
+    let prompt = last.content.trim();
     if prompt.is_empty() {
         return ChatOutcome::Failed {
             message: "Type a message first.".to_string(),
@@ -156,7 +263,11 @@ pub fn call(
         };
     }
 
-    let response = match transport.post_json(CHAT_ENDPOINT, key, &request_body(model, prompt, max_tokens)) {
+    let response = match transport.post_json(
+        CHAT_ENDPOINT,
+        key,
+        &request_body_for(model, &turns, max_tokens),
+    ) {
         Ok(response) => response,
         Err(_) => {
             return ChatOutcome::Failed {
