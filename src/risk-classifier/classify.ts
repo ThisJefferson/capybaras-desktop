@@ -41,6 +41,15 @@ export interface ActionDescriptor {
   taint?: Taint;
   /** Target is marked off-limits — e.g. production during a code freeze. */
   protectedTarget?: boolean;
+  /**
+   * The target can act on its own when opened or run — a macro, an embedded
+   * script, a launcher, an executable, an archive carrying one.
+   *
+   * Set from the structural inspection (`src/file-inspector`), which is the only
+   * thing in the product that can see inside a file. The classifier cannot, and
+   * should not try: it is handed facts, never bytes.
+   */
+  carriesExecutableContent?: boolean;
 }
 
 export interface Classification {
@@ -71,6 +80,10 @@ const BASE_TIERS: Readonly<Record<string, RiskTier>> = Object.freeze({
   // creating is cheap to undo
   'fs.create': 'notify',
   'fs.mkdir': 'notify',
+
+  // Opening hands the file to another program. That is an action, and the
+  // program may act without further instruction — so it is never silent.
+  'fs.open': 'confirm',
 
   // changing or removing existing things needs a human
   'fs.write': 'confirm',
@@ -232,6 +245,14 @@ export function classify(action: ActionDescriptor): Classification {
     }
   }
 
+  /* --- what the file itself can do -------------------------------- */
+
+  // The one fact the classifier cannot derive on its own. A file that acts on
+  // being opened is not a document; opening it is closer to running something.
+  if (action.carriesExecutableContent === true) {
+    hazard(atLeast(tier, 'confirm'), 'This file can act on its own when it is opened.');
+  }
+
   /* --- leaving the machine -------------------------------------- */
 
   if (action.leavesMachine === true) {
@@ -247,6 +268,16 @@ export function classify(action: ActionDescriptor): Classification {
     hazard(atLeast(tier, 'confirm'), 'The instruction for this came from content the agent read, not from you.');
     if (taint === 'untrusted' && TAINT_SENSITIVE_TOOLS.has(action.tool)) {
       hazard('hard_gate', 'An untrusted source asked for something that can destroy or send.');
+    }
+    // The combination is what is disqualifying, not either half. Opening a file
+    // that acts, because you asked, is a confirm — you can see whose file it is.
+    // Opening one because a page or a message told you to is a different act,
+    // and it is the shape every document-borne attack actually takes.
+    if (action.carriesExecutableContent === true) {
+      hazard(
+        'hard_gate',
+        'This runs on its own, and the instruction to open it came from content rather than from you.',
+      );
     }
   }
 

@@ -23,3 +23,6 @@ export {
   detectKind,
   inspect,
 } from './inspect';
+
+export type { FileActionDescription, FileActionInput, FileActionKind } from './actions';
+export { describeFileAction } from './actions';
