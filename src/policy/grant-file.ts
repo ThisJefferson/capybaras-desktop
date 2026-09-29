@@ -14,7 +14,9 @@
  * leave a half-written grants file behind.
  */
 
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
+
+import { writeAtomic } from '../atomic-write';
 import { dirname } from 'node:path';
 
 import { GrantStore } from './grants';
@@ -100,13 +102,15 @@ export function saveGrants(path: string, store: GrantStore, now: number = Date.n
     2,
   );
 
-  const temporary = `${path}.tmp`;
   try {
     mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(temporary, payload, { encoding: 'utf8' });
-    // rename is atomic on the same volume: the real file is either the old
-    // complete version or the new complete version, never a partial one.
-    renameSync(temporary, path);
+    // Temp-and-rename lives in one place now (`src/atomic-write`) rather than
+    // being reimplemented per file. This call gains two things the local version
+    // did not have: a UNIQUE temporary name -- the old fixed `${path}.tmp` could
+    // collide if two saves overlapped -- and an fsync, so the content is durable
+    // before the rename that makes it visible.
+    const written = writeAtomic(path, payload);
+    if (!written.ok) return `could not save grants: ${written.detail}`;
     return undefined;
   } catch (error) {
     return `could not save grants: ${(error as Error).message}`;
