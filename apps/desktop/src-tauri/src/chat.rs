@@ -238,6 +238,7 @@ pub struct StreamState {
     text: String,
     usage: Option<Usage>,
     done: bool,
+    stopped: bool,
     failure: Option<String>,
 }
 
@@ -289,6 +290,18 @@ impl StreamState {
 
     pub fn finished(&self) -> bool {
         self.done
+    }
+
+    /// Mark the stream as halted by the person.
+    ///
+    /// **THE TEXT SO FAR IS KEPT.** A halted answer is still an answer, and discarding
+    /// it would punish the person for using the Stop they were given.
+    pub fn stop(&mut self) {
+        self.stopped = true;
+    }
+
+    pub fn stopped(&self) -> bool {
+        self.stopped
     }
 
     pub fn failure(&self) -> Option<&str> {
@@ -393,6 +406,11 @@ pub fn call_with_history(
 /// this returns. Putting that text on the screen is the caller's job; this module has
 /// no opinion about a window.
 ///
+/// **`should_stop` IS ASKED BEFORE EVERY LINE, AND IT ENDS THE CONNECTION.** A Stop is
+/// not a cosmetic freeze: answering it drops the response, which closes the socket, so
+/// the model is not left writing to a reader that has gone. What arrived before the
+/// Stop is kept and returned as the reply.
+///
 /// **A REPLY THAT ARRIVES BUT REPORTS NOTHING IS STILL REPORTED.** If the stream ends
 /// with text and no usage block, the reply is returned with zero usage and the meter
 /// records zero. That is the D22 rule taken literally — a call that consumed something
@@ -403,6 +421,7 @@ pub fn call_streaming<D>(
     model: &str,
     messages: &[Message],
     max_tokens: u32,
+    should_stop: &dyn Fn() -> bool,
     mut on_delta: D,
 ) -> ChatOutcome
 where
@@ -450,9 +469,16 @@ where
         key,
         &stream_request_body_for(model, &turns, max_tokens),
         &mut |line| {
+            // The Stop is checked before the line is read, so asking for one ends the
+            // read, drops the response and closes the connection.
+            if should_stop() {
+                state.stop();
+                return false;
+            }
             if let Some(delta) = state.push(line) {
                 on_delta(&delta);
             }
+            true
         },
     ) {
         Ok(response) => response,
@@ -477,6 +503,13 @@ where
 
     let (text, usage) = state.took();
     if text.is_empty() {
+        // A Stop before the first word is not an OpenRouter failure, and must not be
+        // dressed as one.
+        if state.stopped() {
+            return ChatOutcome::Failed {
+                message: "Stopped before the reply began.".to_string(),
+            };
+        }
         return ChatOutcome::Failed {
             message: "OpenRouter returned an empty reply. Try again.".to_string(),
         };

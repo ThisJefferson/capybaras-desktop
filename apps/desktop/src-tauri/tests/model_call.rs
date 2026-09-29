@@ -936,6 +936,7 @@ fn a_stream_delivers_text_piece_by_piece_and_then_the_figure() {
         MODEL,
         &[chat::Message::user("what")],
         LIMIT,
+        &|| false,
         |piece| seen.push(piece.to_string()),
     );
 
@@ -970,7 +971,7 @@ fn a_stream_that_reports_an_error_mid_flight_fails_in_plain_words() {
     ]);
     let stub = Stub::answering(200, body);
     let outcome =
-        chat::call_streaming(&stub, KEY, MODEL, &[chat::Message::user("hi")], LIMIT, |_| {});
+        chat::call_streaming(&stub, KEY, MODEL, &[chat::Message::user("hi")], LIMIT, &|| false, |_| {});
     assert_eq!(
         failure_message(outcome),
         "OpenRouter reported an error instead of a reply. Try again in a moment.",
@@ -990,7 +991,7 @@ fn keep_alives_and_unreadable_lines_in_a_stream_are_ignored_rather_than_fatal() 
     ]);
     let stub = Stub::answering(200, body);
     let outcome =
-        chat::call_streaming(&stub, KEY, MODEL, &[chat::Message::user("hi")], LIMIT, |_| {});
+        chat::call_streaming(&stub, KEY, MODEL, &[chat::Message::user("hi")], LIMIT, &|| false, |_| {});
     match outcome {
         ChatOutcome::Replied { text, .. } => assert_eq!(text, "fine"),
         ChatOutcome::Failed { message } => panic!("expected a reply: {message}"),
@@ -1004,7 +1005,7 @@ fn a_stream_that_ends_without_usage_still_reports_the_call() {
     let body = sse(&[format!("data: {}", delta("done")), "data: [DONE]".to_string()]);
     let stub = Stub::answering(200, body);
     let outcome =
-        chat::call_streaming(&stub, KEY, MODEL, &[chat::Message::user("hi")], LIMIT, |_| {});
+        chat::call_streaming(&stub, KEY, MODEL, &[chat::Message::user("hi")], LIMIT, &|| false, |_| {});
     match outcome {
         ChatOutcome::Replied { text, usage } => {
             assert_eq!(text, "done");
@@ -1012,4 +1013,63 @@ fn a_stream_that_ends_without_usage_still_reports_the_call() {
         }
         ChatOutcome::Failed { message } => panic!("expected a reply: {message}"),
     }
+}
+
+#[test]
+fn a_stop_ends_the_read_and_keeps_what_arrived() {
+    let body = sse(&[
+        format!("data: {}", delta("first")),
+        format!("data: {}", delta(" second")),
+        format!("data: {}", delta(" third")),
+        "data: [DONE]".to_string(),
+    ]);
+    let stub = Stub::answering(200, body);
+
+    // Stop once one piece has been forwarded: the read must end there, not at the end
+    // of the stream. An AtomicUsize rather than a counter, because `should_stop` is an
+    // `Fn` the transport may hold across the whole read.
+    let forwarded = std::sync::atomic::AtomicUsize::new(0);
+    let should_stop = || forwarded.load(std::sync::atomic::Ordering::SeqCst) >= 1;
+
+    let mut pieces: Vec<String> = Vec::new();
+    let outcome = chat::call_streaming(
+        &stub,
+        KEY,
+        MODEL,
+        &[chat::Message::user("go")],
+        LIMIT,
+        &should_stop,
+        |piece| {
+            pieces.push(piece.to_string());
+            forwarded.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        },
+    );
+
+    assert_eq!(
+        pieces,
+        vec!["first"],
+        "the read ends at the Stop, not at the end of the stream"
+    );
+    match outcome {
+        ChatOutcome::Replied { text, .. } => {
+            assert_eq!(text, "first", "what arrived before the Stop is kept")
+        }
+        ChatOutcome::Failed { message } => panic!("expected a partial reply: {message}"),
+    }
+}
+
+#[test]
+fn a_stop_before_the_first_word_is_not_dressed_as_a_provider_failure() {
+    let body = sse(&[format!("data: {}", delta("ignored")), "data: [DONE]".to_string()]);
+    let stub = Stub::answering(200, body);
+    let outcome = chat::call_streaming(
+        &stub,
+        KEY,
+        MODEL,
+        &[chat::Message::user("go")],
+        LIMIT,
+        &|| true,
+        |_| {},
+    );
+    assert_eq!(failure_message(outcome), "Stopped before the reply began.");
 }

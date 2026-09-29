@@ -48,11 +48,17 @@ pub trait Transport {
     /// POST `body` as JSON and deliver the answer **as it arrives**, one line at a
     /// time, through `on_line`. Returns the whole body once the stream ends.
     ///
+    /// **`on_line` RETURNS WHETHER TO CONTINUE, AND THAT IS THE STOP CONTROL.** A
+    /// callback that answers `false` ends the read, which drops the response and closes
+    /// the connection — so halting a generation is a decision the caller can make
+    /// *mid-stream* rather than a button that only stops the screen updating. A Stop
+    /// that lets the model keep writing is not a Stop.
+    ///
     /// **THE DEFAULT IS DELIBERATELY NAIVE, AND THAT IS THE POINT.** A transport that
     /// cannot stream still works: the buffered body is handed over line by line, so
-    /// the caller needs no second code path and the parse above is exercised in
-    /// tests. Only the real client overrides this, and it does so for one reason — so
-    /// the lines arrive *while the model is still writing* rather than all at the end.
+    /// the caller needs no second code path and the parse is exercised in tests. Only
+    /// the real client overrides this, and it does so for one reason — so the lines
+    /// arrive *while the model is still writing* rather than all at the end.
     ///
     /// Carries the same promise as `post_json`: the key is a bearer, never a body,
     /// never logged, never interpolated into an error.
@@ -61,11 +67,13 @@ pub trait Transport {
         url: &str,
         bearer: &str,
         body: &str,
-        on_line: &mut dyn FnMut(&str),
+        on_line: &mut dyn FnMut(&str) -> bool,
     ) -> Result<HttpResponse, String> {
         let response = self.post_json(url, bearer, body)?;
         for line in response.body.lines() {
-            on_line(line);
+            if !on_line(line) {
+                break;
+            }
         }
         Ok(response)
     }
@@ -118,7 +126,7 @@ impl Transport for HttpTransport {
         url: &str,
         bearer: &str,
         body: &str,
-        on_line: &mut dyn FnMut(&str),
+        on_line: &mut dyn FnMut(&str) -> bool,
     ) -> Result<HttpResponse, String> {
         self.stream(url, bearer, body, on_line)
     }
@@ -141,7 +149,7 @@ impl HttpTransport {
         url: &str,
         bearer: &str,
         body: &str,
-        on_line: &mut dyn FnMut(&str),
+        on_line: &mut dyn FnMut(&str) -> bool,
     ) -> Result<HttpResponse, String> {
         use std::io::BufRead;
 
@@ -159,7 +167,12 @@ impl HttpTransport {
         let mut collected = String::new();
         for line in std::io::BufReader::new(response).lines() {
             let line = line.map_err(|error| error.to_string())?;
-            on_line(&line);
+            // The caller's answer decides whether the read continues. Returning here
+            // drops the response, which closes the connection: that is how a Stop
+            // actually stops a generation rather than merely disguising it.
+            if !on_line(&line) {
+                break;
+            }
             collected.push_str(&line);
             collected.push('\n');
         }
