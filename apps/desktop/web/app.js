@@ -254,9 +254,12 @@ function showCard(id, request) {
     warn.textContent = '';
     const tag = document.createElement('span');
     tag.className = 'chip chip--caution';
-    tag.textContent = 'Hard gate';
+    // The card describes what will happen, never how we classified it.
+    // "Hard gate" was our name for a mechanism; "Needs care" is a person's.
+    // Kept in step with src/policy/card-copy.ts by tests/card-voice.test.ts.
+    tag.textContent = 'Needs care';
     warn.append(tag, document.createTextNode(
-      ' Capybaras will not remember it, and no number of past approvals will let it through on its own.',
+      ' You will type a phrase rather than click, and Capybaras will not remember this one.',
     ));
   } else {
     warn.hidden = true;

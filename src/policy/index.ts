@@ -7,3 +7,5 @@ export { resolveProtection, loadProtectionPolicy, selfProtection, withSelfProtec
 
 export type { GateContext, ApprovalRequest, GateDecision } from './gate';
 export { gate } from './gate';
+
+export { GLOSSARY, HARD_GATE_NOTE, TIER_LABEL, explain, tierCopy } from './card-copy';
