@@ -100,7 +100,12 @@ describe('the shell sets a content security policy', () => {
   });
 
   it('does not allow remote script origins', () => {
-    const csp = /"csp"\s*:\s*"([^"]+)"/.exec(conf)?.[1] ?? '';
+    // PARSED, NOT PATTERN-MATCHED. A JSON string may legitimately escape its own
+    // characters -- `\u0027` IS an apostrophe -- so reading the file as text
+    // reports the escaping rather than the value, and a CSP that is perfectly
+    // correct fails the check written to protect it. That is not hypothetical: it
+    // happened, and it reddened CI for a day. This reads what Tauri reads.
+    const csp = JSON.parse(conf)?.app?.security?.csp ?? '';
     expect(csp).toMatch(/script-src[^;]*'self'/);
     expect(csp).not.toMatch(/script-src[^;]*https?:/);
     expect(csp).not.toMatch(/unsafe-inline/);
