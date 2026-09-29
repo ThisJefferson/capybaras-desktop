@@ -3,7 +3,7 @@
 > **Entry point for every session.** Read this first. Update it last.
 > I do not have continuous memory. This file is the memory.
 
-**Last updated:** 2026-09-28 11:55 EDT
+**Last updated:** 2026-09-29 09:55 EDT
 **Current phase:** **M5 — onboarding.** The PKCE flow, the credential store, the loopback listener, the session meter, the first model call, **the onboarding path walked end to end through the interface**, and now **the explanation a non-technical person meets before they connect** are all in the tree and tested. What remains in M5 is a free-model mode, a decision about the spend cap (**D26** — there is no enforced cap; the account-balance readout is now wired, the cap itself is open), and the one thing no test can do — a real reply against the user's own account.
 **Next milestone:** M5 — a non-technical tester reaches a first reply unaided (the path exists and is walked offline; a live key is the missing piece)
 **Spec:** `docs/protocol.md` · **Plan:** `docs/plans/next-steps.md` · **Design:** `docs/plans/M4-visual-design.md` · **Onboarding test:** `docs/onboarding-test.md`
@@ -17,6 +17,50 @@
 - **Building:** Capybaras — a one-install, safe-by-default desktop agent that asks before it acts. A herd of capybaras, Rio de Janeiro flavour.
 - **Ideal customer:** genuinely non-technical. Cloud API keys via OpenRouter OAuth. Free, donations, GitHub recognition.
 - **The promise:** *it will still break, just small, visibly, and undoably.*
+
+---
+
+## 2026-09-29 - the conversation, the rendered answer, and the free list measured
+
+Three things landed, in the order they happened.
+
+**The window is a conversation.** It was one question and one answer, replacing
+itself each time. It is a thread now: every turn stays, the answer streams in as it
+is written, and Stop ends the READ rather than only the screen. The shell keeps no
+history -- the interface holds the thread and sends it whole with each question, so a
+follow-up carries its own context and there is no remote session to go stale.
+Commits `a74c89d`, `0fb7ba4`, `6829067`, `9f5f527`, `a1ae6b7`.
+
+**The answer renders, and can be copied.** Markdown became elements -- headings,
+lists, quotes, rules, code, bold, italic -- every one built with `createElement` and
+given text with `textContent`. Commit `a8103cf`. Two deliberate refusals: **links are
+shown but NOT clickable** (opening a URL is an action, and actions go through the
+gate), and **Copy copies text, not markup** (a formatted path was written and then
+removed, because `frontend-safety` bans every string-to-markup sink outright -- the
+rule is blunt on purpose, so it was not bent in a corner).
+
+**The free list is measured, not assumed.** `retest_the_free_models` ran against the
+app's own credential on 2026-09-29: **20 candidates, 4 reliable, 6 flaky, 10 broken,
+spend $0.000000** (cross-checked against `GET /key`, which moved $0.000000).
+Reliable: `google/gemma-4-31b-it:free`, `nvidia/nemotron-3-super-120b-a12b:free`,
+`stealth/space-bunny-alpha`. **Open question:** the retest calls
+`google/lyria-3-pro-preview` reliable, but the catalogue's own rule drops the
+`lyria-3-*` family for non-text output. The retest and the rule disagree and one of
+them is wrong -- settle it before the free-model mode ships.
+
+**Started -- the safe-file model (Stage 3).** Five threat entries added
+(`docs/threat-model.md`, **T12-T16**): injection through file content, parser
+exploitation, exfiltration via writes, overwrite and destruction, expansion bombs.
+The read path is gated behind them, and **T12 is the reason the gate exists at all**
+-- an antivirus does nothing about a clean file that is itself an instruction.
+
+**Also, a day of red CI -- and it was ours.** `5d7a133` re-serialised
+`tauri.conf.json` and wrote the CSP's apostrophes as `\u0027`. The app was never
+broken (that is valid JSON, and Tauri decoded it correctly), but `frontend-safety`
+read the config as TEXT and pulled the value out with a regex, so it saw the escaping
+instead of the value. Fixed on both sides in `7a0a0f8`: the config writes literal
+quotes, and the test parses the JSON, so an escape can never again fail a check on a
+CSP that is correct.
 
 ---
 

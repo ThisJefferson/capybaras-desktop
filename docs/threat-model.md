@@ -198,6 +198,70 @@ The single-point-of-failure shape is well described in the wider Tauri ecosystem
 
 ---
 
+### T12 — Injection through file content
+
+**Attack.** A file whose *contents are instructions* — "ignore your rules", "run this", "this document authorises the change" — read by the agent as though the user had said it.
+
+**Why here.** This is the highest-risk threat for an agent that ingests documents, because **an antivirus does nothing about it**: a *clean* file can be a working injection. The README already concedes that prompt injection may be permanent rather than fixable, and this is the shape it takes once a read path exists.
+
+**Current state.** Not defended, and not defended *yet* because the app has no read path at all. The read path is what Stage 3 adds, so this closes before it does.
+
+**Closes it.** Architecturally, not with a filter: **file content is data and can never become instructions.** Quoted material is kept out of the decision path entirely — a file cannot tell the app what to do, and no amount of confident phrasing in a document lowers a sign. Structural inspection and out-of-process parsing reduce the surface; neither is what makes this safe.
+
+**Priority: high — it is the reason the read path is gated at all.**
+
+### T13 — Parser exploitation
+
+**Attack.** A malformed document that exploits whatever opens it: embedded JavaScript, `/Launch` and `/EmbeddedFile` actions, macros, or a declared type that does not match the extension.
+
+**Why here.** Parsing a hostile file inside the process that holds the credential would put a memory-safety bug one step from the key — the opposite of T2's arrangement, where the sidecar runs beside untrusted content and the shell holds the key.
+
+**Current state.** Not defended; no parser is wired in yet, which is the moment to get this right rather than after.
+
+**Closes it.** **Structural inspection before opening** — what the file *is*, not a signature scan: embedded scripts, launch actions, embedded executables, macros, encryption, and whether the declared type matches the extension. No signature feed, so nothing to go stale. Then **parse out of process**, in the sidecar, never in the shell.
+
+**Priority: high.**
+
+### T14 — Exfiltration via writes
+
+**Attack.** The agent writes a file — to a share, a synced folder, a path something else watches — and the content leaves the machine.
+
+**Why here.** The write path is being added, and **the operator's answer removed containment**: *"you can write to any folder you need."* A write is therefore no longer bounded by a declared folder.
+
+**Current state.** Not defended. **The gate is now the only layer**, where it was previously meant to be the second, behind containment.
+
+**Closes it.** The confirm gate on every write, with the destination named on the card in full. This entry stays here, and the plan states the trade plainly, so that the missing layer is visible rather than discovered later.
+
+**Priority: high — the layer that would have bounded it was traded away deliberately.**
+
+### T15 — Overwrite and destruction
+
+**Attack.** A write clobbers an existing file — silently, and perhaps irreversibly.
+
+**Why here.** A model asked to "save the report" will choose a path, and that path may already be someone's work.
+
+**Current state.** Not defended.
+
+**Closes it.** **Atomic writes** — the temp-and-rename pattern `grants` already uses, so a failure leaves the original intact — and **never a silent overwrite**: an existing target is a question, not an inconvenience.
+
+**Priority: high, and cheap.**
+
+### T16 — Expansion bombs
+
+**Attack.** A small file that expands without bound: a decompression bomb, deeply nested archives, a document that yields gigabytes of text.
+
+**Why here.** The read path takes files from the person, and the parse runs in the sidecar beside the rest of the app's work.
+
+**Current state.** Not defended.
+
+**Closes it.** **Bounds on size, pages, and extracted text**, enforced before and during parsing, with the limit named plainly on the card when it bites rather than a silent truncation.
+
+**Priority: medium-high.**
+
+**And no bundled antivirus, deliberately.** Structural inspection plus the data-not-instructions rule is what stands in its place. The reason is recorded here because *"we deliberately do not scan, and here is what we do instead"* is defensible, while *"we scan files"* without saying what that means is not.
+
+---
+
 ## 5. Do this next, in order
 
 | # | Action | Effort | Closes |
@@ -212,6 +276,9 @@ The single-point-of-failure shape is well described in the wider Tauri ecosystem
 | 8 | Verify the sidecar bundle hash before launch | medium | T2 |
 | 9 | Fail-open audit with a test per catch/default | medium | T7 |
 | 10 | Tauri capability scoping for the window | medium | T3 |
+| 11 | Structural inspection before opening any file | medium | T13, T16 |
+| 12 | Parse out of process, in the sidecar, never in the shell | medium | T13 |
+| 13 | Atomic writes, and never a silent overwrite | small | T15 |
 
 **Items 1–3 are a few hours and close a whole category.** That is where I would start.
 
