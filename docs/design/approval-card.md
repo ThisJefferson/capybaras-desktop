@@ -204,6 +204,28 @@ Nothing else on the card uses coral. Not the reversibility line, not the "Hold o
 
 ---
 
+## 6.1 The mascot on the card — signal, never opine
+
+**The card has a capybara on it, and that is deliberate.** Zeca holds a raised sign, and **the raised sign *is* the "needs you" status** — the same posture the herd shows everywhere else. A mascot that reports state is not decoration; it is the status display, and removing it would remove information.
+
+> **CORRECTION, 2026-09-29.** `docs/plans/fix-the-gaps-2026-09-29.md` (gap 7.5) proposed *"the permission card is a mascot-free zone."* **That was wrong, and executing it is what showed it was wrong.** The card already uses the capybara *as the status signal*, which is exactly the TunnelBear pattern — the bear digs, and the digging is the connection state. The problem was never that the mascot appears; it is what the mascot might *do* there. The rule below replaces the proposal.
+
+**The rule, stated so it cannot drift:**
+
+> **The herd may SIGNAL. It may never OPINE.**
+
+**Signal** — a posture that reports a fact: *someone needs you*; *working*; *finished*. The same posture, drawn the same way, **every time**, whatever is being asked and whatever the person decides.
+
+**Opine** — anything that reacts to the *answer*. The capybara must not look pleased when someone allows something, disappointed when they decline, relieved, worried, or eager. It must not lean toward a button, look at the headline, or change with the tier.
+
+**Why this matters more here than anywhere else in the product.** The card is the one screen where a person decides whether to let something happen. **A mascot that appears to want a particular answer is a second opinion on that decision** — from us, the party asking permission, expressed as a feeling rather than a reason. **We are the ones asking. We do not get to look hopeful.**
+
+**How it is enforced.** The needs-you posture is drawn from a fixed description and is **identical in every context** (see the drawing note in `apps/desktop/web/app.js`). The card passes the tier, the headline and the outcome nowhere near the drawing, and that must stay true: **a posture drawn from the decision would be the bug.**
+
+**The corollary for everything else:** charm lives everywhere the person is *not* deciding. The card says what will happen, and then gets out of the way.
+
+---
+
 ## 7. Layout measurements
 
 ### 7.1 Card dimensions
