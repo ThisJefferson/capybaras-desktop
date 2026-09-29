@@ -232,6 +232,32 @@ pub const MESSAGE_FAILED_EVENT: &str = "capybaras://message-failed";
 pub const MODELS_EVENT: &str = "capybaras://models";
 pub const MODELS_FAILED_EVENT: &str = "capybaras://models-failed";
 
+/// The stream's own event: one piece of a reply, arriving while it is written.
+///
+/// **SEPARATE FROM `capybaras://reply` ON PURPOSE.** A delta is *transient* — text on
+/// its way to a reply that has not finished — while `reply` is the finished turn. If
+/// both arrived on one event, the window could never tell whether what it has is the
+/// answer or a fragment of one, and a half-written reply would be indistinguishable
+/// from a whole one.
+pub const DELTA_EVENT: &str = "capybaras://delta";
+
+/// Set by `stop_generation`, read by the streaming call before every line.
+///
+/// **A STATIC, BECAUSE THERE IS ONE GENERATION AT A TIME.** The app is
+/// single-instance (`single_instance.rs`) and one window drives one model call, so a
+/// single flag cannot be raced by a second request. A second concurrent generation
+/// would need more than a second flag, and is not something this app does.
+static STOP_GENERATION: AtomicBool = AtomicBool::new(false);
+
+/// One turn, as the interface sends it.
+///
+/// The interface holds the conversation and sends it whole; the shell keeps none.
+#[derive(serde::Deserialize)]
+struct Turn {
+    role: String,
+    content: String,
+}
+
 /// Load the stored provider key, or explain plainly why there is none.
 ///
 /// **FAILS CLOSED.** Anything other than a readable credential is "not
@@ -426,6 +452,111 @@ fn send_message(app: tauri::AppHandle, prompt: String, model: String) -> Result<
     Ok(())
 }
 
+/// Send a conversation and stream the answer back.
+///
+/// **THE WHOLE THREAD TRAVELS, NOT JUST THE LATEST LINE.** The interface holds the
+/// conversation; the shell holds none. That keeps the thread in the one place it is
+/// shown and can be cleared, and it means a follow-up carries its own context without
+/// a remote session to go stale.
+///
+/// Pieces arrive as `capybaras://delta` while the model writes; the finished turn as
+/// `capybaras://reply`; a failure as `capybaras://message-failed`. **A failure is still
+/// reported to the meter** — D22 — because a call that consumed something must not
+/// vanish from the figures just because it went wrong.
+#[tauri::command]
+fn send_conversation(
+    app: tauri::AppHandle,
+    messages: Vec<Turn>,
+    model: String,
+) -> Result<(), String> {
+    if messages.is_empty() {
+        return Err("Type a message first.".to_string());
+    }
+    let chosen = model.trim().to_string();
+    if chosen.is_empty() {
+        return Err("Pick a model first — load the model list, then choose one.".to_string());
+    }
+
+    let key = stored_key()?;
+    let turns: Vec<chat::Message> = messages
+        .into_iter()
+        .map(|turn| chat::Message { role: turn.role, content: turn.content })
+        .collect();
+    let max_tokens = reply_limit_for(&app, &chosen);
+
+    // A new generation clears the last Stop. Without this, the Stop that ended the
+    // previous answer would end this one before it had written a word.
+    STOP_GENERATION.store(false, Ordering::SeqCst);
+
+    std::thread::spawn(move || {
+        let transport = match http::HttpTransport::new() {
+            Ok(transport) => transport,
+            Err(_) => {
+                let _ = app.emit(
+                    MESSAGE_FAILED_EVENT,
+                    serde_json::json!({ "message": "Capybaras could not start its network client. Restart the app and try again." }),
+                );
+                return;
+            }
+        };
+
+        let piece_app = app.clone();
+        let outcome = chat::call_streaming(
+            &transport,
+            &key,
+            &chosen,
+            &turns,
+            max_tokens,
+            &|| STOP_GENERATION.load(Ordering::SeqCst),
+            |delta| {
+                let _ = piece_app.emit(DELTA_EVENT, serde_json::json!({ "text": delta }));
+            },
+        );
+
+        // THE ONE SEAM (D22). Every finished call — streamed or not, success or
+        // failure — reports through `record_model_call`, which moves the totals and
+        // emits `capybaras://usage`.
+        let usage = chat::report_of(&outcome);
+        record_model_call(
+            app.clone(),
+            app.state::<meter::UsageMeter>(),
+            usage.prompt_tokens,
+            usage.completion_tokens,
+            usage.total_tokens,
+            usage.cost_usd,
+        );
+
+        match &outcome {
+            chat::ChatOutcome::Replied { text, .. } => {
+                let _ = app.emit(REPLY_EVENT, serde_json::json!({ "text": text, "model": chosen }));
+            }
+            chat::ChatOutcome::Failed { message } => {
+                let _ = app.emit(MESSAGE_FAILED_EVENT, serde_json::json!({ "message": message }));
+            }
+        }
+
+        // The call is finished and paid for, so the balance has moved.
+        refresh_credits(&app, &transport, &key);
+
+        // The key's in-memory copy is released here. Not scrubbed — the same known
+        // limit `connect.rs` records for the exchange step.
+        drop(key);
+    });
+
+    Ok(())
+}
+
+/// Stop the generation in flight.
+///
+/// Sets the flag `call_streaming` reads before every line; the read then ends and the
+/// connection closes, so the model is not left writing to a reader that has gone.
+/// Returns at once — the calling thread unwinds on its own, and the interface already
+/// holds every piece it was sent.
+#[tauri::command]
+fn stop_generation() {
+    STOP_GENERATION.store(true, Ordering::SeqCst);
+}
+
 /// The chosen model's own reply ceiling, or the high fallback.
 ///
 /// Looks the model up in the catalogue the shell last fetched. A model the
@@ -567,6 +698,8 @@ pub fn run() {
             record_model_call,
             fetch_models,
             send_message,
+            send_conversation,
+            stop_generation,
             connect::connect_status,
             connect::start_connect
         ])
