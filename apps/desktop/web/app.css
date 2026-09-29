@@ -664,6 +664,73 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
   opacity: 0.6;
 }
 
+/* The answer's own structure. Every element here is built by the page, and every
+   piece of text inside them arrived through textContent -- so this is styling our
+   own nodes, not trusting the model's. */
+.turn__text > *:first-child { margin-top: 0; }
+.turn__text > *:last-child { margin-bottom: 0; }
+.turn__text p { margin: 0 0 var(--space-3); }
+.turn__text h3,
+.turn__text h4,
+.turn__text h5,
+.turn__text h6 {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--typography-size-lg);
+  font-weight: var(--typography-weight-semibold);
+  line-height: var(--typography-lineHeight-snug);
+}
+.turn__text ul,
+.turn__text ol {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-5);
+}
+.turn__text li { margin-bottom: var(--space-1); }
+.turn__text blockquote {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--color-semantic-border-subtle);
+}
+.turn__text pre {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-semantic-surface-inset);
+  border: 1px solid var(--color-semantic-border-subtle);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  white-space: pre;
+}
+.turn__text code { font-size: 0.95em; }
+.turn__text hr {
+  border: 0;
+  border-top: 1px solid var(--color-semantic-border-subtle);
+  margin: var(--space-4) 0;
+}
+/* A link the model wrote: the label, then where it points, as text. Not a control,
+   because opening it would be an action and actions go through the gate. */
+.md-link__target {
+  font-size: var(--typography-size-xs);
+  opacity: 0.7;
+  overflow-wrap: anywhere;
+}
+
+.turn__copy {
+  align-self: flex-start;
+  margin-top: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  font: inherit;
+  font-size: var(--typography-size-xs);
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--color-semantic-border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.turn__copy:hover { border-color: var(--color-semantic-border-focus); }
+.turn__copy:focus-visible {
+  outline: var(--focus-width) solid var(--color-semantic-border-focus);
+  outline-offset: var(--focus-offset);
+}
+
 .inline-error {
   margin-top: var(--space-4);
   max-width: var(--layout-measure);

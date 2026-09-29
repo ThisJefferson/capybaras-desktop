@@ -989,6 +989,207 @@ function noteReplyOverflow() {
 }
 
 // ---------------------------------------------------------------------------
+// Rendering an answer
+//
+// MARKDOWN, BUILT AS NODES. An answer arrives as markdown and would otherwise be
+// shown as literal asterisks. Rendering it MUST be done by building DOM nodes --
+// never by assembling an HTML string -- because the text is remote and this is a
+// trusted position (threat T4). Every piece of model text below reaches the page
+// through `textContent` or `createTextNode`, and a `javascript:` URL is text like
+// any other.
+//
+// LINKS ARE NOT CLICKABLE, DELIBERATELY. Opening a URL is an ACTION, and in this
+// product actions go through the gate. Handing a model-written link a click that
+// skips the gate would waive the rule in the one place it matters most, so the
+// destination is shown beside the label as plain text. Making it open is later
+// work, and it belongs behind a real gate.
+// ---------------------------------------------------------------------------
+
+/** Inline markdown inside one line: bold, code, italic, and links as text. */
+function markdownInline(text) {
+  const fragment = document.createDocumentFragment();
+  const source = String(text ?? '');
+  const pattern = /(\*\*([^*]+)\*\*|__([^_]+)__|`([^`]+)`|\*([^*]+)\*|_([^_]+)_|\[([^\]]+)\]\(([^)\s]+)\))/g;
+  let last = 0;
+  let match;
+  while ((match = pattern.exec(source)) !== null) {
+    if (match.index > last) fragment.append(document.createTextNode(source.slice(last, match.index)));
+    const bold = match[2] ?? match[3];
+    const code = match[4];
+    const italic = match[5] ?? match[6];
+    const label = match[7];
+    if (bold !== undefined) {
+      const el = document.createElement('strong');
+      el.textContent = bold;
+      fragment.append(el);
+    } else if (code !== undefined) {
+      const el = document.createElement('code');
+      el.textContent = code;
+      fragment.append(el);
+    } else if (italic !== undefined) {
+      const el = document.createElement('em');
+      el.textContent = italic;
+      fragment.append(el);
+    } else if (label !== undefined) {
+      const wrap = document.createElement('span');
+      wrap.className = 'md-link';
+      const textSpan = document.createElement('span');
+      textSpan.textContent = label;
+      const hrefSpan = document.createElement('span');
+      hrefSpan.className = 'md-link__target';
+      hrefSpan.textContent = match[8];
+      wrap.append(textSpan, document.createTextNode(' '), hrefSpan);
+      fragment.append(wrap);
+    }
+    last = pattern.lastIndex;
+  }
+  if (last < source.length) fragment.append(document.createTextNode(source.slice(last)));
+  return fragment;
+}
+
+/** A whole answer, as nodes: headings, lists, quotes, rules, code, paragraphs. */
+function renderMarkdown(text) {
+  const fragment = document.createDocumentFragment();
+  const lines = String(text ?? '').split('\n');
+  let paragraph = [];
+  let list = null;
+  let fence = null;
+
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    const p = document.createElement('p');
+    p.append(markdownInline(paragraph.join('\n')));
+    fragment.append(p);
+    paragraph = [];
+  };
+  const flushList = () => {
+    if (list) {
+      fragment.append(list.el);
+      list = null;
+    }
+  };
+  const flushFence = () => {
+    if (fence) {
+      fragment.append(fence);
+      fence = null;
+    }
+  };
+
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) {
+      if (fence) {
+        flushFence();
+      } else {
+        flushParagraph();
+        flushList();
+        fence = document.createElement('pre');
+      }
+      continue;
+    }
+    if (fence) {
+      fence.append(document.createTextNode(line + '\n'));
+      continue;
+    }
+    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (heading) {
+      flushParagraph();
+      flushList();
+      // Never below the page's own h2: a model's outline is a division of the
+      // answer, not of the application around it.
+      const level = Math.min(6, Math.max(3, heading[1].length));
+      const el = document.createElement(`h${level}`);
+      el.append(markdownInline(heading[2]));
+      fragment.append(el);
+      continue;
+    }
+    const bullet = /^\s*[-*+]\s+(.*)$/.exec(line);
+    const ordered = /^\s*\d+[.)]\s+(.*)$/.exec(line);
+    if (bullet || ordered) {
+      flushParagraph();
+      const wantOrdered = Boolean(ordered);
+      if (!list || list.ordered !== wantOrdered) {
+        flushList();
+        list = { el: document.createElement(wantOrdered ? 'ol' : 'ul'), ordered: wantOrdered };
+      }
+      const item = document.createElement('li');
+      item.append(markdownInline((bullet ?? ordered)[1]));
+      list.el.append(item);
+      continue;
+    }
+    if (/^\s*(---|\*\*\*|___)\s*$/.test(line)) {
+      flushParagraph();
+      flushList();
+      fragment.append(document.createElement('hr'));
+      continue;
+    }
+    const quote = /^>\s?(.*)$/.exec(line);
+    if (quote) {
+      flushParagraph();
+      flushList();
+      const el = document.createElement('blockquote');
+      el.append(markdownInline(quote[1]));
+      fragment.append(el);
+      continue;
+    }
+    if (line.trim() === '') {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+    paragraph.push(line);
+  }
+  flushParagraph();
+  flushList();
+  flushFence();
+  return fragment;
+}
+
+/** Replace an element's contents with the rendered answer. */
+function renderInto(element, source) {
+  if (!element) return;
+  element.textContent = '';
+  element.append(renderMarkdown(source));
+}
+
+/**
+ * The Copy control on a finished answer.
+ *
+ * **PLAIN TEXT, DELIBERATELY.** Copying the answer as formatted markup would mean
+ * turning the built DOM back into a markup string, and this frontend carries a
+ * blanket rule against every string-to-markup sink (`tests/frontend-safety.test.ts`).
+ * That rule is blunt on purpose -- it is the kind that cannot be reasoned around at
+ * review time -- so this copies the text, which is what a person actually pastes into
+ * a document. Formatted copy is a later piece of work, and it belongs where the rule
+ * can be narrowed deliberately rather than bent in a corner.
+ */
+function addCopyControl(turn) {
+  if (!turn || typeof navigator === 'undefined' || !navigator.clipboard) return;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'turn__copy';
+  button.textContent = 'Copy';
+  button.addEventListener('click', async () => {
+    const body = turn.querySelector('.turn__text');
+    const plain = (body && (body.innerText || body.textContent)) || '';
+    try {
+      await navigator.clipboard.writeText(plain);
+      button.textContent = 'Copied';
+      setTimeout(() => {
+        button.textContent = 'Copy';
+      }, 1500);
+    } catch {
+      // Clipboard permission can be refused. Say what to do instead of failing
+      // silently, and never leave the button saying something it did not do.
+      button.textContent = 'Press Ctrl+C';
+      setTimeout(() => {
+        button.textContent = 'Copy';
+      }, 2000);
+    }
+  });
+  turn.append(button);
+}
+
+// ---------------------------------------------------------------------------
 // The conversation
 //
 // THE THREAD IS THE STATE. Every turn the person can see is in `conversation`,
@@ -1059,12 +1260,25 @@ function completeTurn() {
 
 /** Settle the answer turn with its final text, and free the row. */
 function finishReply(text, model) {
+  const source = String(text ?? '');
+  let turn = liveTurn && liveTurn.parentElement;
   if (liveTurn) {
-    liveTurn.textContent = String(text ?? '');
+    renderInto(liveTurn, source);
     liveTurn = null;
   } else {
-    pushTurn('assistant', text);
+    const body = pushTurn('assistant', '');
+    turn = body && body.parentElement;
+    renderInto(body, source);
   }
+  if (turn) {
+    // The raw answer is kept on the element: Copy reads it, and so does the
+    // harness, which must be able to tell a rendered answer from a truncated one.
+    turn.dataset.source = source;
+    addCopyControl(turn);
+  }
+  // The answer joins the thread as a turn, or the next question would carry the
+  // person's words with none of the context they were answering.
+  conversation.push({ role: 'assistant', text: source });
   completeTurn();
   log(`reply from ${model}`);
 }

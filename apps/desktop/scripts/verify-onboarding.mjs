@@ -214,6 +214,29 @@ const LONG_REPLY = Array.from({ length: 200 }, (_, i) =>
   Array.from({ length: 25 }, (_, j) => `sentence${i * 25 + j + 1}`).join(' '),
 ).join('\n\n');
 
+/* MARKDOWN. An answer arrives as markdown, and rendering it is the one place a
+   trusted position meets remote text (T4). Written here with every construct the
+   renderer claims to handle -- and a raw <b> that must stay TEXT, which is the
+   assertion that matters most. */
+const MARKDOWN_MARKER = 'show me markdown';
+const MARKDOWN_REPLY = [
+  '## Findings',
+  '',
+  'The **first** point, with `code` and a [link](https://example.com/page).',
+  '',
+  '- alpha',
+  '- beta',
+  '',
+  '1. one',
+  '2. two',
+  '',
+  '> quoted',
+  '',
+  '```',
+  'raw <b>not html</b>',
+  '```',
+].join('\n');
+
 const SIGN_IN_FAILURE = {
   reason: 'timed-out',
   detail: 'the sign-in was not finished in time; start again',
@@ -372,7 +395,11 @@ function invoke(cmd, args) {
       // it. The PIECES go out first, because that is what streaming is -- an
       // interface that only handled the finished reply would pass this stub while
       // never once receiving a delta, and streaming would go untested.
-      const replyText = asked.includes(LONG_MARKER) ? LONG_REPLY : REPLY_TEXT;
+      const replyText = asked.includes(LONG_MARKER)
+        ? LONG_REPLY
+        : asked.includes(MARKDOWN_MARKER)
+          ? MARKDOWN_REPLY
+          : REPLY_TEXT;
       const chunk = Math.max(1, Math.ceil(replyText.length / 8));
       const pieces = [];
       for (let i = 0; i < replyText.length; i += chunk) pieces.push(replyText.slice(i, i + chunk));
@@ -597,6 +624,14 @@ const PANEL = `JSON.stringify({
     const last = turns[turns.length - 1];
     const text = last && last.querySelector('.turn__text');
     return last && last.classList.contains('turn--herd') && text ? text.textContent : '';
+  })(),
+  // The answer AS IT ARRIVED. Rendering is lossy ON PURPOSE -- markdown markers
+  // become elements and paragraph breaks become blocks -- so a check that means
+  // "nothing was truncated" must compare the source, never the rendered text.
+  replySource: (() => {
+    const turns = Array.from(document.querySelectorAll('#ask-thread .turn'));
+    const last = turns[turns.length - 1];
+    return last && last.classList.contains('turn--herd') ? (last.dataset.source ?? '') : '';
   })(),
   replyScrollShown: document.getElementById('ask-thread-scroll').hidden === false,
   errorShown: document.getElementById('ask-error').hidden === false,
@@ -845,9 +880,13 @@ try {
   );
 
   await waitUntil(
-    "(() => { const t = Array.from(document.querySelectorAll('#ask-thread .turn')); const l = t[t.length - 1]; const x = l && l.querySelector('.turn__text'); return !!(l && l.classList.contains('turn--herd') && x && x.textContent.length > 0); })()",
+    // FINISHED, NOT MERELY STARTED. With streaming, a herd turn holds text from the
+    // first delta onward -- so waiting for "some text" reads the panel mid-flight and
+    // compares a partial answer against a whole one. `dataset.source` is set when the
+    // turn settles, which is the only moment these checks were ever written against.
+    "(() => { const t = Array.from(document.querySelectorAll('#ask-thread .turn')); const l = t[t.length - 1]; return !!(l && l.classList.contains('turn--herd') && l.dataset && l.dataset.source && l.dataset.source.length > 0); })()",
     (v) => v === true,
-    'the reply to appear',
+    'the reply to arrive',
   );
   panel = await readPanel();
 
@@ -947,7 +986,7 @@ try {
   })()`);
   await evaluate("document.getElementById('btn-send').click(); true");
   await waitUntil(
-    `(() => { const t = Array.from(document.querySelectorAll('#ask-thread .turn')); const l = t[t.length - 1]; const x = l && l.querySelector('.turn__text'); return !!(x && x.textContent.length >= ${LONG_REPLY.length}); })()`,
+    `(() => { const t = Array.from(document.querySelectorAll('#ask-thread .turn')); const l = t[t.length - 1]; const src = (l && l.dataset && l.dataset.source) || ''; return src.length >= ${LONG_REPLY.length}; })()`,
     (v) => v === true,
     'the long reply to appear',
   );
@@ -968,7 +1007,7 @@ try {
 
   check(
     'a long reply arrives in FULL -- the interface truncates nothing',
-    panel.reply === LONG_REPLY,
+    panel.replySource === LONG_REPLY,
     `${panel.reply.length} of ${LONG_REPLY.length} character(s), ends "${panel.reply.slice(-12)}"`,
   );
   check(
@@ -986,6 +1025,63 @@ try {
     'the signpost appears when, and only when, there is more answer than box',
     longBox.noteShown === true,
   );
+
+  /* ---- markdown is rendered as NODES, never as HTML ---------------- */
+  await evaluate(`(() => {
+    const box = document.getElementById('ask-prompt');
+    box.value = '${MARKDOWN_MARKER} please';
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  })()`);
+  await evaluate("document.getElementById('btn-send').click(); true");
+  await waitUntil(
+    "(() => { const t = Array.from(document.querySelectorAll('#ask-thread .turn')); const l = t[t.length - 1]; const src = (l && l.dataset && l.dataset.source) || ''; return src.indexOf('## Findings') === 0; })()",
+    (v) => v === true,
+    'the markdown reply to appear',
+  );
+  const md = await evaluate(`(() => {
+    const turns = Array.from(document.querySelectorAll('#ask-thread .turn'));
+    const last = turns[turns.length - 1];
+    const body = last && last.querySelector('.turn__text');
+    const tags = body ? Array.from(body.querySelectorAll('*')).map((el) => el.tagName) : [];
+    return {
+      tags: tags.join(','),
+      text: body ? body.textContent : '',
+      scripts: body ? body.querySelectorAll('script').length : -1,
+      anchors: body ? body.querySelectorAll('a').length : -1,
+      images: body ? body.querySelectorAll('img').length : -1,
+      rawMarkupAsText: body ? body.textContent.indexOf('<b>not html</b>') !== -1 : false,
+      copyControls: last ? last.querySelectorAll('.turn__copy').length : 0,
+    };
+  })()`);
+
+  check(
+    'markdown arrives as ELEMENTS, not as literal asterisks',
+    ['STRONG', 'CODE', 'UL', 'LI', 'OL', 'BLOCKQUOTE', 'PRE', 'H3'].every((tag) =>
+      md.tags.split(',').includes(tag),
+    ),
+    md.tags,
+  );
+  check(
+    'no markdown marker survives into the rendered text',
+    md.text.indexOf('**') === -1 &&
+      md.text.indexOf('`') === -1 &&
+      md.text.indexOf('## ') === -1 &&
+      md.text.indexOf('Findings') !== -1 &&
+      md.text.indexOf('alpha') !== -1,
+    md.text.slice(0, 90),
+  );
+  check(
+    'markup inside model text stays TEXT -- no element is built from it',
+    md.scripts === 0 && md.images === 0 && md.rawMarkupAsText === true,
+    `scripts=${md.scripts} images=${md.images} raw markup survived as text=${md.rawMarkupAsText}`,
+  );
+  check(
+    'a model-written link is shown but NOT made clickable -- opening a URL is an action, and actions go through the gate',
+    md.anchors === 0,
+    `${md.anchors} anchor(s)`,
+  );
+  check('a finished answer offers Copy', md.copyControls === 1, String(md.copyControls));
 
   /* ---- nothing on screen is a machine artifact -------------------- */
   const visible = await evaluate(`(() => {
