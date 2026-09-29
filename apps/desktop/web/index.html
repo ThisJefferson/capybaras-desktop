@@ -91,6 +91,9 @@
 
           <div class="panel__actions">
             <button class="btn btn--primary" id="btn-send">Send</button>
+            <!-- The Stop. Hidden until there is a generation to stop, because a
+                 control that does nothing is worse than no control at all. -->
+            <button class="btn" id="btn-stop" hidden>Stop</button>
           </div>
           <p class="hint" id="ask-hold">Nothing is sent until you press Send.</p>
 
@@ -99,11 +102,16 @@
                scrolls inside itself rather than growing the rail without limit,
                and it is focusable so a keyboard can scroll it too. Nothing on
                this side truncates: the text is written whole, with textContent. -->
-          <div class="reply" id="ask-reply" role="status" aria-live="polite" tabindex="0" hidden></div>
+          <!-- THE CONVERSATION, NOT ONE ANSWER. Every turn stays on screen -- the
+               question, the answer, and the ones before them -- so a follow-up has
+               something to follow. `role="log"` because this is a running record
+               rather than a single status. Each turn is written with textContent:
+               model output is text and stays text (T3/T4), as it always was. -->
+          <div class="thread" id="ask-thread" role="log" aria-live="polite" tabindex="0"></div>
           <!-- Said only when there is more answer than box. It is a signpost, not
                a substitute for any of the reply: it never carries content, and it
                is cleared whenever the box is. -->
-          <p class="hint hint--tight" id="ask-reply-scroll" hidden>
+          <p class="hint hint--tight" id="ask-thread-scroll" hidden>
             This answer is longer than the box — scroll inside it to read the rest.
           </p>
           <p class="inline-error" id="ask-error" role="alert" hidden></p>

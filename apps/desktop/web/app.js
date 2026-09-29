@@ -981,48 +981,109 @@ async function loadModels() {
  * any part of the reply.
  */
 function noteReplyOverflow() {
-  const box = $('ask-reply');
-  const note = $('ask-reply-scroll');
+  const box = $('ask-thread');
+  const note = $('ask-thread-scroll');
   if (!note) return;
-  const overflowing =
-    Boolean(box) && box.hidden === false && box.scrollHeight > box.clientHeight + 1;
+  const overflowing = Boolean(box) && box.scrollHeight > box.clientHeight + 1;
   note.hidden = !overflowing;
 }
 
-function showReply(text, model) {
-  const box = $('ask-reply');
-  const error = $('ask-error');
+// ---------------------------------------------------------------------------
+// The conversation
+//
+// THE THREAD IS THE STATE. Every turn the person can see is in `conversation`,
+// and that array is what travels with the next question -- the shell keeps no
+// history, so this is the only place it exists and the only place it can be
+// cleared.
+// ---------------------------------------------------------------------------
+
+/** Every turn, oldest first: `{ role, text }`. */
+let conversation = [];
+
+/** The text node of the answer being written, while one is. */
+let liveTurn = null;
+
+/** One turn on screen. Written with `textContent`, like every model output here. */
+function pushTurn(role, text) {
+  const thread = $('ask-thread');
+  if (!thread) return null;
+  const turn = document.createElement('div');
+  turn.className = `turn turn--${role === 'user' ? 'user' : 'herd'}`;
+  const who = document.createElement('p');
+  who.className = 'turn__who';
+  who.textContent = role === 'user' ? 'You' : 'The herd';
+  const body = document.createElement('p');
+  body.className = 'turn__text';
+  body.textContent = String(text ?? '');
+  turn.append(who, body);
+  thread.append(turn);
+  noteReplyOverflow();
+  return body;
+}
+
+/** Begin the answer turn and remember it, so pieces can land in it as they arrive. */
+function beginHerdTurn() {
+  liveTurn = pushTurn('assistant', '');
+  return liveTurn;
+}
+
+/**
+ * One piece of the answer, while it is being written.
+ *
+ * This is what makes a long reply usable: the text appears as the model produces
+ * it, instead of the window sitting still for a minute and then filling at once.
+ * It is transient -- the finished turn arrives on `capybaras://reply`.
+ */
+function appendDelta(text) {
+  if (!liveTurn) beginHerdTurn();
+  if (!liveTurn) return;
+  liveTurn.textContent += String(text ?? '');
+  noteReplyOverflow();
+  if (liveTurn.parentElement) liveTurn.parentElement.scrollIntoView({ block: 'end' });
+}
+
+/** Put the row back the way it was: Send enabled, Stop gone. */
+function completeTurn() {
   const button = $('btn-send');
-  if (error) {
-    error.hidden = true;
-    error.textContent = '';
-  }
-  if (box) {
-    box.hidden = false;
-    // Model output: text only, always. The one place that rule is most tempting
-    // to break is the one place it matters most.
-    box.textContent = String(text ?? '');
-    // All of it is in the DOM. Say so when it is taller than the box.
-    noteReplyOverflow();
-  }
+  const stop = $('btn-stop');
   if (button) {
     button.disabled = false;
     button.removeAttribute('aria-busy');
   }
-  askAnswered();
+  if (stop) {
+    stop.hidden = true;
+    stop.disabled = false;
+  }
+  noteReplyOverflow();
+}
+
+/** Settle the answer turn with its final text, and free the row. */
+function finishReply(text, model) {
+  if (liveTurn) {
+    liveTurn.textContent = String(text ?? '');
+    liveTurn = null;
+  } else {
+    pushTurn('assistant', text);
+  }
+  completeTurn();
   log(`reply from ${model}`);
 }
 
-function showMessageError(message) {
-  const box = $('ask-reply');
+function showReply(text, model) {
   const error = $('ask-error');
-  const button = $('btn-send');
-  if (box) {
-    box.hidden = true;
-    box.textContent = '';
-    // Nothing to scroll when there is no answer.
-    noteReplyOverflow();
+  if (error) {
+    error.hidden = true;
+    error.textContent = '';
   }
+  finishReply(text, model);
+  askAnswered();
+}
+
+function showMessageError(message) {
+  const error = $('ask-error');
+  // An answer turn that was begun and then failed holds nothing worth keeping.
+  if (liveTurn && liveTurn.parentElement) liveTurn.parentElement.remove();
+  liveTurn = null;
   if (error) {
     error.hidden = false;
     error.textContent = '';
@@ -1034,10 +1095,7 @@ function showMessageError(message) {
     tag.textContent = 'Not sent';
     error.append(tag, document.createTextNode(` ${String(message ?? 'something went wrong')}`));
   }
-  if (button) {
-    button.disabled = false;
-    button.removeAttribute('aria-busy');
-  }
+  completeTurn();
   log(`message failed: ${message}`);
 }
 
@@ -1047,32 +1105,69 @@ if (sendButton) {
     const prompt = $('ask-prompt').value;
     const model = $('model-choice').value;
     const error = $('ask-error');
-    const box = $('ask-reply');
     if (error) {
       error.hidden = true;
       error.textContent = '';
     }
-    if (box) {
-      box.hidden = true;
-      box.textContent = '';
-      // The signpost goes with it; a new answer measures itself on arrival.
-      noteReplyOverflow();
-    }
+    if (String(prompt ?? '').trim() === '') return;
+
+    // The question joins the thread before it is sent, so the person can see what
+    // they asked while the answer is still being written.
+    conversation.push({ role: 'user', text: String(prompt) });
+    pushTurn('user', String(prompt));
+    const field = $('ask-prompt');
+    if (field) field.value = '';
+    beginHerdTurn();
 
     // Disabled while in flight: a second click would be a second billed call.
     sendButton.disabled = true;
     sendButton.setAttribute('aria-busy', 'true');
+    const stopControl = $('btn-stop');
+    if (stopControl) stopControl.hidden = false;
     // The question is out from here. The herd shows it, and keeps showing it
     // until the answer or the failure arrives -- the same fact as the busy
     // button, said where the capybaras are.
     setAskPhase(ASK_PENDING);
     try {
-      await invoke('send_message', { prompt, model });
+      await invoke('send_conversation', {
+        messages: conversation.map((turn) => ({ role: turn.role, content: turn.text })),
+        model,
+      });
     } catch (reason) {
       // A refusal made before anything was sent — not connected, nothing typed.
       // Nothing left the app, so it was never a question in flight.
       setAskPhase('idle');
       showMessageError(String(reason));
+      // Nothing left the app, so the question was never asked: take it back out of
+      // the thread rather than leaving a turn that was never sent.
+      conversation.pop();
+      const thread = $('ask-thread');
+      const lastTurn = thread && thread.lastElementChild;
+      if (lastTurn && lastTurn.classList.contains('turn--user')) lastTurn.remove();
+      noteReplyOverflow();
+    }
+  });
+}
+
+// The Stop. It asks the shell to end the read; whatever has already arrived stays on
+// screen, because a halted answer is still an answer.
+const stopButtonEl = $('btn-stop');
+if (stopButtonEl) {
+  stopButtonEl.addEventListener('click', () => {
+    stopButtonEl.disabled = true;
+    invoke('stop_generation').catch(() => {});
+  });
+}
+
+// Enter sends; Shift+Enter makes a newline. The two things a person expects of a box
+// they are typing a message into.
+const askField = $('ask-prompt');
+if (askField) {
+  askField.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      const send = $('btn-send');
+      if (send && !send.disabled) send.click();
     }
   });
 }
@@ -1133,6 +1228,9 @@ if (listen) {
   // The first reply: the model list as fetched, and the one answer it produces.
   listen('capybaras://models', (e) => renderModels(e.payload));
   listen('capybaras://models-failed', (e) => showModelsError(e.payload.message));
+  // A piece of the answer, while it is being written. Transient: the finished turn
+  // arrives on `capybaras://reply`, which settles the same element.
+  listen('capybaras://delta', (e) => appendDelta(e.payload.text));
   listen('capybaras://reply', (e) => showReply(e.payload.text, e.payload.model));
   listen('capybaras://message-failed', (e) => {
     showMessageError(e.payload.message);

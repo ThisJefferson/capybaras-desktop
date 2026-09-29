@@ -339,10 +339,21 @@ function invoke(cmd, args) {
       return null;
 
     // ---- the one completion (shell -> OpenRouter /chat/completions)
+    //
+    // THE PAGE SENDS A CONVERSATION NOW, NOT A PROMPT: the thread travels whole so a
+    // follow-up carries its context. The stub reads the last thing the person said,
+    // which is the only turn that decides the answer here. `send_message` is kept
+    // alongside it so the older single-prompt shape stays answerable.
+    //
     // A failed call is still a call: D22 says the meter reports it with zeros,
     // because the standstill is the evidence. Mirrored here so the interface is
     // driven with the same shape the shell produces.
+    case 'send_conversation':
     case 'send_message': {
+      const turns = Array.isArray(args.messages) ? args.messages : [];
+      const lastUser =
+        [...turns].reverse().find((turn) => turn && turn.role === 'user') ?? {};
+      const asked = String(args.prompt ?? lastUser.content ?? '');
       sentMessages.push(args.model);
       meterCalls += 1;
       if (failNextSend) {
@@ -357,10 +368,21 @@ function invoke(cmd, args) {
       }
       meterTokens += 12;
       setTimeout(() => emit('capybaras://usage', usageSnapshot()), 40);
-      // A long answer is a real answer: the same path, the same event, just more
-      // of it. Nothing about how it is delivered differs.
-      const replyText = String(args.prompt ?? '').includes(LONG_MARKER) ? LONG_REPLY : REPLY_TEXT;
-      setTimeout(() => emit('capybaras://reply', { text: replyText, model: args.model }), 80);
+      // A long answer is a real answer: the same path, the same events, just more of
+      // it. The PIECES go out first, because that is what streaming is -- an
+      // interface that only handled the finished reply would pass this stub while
+      // never once receiving a delta, and streaming would go untested.
+      const replyText = asked.includes(LONG_MARKER) ? LONG_REPLY : REPLY_TEXT;
+      const chunk = Math.max(1, Math.ceil(replyText.length / 8));
+      const pieces = [];
+      for (let i = 0; i < replyText.length; i += chunk) pieces.push(replyText.slice(i, i + chunk));
+      pieces.forEach((piece, index) => {
+        setTimeout(() => emit('capybaras://delta', { text: piece }), 80 + index * 5);
+      });
+      setTimeout(
+        () => emit('capybaras://reply', { text: replyText, model: args.model }),
+        80 + pieces.length * 5 + 20,
+      );
       return null;
     }
 
@@ -556,11 +578,27 @@ const PANEL = `JSON.stringify({
   selectedValue: document.getElementById('model-choice').value,
   selectedLabel: (document.getElementById('model-choice').selectedOptions[0] || {}).textContent || '',
   askDisabled: document.getElementById('btn-send').disabled,
-  replyShown: document.getElementById('ask-reply').hidden === false,
+  // The thread replaced the single answer box. "A reply is shown" means THE LAST
+  // TURN IS AN ANSWER WITH TEXT -- not merely that a herd turn exists, because a
+  // herd turn is now created the moment Send is pressed and sits empty until the
+  // first piece arrives. Reading only the LAST turn also keeps the older checks
+  // meaningful inside a conversation: after a refusal the failed turn is removed,
+  // so the thread ends on the question and there is, correctly, no reply.
+  replyShown: (() => {
+    const turns = Array.from(document.querySelectorAll('#ask-thread .turn'));
+    const last = turns[turns.length - 1];
+    const text = last && last.querySelector('.turn__text');
+    return !!(last && last.classList.contains('turn--herd') && text && text.textContent.length > 0);
+  })(),
   // The herd's ask phase, as the interface set it from the real call.
   herdAsk: document.getElementById('herd').getAttribute('data-ask'),
-  reply: document.getElementById('ask-reply').textContent,
-  replyScrollShown: document.getElementById('ask-reply-scroll').hidden === false,
+  reply: (() => {
+    const turns = Array.from(document.querySelectorAll('#ask-thread .turn'));
+    const last = turns[turns.length - 1];
+    const text = last && last.querySelector('.turn__text');
+    return last && last.classList.contains('turn--herd') && text ? text.textContent : '';
+  })(),
+  replyScrollShown: document.getElementById('ask-thread-scroll').hidden === false,
   errorShown: document.getElementById('ask-error').hidden === false,
   error: document.getElementById('ask-error').textContent,
   usage: document.getElementById('usage-figures').textContent.replace(/\\s+/g, ' ').trim(),
@@ -807,7 +845,7 @@ try {
   );
 
   await waitUntil(
-    "document.getElementById('ask-reply').hidden === false",
+    "(() => { const t = Array.from(document.querySelectorAll('#ask-thread .turn')); const l = t[t.length - 1]; const x = l && l.querySelector('.turn__text'); return !!(l && l.classList.contains('turn--herd') && x && x.textContent.length > 0); })()",
     (v) => v === true,
     'the reply to appear',
   );
@@ -909,14 +947,14 @@ try {
   })()`);
   await evaluate("document.getElementById('btn-send').click(); true");
   await waitUntil(
-    `document.getElementById('ask-reply').textContent.length >= ${LONG_REPLY.length}`,
+    `(() => { const t = Array.from(document.querySelectorAll('#ask-thread .turn')); const l = t[t.length - 1]; const x = l && l.querySelector('.turn__text'); return !!(x && x.textContent.length >= ${LONG_REPLY.length}); })()`,
     (v) => v === true,
     'the long reply to appear',
   );
   panel = await readPanel();
   const longBox = await evaluate(`(() => {
-    const box = document.getElementById('ask-reply');
-    const note = document.getElementById('ask-reply-scroll');
+    const box = document.getElementById('ask-thread');
+    const note = document.getElementById('ask-thread-scroll');
     const style = getComputedStyle(box);
     return {
       scrollHeight: box.scrollHeight,
@@ -951,7 +989,7 @@ try {
 
   /* ---- nothing on screen is a machine artifact -------------------- */
   const visible = await evaluate(`(() => {
-    const ids = ['connect-state', 'models-state', 'ask-error', 'ask-reply', 'ask-hold'];
+    const ids = ['connect-state', 'models-state', 'ask-error', 'ask-thread', 'ask-hold'];
     return ids.map((id) => document.getElementById(id).textContent).join(' | ');
   })()`);
   check(

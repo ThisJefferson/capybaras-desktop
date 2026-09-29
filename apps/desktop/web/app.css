@@ -598,6 +598,72 @@ textarea.input { resize: vertical; line-height: var(--typography-lineHeight-snug
   outline-offset: var(--focus-offset);
 }
 
+/* ------------------------------------------------------------------ */
+/* The conversation                                                    */
+/* ------------------------------------------------------------------ */
+
+/* The thread replaces the single answer box. It scrolls inside itself for the same
+   reason that box did: a long answer must not grow the rail without limit, and
+   reaching its end must not then scroll the page. */
+.thread {
+  margin-top: var(--space-4);
+  max-width: var(--layout-measure);
+  max-height: min(72vh, 40rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-4);
+  background: var(--color-semantic-surface-inset);
+  border: 1px solid var(--color-semantic-border-subtle);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+/* An empty conversation is not shown: an inset box with nothing in it reads as a
+   failure, and before the first question there is nothing to read. */
+.thread:empty { display: none; }
+/* A box that scrolls has to be reachable without a mouse. */
+.thread:focus-visible {
+  outline: var(--focus-width) solid var(--color-semantic-border-focus);
+  outline-offset: var(--focus-offset);
+}
+
+/* One turn. The question and the answer are told apart by their LABEL first and
+   their edge second -- colour is the last cue, never the only one, so the turns
+   still read apart in monochrome or to a colour-blind eye. */
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--color-semantic-border-subtle);
+}
+.turn--herd { border-left-color: var(--color-semantic-border-focus); }
+
+.turn__who {
+  margin: 0;
+  font-size: var(--typography-size-xs);
+  font-weight: var(--typography-weight-semibold);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.turn__text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: var(--typography-lineHeight-loose);
+}
+/* A herd turn that has not been written to yet shows only its label. The mark
+   keeps the row from collapsing to nothing while the first piece is in flight,
+   and it is decoration: it carries no meaning a screen reader needs. */
+.turn--herd .turn__text:empty::after {
+  content: "\2026";
+  opacity: 0.6;
+}
+
 .inline-error {
   margin-top: var(--space-4);
   max-width: var(--layout-measure);
