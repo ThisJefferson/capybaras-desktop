@@ -881,3 +881,135 @@ fn a_follow_up_carries_the_earlier_turns_to_the_provider() {
     assert_eq!(messages[0]["content"], "what is a capybara");
     assert_eq!(messages[2]["content"], "and its name");
 }
+
+// ---------------------------------------------------------------------------
+// Streaming: the answer arrives while it is written, and the figure with it
+// ---------------------------------------------------------------------------
+
+/// One server-sent event line carrying a content delta.
+fn delta(text: &str) -> String {
+    serde_json::json!({ "choices": [{ "delta": { "content": text } }] }).to_string()
+}
+
+/// A stream body, one event per line, as the socket would deliver it.
+fn sse(lines: &[String]) -> String {
+    let mut body = String::new();
+    for line in lines {
+        body.push_str(line);
+        body.push('\n');
+    }
+    body
+}
+
+#[test]
+fn a_stream_asks_for_usage_or_the_meter_would_read_zero() {
+    let turns = vec![chat::Message::user("hi")];
+    let body: serde_json::Value =
+        serde_json::from_str(&chat::stream_request_body_for(MODEL, &turns, LIMIT)).expect("json");
+    assert_eq!(body["stream"], true);
+    assert_eq!(
+        body["stream_options"]["include_usage"], true,
+        "a streamed reply carries no usage block unless one is asked for, so the meter would read zero"
+    );
+}
+
+#[test]
+fn a_stream_delivers_text_piece_by_piece_and_then_the_figure() {
+    let usage = serde_json::json!({
+        "choices": [],
+        "usage": { "prompt_tokens": 12, "completion_tokens": 9, "total_tokens": 21, "cost": 0.000123 }
+    })
+    .to_string();
+    let body = sse(&[
+        format!("data: {}", delta("A capy")),
+        format!("data: {}", delta("bara is")),
+        format!("data: {}", delta(" a rodent.")),
+        format!("data: {usage}"),
+        "data: [DONE]".to_string(),
+    ]);
+    let stub = Stub::answering(200, body);
+
+    let mut seen: Vec<String> = Vec::new();
+    let outcome = chat::call_streaming(
+        &stub,
+        KEY,
+        MODEL,
+        &[chat::Message::user("what")],
+        LIMIT,
+        |piece| seen.push(piece.to_string()),
+    );
+
+    assert_eq!(
+        seen,
+        vec!["A capy", "bara is", " a rodent."],
+        "each piece arrives in order, before the call returns"
+    );
+    match outcome {
+        ChatOutcome::Replied { text, usage } => {
+            assert_eq!(text, "A capybara is a rodent.");
+            assert_eq!(usage.prompt_tokens, 12);
+            assert_eq!(usage.completion_tokens, 9);
+            assert_eq!(usage.total_tokens, 21);
+            assert!(
+                usage.cost_usd > 0.0,
+                "the cost must survive the stream, or the meter is quietly wrong"
+            );
+        }
+        ChatOutcome::Failed { message } => panic!("expected a reply: {message}"),
+    }
+}
+
+#[test]
+fn a_stream_that_reports_an_error_mid_flight_fails_in_plain_words() {
+    let body = sse(&[
+        format!("data: {}", delta("partial")),
+        format!(
+            "data: {}",
+            serde_json::json!({ "error": { "message": "upstream exploded" } })
+        ),
+    ]);
+    let stub = Stub::answering(200, body);
+    let outcome =
+        chat::call_streaming(&stub, KEY, MODEL, &[chat::Message::user("hi")], LIMIT, |_| {});
+    assert_eq!(
+        failure_message(outcome),
+        "OpenRouter reported an error instead of a reply. Try again in a moment.",
+        "the provider's own words never reach the person"
+    );
+}
+
+#[test]
+fn keep_alives_and_unreadable_lines_in_a_stream_are_ignored_rather_than_fatal() {
+    let body = sse(&[
+        ": keep-alive comment".to_string(),
+        String::new(),
+        "event: ping".to_string(),
+        format!("data: {}", delta("fine")),
+        "data: not json at all".to_string(),
+        "data: [DONE]".to_string(),
+    ]);
+    let stub = Stub::answering(200, body);
+    let outcome =
+        chat::call_streaming(&stub, KEY, MODEL, &[chat::Message::user("hi")], LIMIT, |_| {});
+    match outcome {
+        ChatOutcome::Replied { text, .. } => assert_eq!(text, "fine"),
+        ChatOutcome::Failed { message } => panic!("expected a reply: {message}"),
+    }
+}
+
+#[test]
+fn a_stream_that_ends_without_usage_still_reports_the_call() {
+    // The reply arrives; the figure does not. D22 says record it anyway with zeros,
+    // because a call that consumed something must not vanish from the meter.
+    let body = sse(&[format!("data: {}", delta("done")), "data: [DONE]".to_string()]);
+    let stub = Stub::answering(200, body);
+    let outcome =
+        chat::call_streaming(&stub, KEY, MODEL, &[chat::Message::user("hi")], LIMIT, |_| {});
+    match outcome {
+        ChatOutcome::Replied { text, usage } => {
+            assert_eq!(text, "done");
+            assert_eq!(usage.total_tokens, 0, "no figure was sent, so zero is what is reported");
+        }
+        ChatOutcome::Failed { message } => panic!("expected a reply: {message}"),
+    }
+}

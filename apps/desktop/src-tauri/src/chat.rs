@@ -201,6 +201,107 @@ pub fn request_body_for(model: &str, messages: &[Message], max_tokens: u32) -> S
     .to_string()
 }
 
+/// Ask for the reply **while it is being written**, and for the meter's figure in the
+/// same breath.
+///
+/// **`stream_options.include_usage` IS NOT A DETAIL.** `usage.rs` names the trap this
+/// exists to close: a streamed response carries **no usage block** unless one is asked
+/// for, and without it the meter would read zero — calm, and wrong. Asking for usage
+/// is therefore part of the request itself, and there is a test that the field is
+/// present. "Whatever adds streaming must ask for usage first" is made mechanical
+/// here rather than remembered later.
+pub fn stream_request_body_for(model: &str, messages: &[Message], max_tokens: u32) -> String {
+    let turns: Vec<serde_json::Value> = messages
+        .iter()
+        .map(|message| serde_json::json!({ "role": message.role, "content": message.content }))
+        .collect();
+    serde_json::json!({
+        "model": model,
+        "messages": turns,
+        "max_tokens": max_tokens,
+        "stream": true,
+        "stream_options": { "include_usage": true },
+    })
+    .to_string()
+}
+
+/// A reply being written, accumulated as the stream delivers it.
+///
+/// **ONE LINE IN, ONE PIECE OF TEXT OUT.** Server-sent events are line-oriented, so
+/// the parse is a function of a single line and nothing else — which is what makes it
+/// testable without a socket. Three kinds of line matter: a content delta, the chunk
+/// carrying the usage block, and the `[DONE]` terminator. **Anything else contributes
+/// nothing and is not an error**, because a provider is entitled to send comments and
+/// keep-alives, and a client that treats those as failures breaks for no reason.
+#[derive(Debug, Default)]
+pub struct StreamState {
+    text: String,
+    usage: Option<Usage>,
+    done: bool,
+    failure: Option<String>,
+}
+
+impl StreamState {
+    /// Feed one raw line. Returns the text it added, if any.
+    pub fn push(&mut self, line: &str) -> Option<String> {
+        let payload = line.strip_prefix("data:")?.trim();
+        if payload.is_empty() {
+            return None;
+        }
+        if payload == "[DONE]" {
+            self.done = true;
+            return None;
+        }
+        let parsed: serde_json::Value = match serde_json::from_str(payload) {
+            Ok(value) => value,
+            // A line that cannot be read is dropped rather than fatal: the
+            // alternative is a reply that was arriving perfectly well, thrown away
+            // over one unreadable ping.
+            Err(_) => return None,
+        };
+        if parsed.get("error").map(|error| !error.is_null()).unwrap_or(false) {
+            self.failure = Some(
+                "OpenRouter reported an error instead of a reply. Try again in a moment."
+                    .to_string(),
+            );
+            return None;
+        }
+        // The usage block arrives on its own final chunk, with an empty choice list.
+        if let Some(usage) = parsed.get("usage") {
+            if !usage.is_null() {
+                self.usage = Some(read_usage(&parsed));
+            }
+        }
+        let delta = parsed
+            .get("choices")
+            .and_then(|choices| choices.as_array())
+            .and_then(|list| list.first())
+            .and_then(|choice| choice.get("delta"))
+            .and_then(|delta| delta.get("content"))
+            .and_then(|content| content.as_str())
+            .unwrap_or("");
+        if delta.is_empty() {
+            return None;
+        }
+        self.text.push_str(delta);
+        Some(delta.to_string())
+    }
+
+    pub fn finished(&self) -> bool {
+        self.done
+    }
+
+    pub fn failure(&self) -> Option<&str> {
+        self.failure.as_deref()
+    }
+
+    /// The finished reply and the figure to report. A stream that carried text but no
+    /// usage yields zeros, which the caller records rather than skipping.
+    pub fn took(&self) -> (String, Usage) {
+        (clamp_reply(&self.text), self.usage.clone().unwrap_or_default())
+    }
+}
+
 /// Make one completion from a single prompt. A thin wrapper over `call_with_history`,
 /// kept so a one-shot caller does not have to build a turn.
 pub fn call(
@@ -284,6 +385,104 @@ pub fn call_with_history(
     }
 
     read_reply(&response.body)
+}
+
+/// Make one completion, delivering the answer **as it is written**.
+///
+/// `on_delta` is called for each piece of text the model produces, in order, before
+/// this returns. Putting that text on the screen is the caller's job; this module has
+/// no opinion about a window.
+///
+/// **A REPLY THAT ARRIVES BUT REPORTS NOTHING IS STILL REPORTED.** If the stream ends
+/// with text and no usage block, the reply is returned with zero usage and the meter
+/// records zero. That is the D22 rule taken literally — a call that consumed something
+/// must not vanish from the meter — and the caller can see the figure it was given.
+pub fn call_streaming<D>(
+    transport: &dyn Transport,
+    key: &str,
+    model: &str,
+    messages: &[Message],
+    max_tokens: u32,
+    mut on_delta: D,
+) -> ChatOutcome
+where
+    D: FnMut(&str),
+{
+    let model = model.trim();
+    if model.is_empty() {
+        return ChatOutcome::Failed {
+            message: "Capybaras has no model chosen yet. Load the model list and pick one."
+                .to_string(),
+        };
+    }
+
+    let turns = window(messages);
+    let last = match turns.last() {
+        Some(last) => last,
+        None => {
+            return ChatOutcome::Failed {
+                message: "Type a message first.".to_string(),
+            };
+        }
+    };
+    if last.role != "user" {
+        return ChatOutcome::Failed {
+            message: "Type a message first.".to_string(),
+        };
+    }
+    let prompt = last.content.trim();
+    if prompt.is_empty() {
+        return ChatOutcome::Failed {
+            message: "Type a message first.".to_string(),
+        };
+    }
+    if prompt.chars().count() > PROMPT_MAX {
+        return ChatOutcome::Failed {
+            message: format!(
+                "That message is longer than Capybaras sends in one go. Keep it under {PROMPT_MAX} characters."
+            ),
+        };
+    }
+
+    let mut state = StreamState::default();
+    let response = match transport.post_json_stream(
+        CHAT_ENDPOINT,
+        key,
+        &stream_request_body_for(model, &turns, max_tokens),
+        &mut |line| {
+            if let Some(delta) = state.push(line) {
+                on_delta(&delta);
+            }
+        },
+    ) {
+        Ok(response) => response,
+        Err(_) => {
+            return ChatOutcome::Failed {
+                message: "Capybaras could not reach OpenRouter. Check your internet connection and try again."
+                    .to_string(),
+            };
+        }
+    };
+
+    if !(200..300).contains(&response.status) {
+        return ChatOutcome::Failed {
+            message: plain_refusal(response.status),
+        };
+    }
+    if let Some(message) = state.failure() {
+        return ChatOutcome::Failed {
+            message: message.to_string(),
+        };
+    }
+
+    let (text, usage) = state.took();
+    if text.is_empty() {
+        return ChatOutcome::Failed {
+            message: "OpenRouter returned an empty reply. Try again.".to_string(),
+        };
+    }
+
+    ChatOutcome::Replied { text, usage }
 }
 
 /// A sentence for a person who does not know what a status code is.

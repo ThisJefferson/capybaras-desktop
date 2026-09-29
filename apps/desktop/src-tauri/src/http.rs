@@ -21,6 +21,15 @@ use std::time::Duration;
 /// app rather than a slow model.
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
+/// How long to allow a **streamed** generation.
+///
+/// **LONGER THAN `REQUEST_TIMEOUT`, AND IT HAS TO BE.** The 60s figure was chosen
+/// for a call whose reply arrives in one piece. A streamed reply is the opposite
+/// case: the answer is being written while it is read, so a long answer is a long
+/// connection by design. Cutting it at 60s would truncate exactly the long replies
+/// the operator asked to see in full.
+pub const STREAM_TIMEOUT: Duration = Duration::from_secs(600);
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HttpResponse {
     pub status: u16,
@@ -35,6 +44,31 @@ pub trait Transport {
     /// POST `body` as JSON to `url`, authenticating with `bearer`. The error is a
     /// transport description and is **never** surfaced to the user verbatim.
     fn post_json(&self, url: &str, bearer: &str, body: &str) -> Result<HttpResponse, String>;
+
+    /// POST `body` as JSON and deliver the answer **as it arrives**, one line at a
+    /// time, through `on_line`. Returns the whole body once the stream ends.
+    ///
+    /// **THE DEFAULT IS DELIBERATELY NAIVE, AND THAT IS THE POINT.** A transport that
+    /// cannot stream still works: the buffered body is handed over line by line, so
+    /// the caller needs no second code path and the parse above is exercised in
+    /// tests. Only the real client overrides this, and it does so for one reason — so
+    /// the lines arrive *while the model is still writing* rather than all at the end.
+    ///
+    /// Carries the same promise as `post_json`: the key is a bearer, never a body,
+    /// never logged, never interpolated into an error.
+    fn post_json_stream(
+        &self,
+        url: &str,
+        bearer: &str,
+        body: &str,
+        on_line: &mut dyn FnMut(&str),
+    ) -> Result<HttpResponse, String> {
+        let response = self.post_json(url, bearer, body)?;
+        for line in response.body.lines() {
+            on_line(line);
+        }
+        Ok(response)
+    }
 }
 
 /// The real client.
@@ -78,10 +112,57 @@ impl Transport for HttpTransport {
             .map_err(|error| error.to_string())?;
         read(response)
     }
+
+    fn post_json_stream(
+        &self,
+        url: &str,
+        bearer: &str,
+        body: &str,
+        on_line: &mut dyn FnMut(&str),
+    ) -> Result<HttpResponse, String> {
+        self.stream(url, bearer, body, on_line)
+    }
 }
 
 fn read(response: reqwest::blocking::Response) -> Result<HttpResponse, String> {
     let status = response.status().as_u16();
     let body = response.text().map_err(|error| error.to_string())?;
     Ok(HttpResponse { status, body })
+}
+
+impl HttpTransport {
+    /// The streaming path, where lines are handed over as the socket delivers them.
+    ///
+    /// **A REQUEST-LEVEL TIMEOUT, NOT THE CLIENT'S.** `REQUEST_TIMEOUT` is sized for a
+    /// reply that arrives whole; a streamed generation is a long connection on
+    /// purpose, so this one raises it rather than inheriting the shorter bound.
+    fn stream(
+        &self,
+        url: &str,
+        bearer: &str,
+        body: &str,
+        on_line: &mut dyn FnMut(&str),
+    ) -> Result<HttpResponse, String> {
+        use std::io::BufRead;
+
+        let response = self
+            .client
+            .post(url)
+            .bearer_auth(bearer)
+            .header("Content-Type", "application/json")
+            .timeout(STREAM_TIMEOUT)
+            .body(body.to_string())
+            .send()
+            .map_err(|error| error.to_string())?;
+
+        let status = response.status().as_u16();
+        let mut collected = String::new();
+        for line in std::io::BufReader::new(response).lines() {
+            let line = line.map_err(|error| error.to_string())?;
+            on_line(&line);
+            collected.push_str(&line);
+            collected.push('\n');
+        }
+        Ok(HttpResponse { status, body: collected })
+    }
 }
